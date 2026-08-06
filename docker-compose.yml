@@ -1,0 +1,33 @@
+services:
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: klynx-rental-frontend
+    ports:
+      - "3100:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+    networks:
+      - odoo-net
+
+
+  backend:
+    build:
+      context: ./backend
+    container_name: klynx-rental-api
+    ports:
+    - "8000:8000"
+    env_file:
+      - ./backend/.env
+    networks:
+      - odoo-net
+
+
+networks:
+  odoo-net:
+    external:
+      name: odoo-docker_odoo-net
