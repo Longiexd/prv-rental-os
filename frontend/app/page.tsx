@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function Home() {
   return (
     <div className="min-h-screen bg-[#09090B] text-white overflow-hidden">
@@ -17,7 +19,6 @@ export default function Home() {
           blur-[160px]
         "/>
 
-
         <div className="
           absolute
           top-[300px]
@@ -32,8 +33,6 @@ export default function Home() {
       </div>
 
 
-
-
       {/* NAVBAR */}
 
       <nav className="
@@ -46,7 +45,6 @@ export default function Home() {
         items-center
       ">
 
-
         <div className="
           font-[Syne]
           text-xl
@@ -55,7 +53,6 @@ export default function Home() {
         ">
 
           Klyn<span className="text-[#C8F065]">x</span>
-
           <span className="text-[#F06AAA]">
             OS
           </span>
@@ -63,8 +60,8 @@ export default function Home() {
         </div>
 
 
-
-        <button
+        <Link
+          href="/dashboard"
           className="
             text-sm
             rounded-lg
@@ -79,15 +76,11 @@ export default function Home() {
             transition
           "
         >
-          Demo
-        </button>
+          Launch OS
+        </Link>
 
 
       </nav>
-
-
-
-
 
 
 
@@ -117,7 +110,6 @@ export default function Home() {
             text-[#A1A1AA]
           ">
 
-
             <span className="
               w-1.5
               h-1.5
@@ -128,10 +120,7 @@ export default function Home() {
 
             Rental Intelligence Platform
 
-
           </div>
-
-
 
 
 
@@ -145,11 +134,9 @@ export default function Home() {
             leading-[1.05]
           ">
 
-
             Your rental business.
 
             <br/>
-
 
             <span className="
               bg-gradient-to-r
@@ -164,10 +151,7 @@ export default function Home() {
 
             </span>
 
-
           </h1>
-
-
 
 
 
@@ -180,15 +164,10 @@ export default function Home() {
             leading-relaxed
           ">
 
-
             Klynx OS connects fleet, rentals, customers and analytics
             into a single intelligent workspace.
 
-
           </p>
-
-
-
 
 
 
@@ -199,7 +178,8 @@ export default function Home() {
           ">
 
 
-            <button
+            <Link
+              href="/dashboard"
               className="
                 group
                 rounded-xl
@@ -217,7 +197,6 @@ export default function Home() {
 
               Open OS
 
-
               <span className="
                 ml-2
                 opacity-50
@@ -229,16 +208,13 @@ export default function Home() {
               </span>
 
 
-            </button>
+            </Link>
 
 
           </div>
 
 
-
         </section>
-
-
 
 
 
@@ -274,8 +250,6 @@ export default function Home() {
 
 
 
-              {/* top bar */}
-
               <div className="
                 h-10
                 border-b
@@ -306,7 +280,6 @@ export default function Home() {
 
 
 
-
               <div className="
                 p-8
                 grid
@@ -314,8 +287,6 @@ export default function Home() {
                 gap-8
               ">
 
-
-                {/* sidebar */}
 
                 <aside className="space-y-2">
 
@@ -338,11 +309,9 @@ export default function Home() {
                         rounded-lg
                         text-xs
                         ${
-                          i===0
-                          ?
-                          "bg-[#C8F065]/10 text-[#C8F065]"
-                          :
-                          "text-[#71717A]"
+                          i === 0
+                          ? "bg-[#C8F065]/10 text-[#C8F065]"
+                          : "text-[#71717A]"
                         }
                       `}
                     >
@@ -359,9 +328,6 @@ export default function Home() {
 
 
 
-
-
-                {/* content */}
 
                 <div>
 
