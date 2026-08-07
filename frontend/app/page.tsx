@@ -1,69 +1,452 @@
-import Image from "next/image";
-
 export default function Home() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
+    <div className="min-h-screen bg-[#09090B] text-white overflow-hidden">
+
+      {/* Ambient gradients */}
+      <div className="absolute inset-0 -z-10">
+
+        <div className="
+          absolute
+          top-[-250px]
+          left-1/2
+          -translate-x-1/2
+          w-[700px]
+          h-[500px]
+          rounded-full
+          bg-[#C8F065]/10
+          blur-[160px]
+        "/>
+
+
+        <div className="
+          absolute
+          top-[300px]
+          right-[-200px]
+          w-[500px]
+          h-[500px]
+          rounded-full
+          bg-[#F06AAA]/10
+          blur-[180px]
+        "/>
+
+      </div>
+
+
+
+
+      {/* NAVBAR */}
+
+      <nav className="
+        max-w-6xl
+        mx-auto
+        px-6
+        py-6
+        flex
+        justify-between
+        items-center
+      ">
+
+
+        <div className="
+          font-[Syne]
+          text-xl
+          font-semibold
+          tracking-tight
+        ">
+
+          Klyn<span className="text-[#C8F065]">x</span>
+
+          <span className="text-[#F06AAA]">
+            OS
+          </span>
+
+        </div>
+
+
+
+        <button
+          className="
+            text-sm
+            rounded-lg
+            border
+            border-[#2B2B30]
+            bg-[#111113]
+            px-4
+            py-2
+            text-[#A1A1AA]
+            hover:text-white
+            hover:border-[#3b3b42]
+            transition
+          "
+        >
+          Demo
+        </button>
+
+
+      </nav>
+
+
+
+
+
+
+
+      {/* HERO */}
+
+      <main className="max-w-6xl mx-auto px-6">
+
+
+        <section className="
+          pt-28
+          text-center
+        ">
+
+
+          <div className="
+            inline-flex
+            items-center
+            gap-2
+            rounded-full
+            border
+            border-[#2B2B30]
+            bg-[#111113]/70
+            backdrop-blur
+            px-3
+            py-1.5
+            text-xs
+            text-[#A1A1AA]
+          ">
+
+
+            <span className="
+              w-1.5
+              h-1.5
+              rounded-full
+              bg-[#C8F065]
+              shadow-[0_0_10px_#C8F065]
+            "/>
+
+            Rental Intelligence Platform
+
+
+          </div>
+
+
+
+
+
+          <h1 className="
+            mt-8
+            font-[Syne]
+            text-5xl
+            md:text-6xl
+            font-semibold
+            tracking-tight
+            leading-[1.05]
+          ">
+
+
+            Your rental business.
+
+            <br/>
+
+
+            <span className="
+              bg-gradient-to-r
+              from-[#C8F065]
+              via-white
+              to-[#F06AAA]
+              bg-clip-text
+              text-transparent
+            ">
+
+              Operating as one system.
+
+            </span>
+
+
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+
+
+
+
+
+          <p className="
+            mt-6
+            max-w-xl
+            mx-auto
+            text-base
+            text-[#A1A1AA]
+            leading-relaxed
+          ">
+
+
+            Klynx OS connects fleet, rentals, customers and analytics
+            into a single intelligent workspace.
+
+
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+
+
+
+
+
+
+          <div className="
+            mt-8
+            flex
+            justify-center
+          ">
+
+
+            <button
+              className="
+                group
+                rounded-xl
+                bg-[#C8F065]
+                px-5
+                py-2.5
+                text-sm
+                font-medium
+                text-black
+                hover:bg-[#d7ff80]
+                transition
+                shadow-[0_0_30px_rgba(200,240,101,0.15)]
+              "
+            >
+
+              Open OS
+
+
+              <span className="
+                ml-2
+                opacity-50
+                group-hover:translate-x-1
+                inline-block
+                transition
+              ">
+                →
+              </span>
+
+
+            </button>
+
+
+          </div>
+
+
+
+        </section>
+
+
+
+
+
+
+
+        {/* APP PREVIEW */}
+
+
+        <section className="
+          mt-20
+          pb-32
+        ">
+
+
+          <div className="
+            rounded-2xl
+            border
+            border-[#2B2B30]
+            bg-[#111113]/80
+            backdrop-blur-xl
+            p-2
+            shadow-[0_30px_120px_rgba(0,0,0,.7)]
+          ">
+
+
+            <div className="
+              rounded-xl
+              border
+              border-[#2B2B30]
+              bg-[#09090B]
+              overflow-hidden
+            ">
+
+
+
+              {/* top bar */}
+
+              <div className="
+                h-10
+                border-b
+                border-[#2B2B30]
+                flex
+                items-center
+                px-4
+                gap-2
+              ">
+
+
+                <div className="w-2 h-2 rounded-full bg-[#F06AAA]"/>
+                <div className="w-2 h-2 rounded-full bg-[#C8F065]"/>
+
+
+                <div className="
+                  ml-4
+                  text-xs
+                  text-[#71717A]
+                ">
+                  klynx-os/dashboard
+                </div>
+
+
+              </div>
+
+
+
+
+
+
+              <div className="
+                p-8
+                grid
+                md:grid-cols-[170px_1fr]
+                gap-8
+              ">
+
+
+                {/* sidebar */}
+
+                <aside className="space-y-2">
+
+
+                  {[
+                    "Dashboard",
+                    "Fleet",
+                    "Rentals",
+                    "CRM",
+                    "Calendar",
+                    "Analytics"
+                  ].map((x,i)=>(
+
+
+                    <div
+                      key={x}
+                      className={`
+                        px-3
+                        py-2
+                        rounded-lg
+                        text-xs
+                        ${
+                          i===0
+                          ?
+                          "bg-[#C8F065]/10 text-[#C8F065]"
+                          :
+                          "text-[#71717A]"
+                        }
+                      `}
+                    >
+
+                      {x}
+
+                    </div>
+
+
+                  ))}
+
+
+                </aside>
+
+
+
+
+
+                {/* content */}
+
+                <div>
+
+
+                  <div className="
+                    grid
+                    md:grid-cols-3
+                    gap-4
+                  ">
+
+
+                    {[
+                      ["Vehicles","248"],
+                      ["Rentals","42"],
+                      ["Revenue","48K"]
+                    ].map(card=>(
+
+                      <div
+                        key={card[0]}
+                        className="
+                          rounded-xl
+                          border
+                          border-[#2B2B30]
+                          bg-[#111113]
+                          p-4
+                        "
+                      >
+
+                        <p className="text-xs text-[#71717A]">
+                          {card[0]}
+                        </p>
+
+
+                        <p className="
+                          mt-3
+                          text-2xl
+                          font-[Syne]
+                        ">
+                          {card[1]}
+                        </p>
+
+                      </div>
+
+                    ))}
+
+
+                  </div>
+
+
+
+
+                  <div className="
+                    mt-4
+                    h-40
+                    rounded-xl
+                    border
+                    border-[#2B2B30]
+                    bg-gradient-to-br
+                    from-[#C8F065]/5
+                    via-transparent
+                    to-[#F06AAA]/5
+                  "/>
+
+
+
+                </div>
+
+
+
+              </div>
+
+
+
+            </div>
+
+
+          </div>
+
+
+        </section>
+
+
       </main>
+
+
     </div>
   );
 }
