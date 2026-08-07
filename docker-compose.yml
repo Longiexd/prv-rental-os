@@ -33,5 +33,5 @@ services:
 networks:
 
   odoo-net:
-    external:
-      name: odoo-docker_odoo-net
+    external: true
+    name: odoo-docker_odoo-net
