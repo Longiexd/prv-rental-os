@@ -1,685 +1,574 @@
+"use client";
+
 import {
   Activity,
   ArrowUpRight,
   CalendarDays,
   Car,
+  ClipboardList,
+  MoreHorizontal,
   TrendingUp,
   Users,
 } from "lucide-react";
+import React from "react";
 
-type Vehicle = {
-  id: number;
-  name: string;
-  license_plate?: string;
-  model_id?: [number, string];
-  state_id?: [number, string];
-};
+const rentals = [
+  {
+    customer: "Mohamed Ben Ali",
+    vehicle: "Kia Picanto",
+    pickup: "10:30",
+    returnDate: "Aug 14",
+    status: "Active",
+  },
+  {
+    customer: "Sarah Martin",
+    vehicle: "Peugeot 3008",
+    pickup: "12:00",
+    returnDate: "Aug 16",
+    status: "Active",
+  },
+  {
+    customer: "Youssef Trabelsi",
+    vehicle: "Renault Clio",
+    pickup: "14:30",
+    returnDate: "Aug 12",
+    status: "Returning",
+  },
+  {
+    customer: "Amine Khelifi",
+    vehicle: "BMW 220i",
+    pickup: "16:00",
+    returnDate: "Aug 18",
+    status: "Upcoming",
+  },
+];
 
-type DashboardData = {
-  fleet: {
-    total: number;
-    available: number;
-  };
+const activity = [
+  {
+    time: "09:30",
+    vehicle: "Kia Picanto",
+    type: "Pickup",
+    accent: "green",
+  },
+  {
+    time: "10:15",
+    vehicle: "Peugeot 3008",
+    type: "Pickup",
+    accent: "green",
+  },
+  {
+    time: "11:00",
+    vehicle: "BMW 220i",
+    type: "Return",
+    accent: "pink",
+  },
+  {
+    time: "14:30",
+    vehicle: "Renault Clio",
+    type: "Pickup",
+    accent: "green",
+  },
+];
 
-  customers: number;
-
-  recent_vehicles: Vehicle[];
-};
-
-
-async function getDashboardData(): Promise<DashboardData> {
-
-  const backendUrl =
-    process.env.BACKEND_URL || "http://backend:8000";
-
-  const response = await fetch(
-    `${backendUrl}/dashboard/overview`,
-    {
-      cache: "no-store",
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error("Unable to load dashboard data");
-  }
-
-  return response.json();
-}
-
-
-export default async function DashboardPage() {
-
-  const data = await getDashboardData();
-
-
-  const rented =
-    Math.max(
-      data.fleet.total - data.fleet.available,
-      0
-    );
-
-
-  const utilization =
-    data.fleet.total > 0
-      ? Math.round(
-          (rented / data.fleet.total) * 100
-        )
-      : 0;
-
-
-  const stats = [
-    {
-      label: "Fleet",
-      value: data.fleet.total,
-      description: "vehicles",
-      icon: Car,
-      color: "lime",
-    },
-    {
-      label: "Active rentals",
-      value: rented,
-      description: "currently rented",
-      icon: CalendarDays,
-      color: "lime",
-    },
-    {
-      label: "Available",
-      value: data.fleet.available,
-      description: "ready to rent",
-      icon: Activity,
-      color: "pink",
-    },
-    {
-      label: "Customers",
-      value: data.customers,
-      description: "customers",
-      icon: Users,
-      color: "lime",
-    },
-  ];
-
-
+export default function DashboardPage() {
   return (
-    <div className="mx-auto max-w-[1500px] px-6 py-8 lg:px-8">
+    <main className="mx-auto max-w-[1500px] p-5 sm:p-8">
 
-      {/* =======================================================
-          HEADER
-      ======================================================= */}
-
-      <div className="mb-8 flex items-end justify-between">
+      {/* HEADER */}
+      <section className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
 
         <div>
-
-          <div
-            className="
-              mb-3
-              flex
-              items-center
-              gap-2
-              text-[11px]
-              text-[#71717A]
-            "
-          >
+          <div className="mb-2 flex items-center gap-2 text-[11px] text-[#71717A]">
             <span>Workspace</span>
-
             <span>/</span>
-
             <span className="text-[#A1A1AA]">
               Overview
             </span>
           </div>
 
-
-          <h1
-            className="
-              font-[Syne]
-              text-3xl
-              font-semibold
-              tracking-tight
-            "
-          >
+          <h1 className="font-[Syne] text-[26px] font-semibold tracking-[-0.035em] sm:text-[30px]">
             Good afternoon.
           </h1>
 
-
-          <p className="mt-2 text-sm text-[#71717A]">
-            Here's what's happening with your rental operation.
+          <p className="mt-1 text-sm text-[#71717A]">
+            Here&apos;s what&apos;s happening with your rental operation.
           </p>
-
         </div>
 
-
-        <button
-          className="
-            hidden
-            items-center
-            gap-2
-            rounded-lg
-            bg-[#C8F065]
-            px-4
-            py-2.5
-            text-sm
-            font-medium
-            text-black
-            shadow-[0_0_25px_rgba(200,240,101,.12)]
-            transition
-            hover:bg-[#d7ff80]
-            sm:flex
-          "
-        >
-          <CalendarDays size={15} />
-
+        <button className="flex h-9 items-center justify-center gap-2 rounded-lg bg-[#C8F065] px-4 text-xs font-medium text-[#09090B] shadow-[0_0_24px_rgba(200,240,101,.08)] transition hover:bg-[#d7ff80]">
+          <ClipboardList size={14} />
           New rental
         </button>
 
-      </div>
+      </section>
 
+      {/* KPI CARDS */}
+      <section className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
 
-      {/* =======================================================
-          STATISTICS
-      ======================================================= */}
+        <StatCard
+          label="Fleet"
+          value="248"
+          detail="vehicles"
+          change="+8.2%"
+          icon={<Car size={15} />}
+          accent="green"
+        />
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          label="Active rentals"
+          value="42"
+          detail="currently rented"
+          change="+12.4%"
+          icon={<ClipboardList size={15} />}
+          accent="green"
+        />
 
-        {stats.map((stat) => {
+        <StatCard
+          label="Available"
+          value="18"
+          detail="ready to rent"
+          change="+7.3%"
+          icon={<Activity size={15} />}
+          accent="pink"
+        />
 
-          const Icon = stat.icon;
+        <StatCard
+          label="Revenue"
+          value="48.2K"
+          detail="TND this month"
+          change="+18.7%"
+          icon={<TrendingUp size={15} />}
+          accent="green"
+        />
 
-          return (
-            <div
-              key={stat.label}
-              className="
-                group
-                rounded-xl
-                border
-                border-[#2B2B30]
-                bg-[#111113]
-                p-5
-                transition
-                hover:border-[#3B3B42]
-              "
-            >
+      </section>
 
-              <div className="flex items-center justify-between">
+      {/* MAIN GRID */}
+      <section className="mt-4 grid gap-4 xl:grid-cols-[1.5fr_1fr]">
 
-                <div className="flex items-center gap-2 text-xs text-[#71717A]">
+        {/* UTILIZATION */}
+        <div className="overflow-hidden rounded-xl border border-[#2B2B30] bg-[#111113]/80">
 
-                  <Icon
-                    size={14}
-                    className={
-                      stat.color === "pink"
-                        ? "text-[#F06AAA]"
-                        : "text-[#C8F065]"
-                    }
-                  />
-
-                  {stat.label}
-
-                </div>
-
-
-                <ArrowUpRight
-                  size={14}
-                  className="
-                    text-[#52525B]
-                    opacity-0
-                    transition
-                    group-hover:opacity-100
-                  "
-                />
-
-              </div>
-
-
-              <div className="mt-6 flex items-baseline gap-2">
-
-                <span
-                  className="
-                    font-[Syne]
-                    text-3xl
-                    font-semibold
-                  "
-                >
-                  {stat.value}
-                </span>
-
-                <span className="text-xs text-[#71717A]">
-                  {stat.description}
-                </span>
-
-              </div>
-
-            </div>
-          );
-
-        })}
-
-      </div>
-
-
-      {/* =======================================================
-          MAIN GRID
-      ======================================================= */}
-
-      <div
-        className="
-          mt-4
-          grid
-          gap-4
-          xl:grid-cols-[1.7fr_1fr]
-        "
-      >
-
-        {/* =====================================================
-            FLEET UTILIZATION
-        ===================================================== */}
-
-        <section
-          className="
-            overflow-hidden
-            rounded-xl
-            border
-            border-[#2B2B30]
-            bg-[#111113]
-          "
-        >
-
-          <div
-            className="
-              flex
-              items-center
-              justify-between
-              border-b
-              border-[#2B2B30]
-              px-5
-              py-4
-            "
-          >
+          <div className="flex items-center justify-between border-b border-[#2B2B30] px-5 py-4">
 
             <div>
-
-              <h2 className="text-sm font-medium">
+              <h2 className="font-[Syne] text-sm font-semibold">
                 Fleet utilization
               </h2>
 
               <p className="mt-1 text-[11px] text-[#71717A]">
-                Current vehicle utilization
+                Vehicle usage over the last 30 days
               </p>
-
             </div>
 
-
-            <span
-              className="
-                rounded-md
-                border
-                border-[#2B2B30]
-                px-2
-                py-1
-                text-[10px]
-                text-[#71717A]
-              "
-            >
-              Live
-            </span>
+            <button className="rounded-md border border-[#2B2B30] bg-[#17171A] px-2.5 py-1.5 text-[10px] text-[#A1A1AA] transition hover:text-white">
+              Last 30 days
+            </button>
 
           </div>
-
 
           <div className="p-5">
 
             <div className="flex items-end justify-between">
 
               <div>
-
-                <div
-                  className="
-                    font-[Syne]
-                    text-4xl
-                    font-semibold
-                  "
-                >
-                  {utilization}%
+                <div className="font-[Syne] text-3xl font-semibold">
+                  82.4%
                 </div>
 
-                <div className="mt-1 text-xs text-[#71717A]">
-                  fleet utilization
+                <div className="mt-1 text-[11px] text-[#71717A]">
+                  average utilization
                 </div>
-
               </div>
 
-
-              <div className="text-xs text-[#C8F065]">
-                {rented} rented
+              <div className="flex items-center gap-1.5 text-[11px] text-[#C8F065]">
+                <Activity size={13} />
+                +6.4%
               </div>
 
             </div>
 
+            {/* CHART */}
+            <div className="relative mt-7 h-[180px]">
 
-            {/* Chart */}
+              <div className="absolute inset-0 flex flex-col justify-between">
+                {[0, 1, 2, 3].map((line) => (
+                  <div
+                    key={line}
+                    className="border-t border-[#2B2B30]/60"
+                  />
+                ))}
+              </div>
 
-            <div className="relative mt-8 h-[180px] overflow-hidden">
+              <svg
+                viewBox="0 0 800 180"
+                className="absolute inset-0 h-full w-full overflow-visible"
+                preserveAspectRatio="none"
+              >
+                <defs>
+                  <linearGradient
+                    id="utilizationGradient"
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="1"
+                  >
+                    <stop
+                      offset="0%"
+                      stopColor="#C8F065"
+                      stopOpacity="0.22"
+                    />
 
-              <div className="absolute inset-x-0 top-0 border-t border-[#2B2B30]" />
+                    <stop
+                      offset="100%"
+                      stopColor="#C8F065"
+                      stopOpacity="0"
+                    />
+                  </linearGradient>
+                </defs>
 
-              <div className="absolute inset-x-0 top-1/3 border-t border-[#2B2B30]" />
+                <path
+                  d="M0 138 C55 130 75 145 125 119 C175 93 185 110 235 96 C285 82 315 105 350 82 C390 56 415 75 455 61 C495 48 520 69 555 53 C595 35 625 57 665 39 C710 19 750 31 800 18 L800 180 L0 180 Z"
+                  fill="url(#utilizationGradient)"
+                />
 
-              <div className="absolute inset-x-0 top-2/3 border-t border-[#2B2B30]" />
+                <path
+                  d="M0 138 C55 130 75 145 125 119 C175 93 185 110 235 96 C285 82 315 105 350 82 C390 56 415 75 455 61 C495 48 520 69 555 53 C595 35 625 57 665 39 C710 19 750 31 800 18"
+                  fill="none"
+                  stroke="#C8F065"
+                  strokeWidth="2"
+                  vectorEffect="non-scaling-stroke"
+                />
+              </svg>
 
-              <div className="absolute inset-x-0 bottom-0 border-t border-[#2B2B30]" />
-
-
-              <div
-                className="
-                  absolute
-                  bottom-0
-                  left-0
-                  h-[70%]
-                  w-full
-                  bg-gradient-to-t
-                  from-[#C8F065]/[0.02]
-                  to-[#C8F065]/[0.14]
-                "
-                style={{
-                  clipPath:
-                    "polygon(0 70%, 10% 66%, 20% 60%, 30% 62%, 40% 50%, 50% 54%, 60% 38%, 70% 42%, 80% 28%, 90% 32%, 100% 15%, 100% 100%, 0 100%)",
-                }}
-              />
-
-
-              <div
-                className="
-                  absolute
-                  bottom-0
-                  left-0
-                  h-[70%]
-                  w-full
-                  border-t-2
-                  border-[#C8F065]
-                "
-                style={{
-                  clipPath:
-                    "polygon(0 70%, 10% 66%, 20% 60%, 30% 62%, 40% 50%, 50% 54%, 60% 38%, 70% 42%, 80% 28%, 90% 32%, 100% 15%)",
-                }}
-              />
+              <div className="absolute bottom-[-22px] left-0 right-0 flex justify-between text-[9px] text-[#71717A]">
+                <span>Jul 13</span>
+                <span>Jul 20</span>
+                <span>Jul 27</span>
+                <span>Aug 03</span>
+                <span>Aug 11</span>
+              </div>
 
             </div>
-
           </div>
+        </div>
 
-        </section>
-
-
-        {/* =====================================================
-            FLEET OVERVIEW
-        ===================================================== */}
-
-        <section
-          className="
-            overflow-hidden
-            rounded-xl
-            border
-            border-[#2B2B30]
-            bg-[#111113]
-          "
-        >
+        {/* ACTIVITY */}
+        <div className="rounded-xl border border-[#2B2B30] bg-[#111113]/80">
 
           <div className="border-b border-[#2B2B30] px-5 py-4">
 
-            <h2 className="text-sm font-medium">
-              Fleet overview
+            <h2 className="font-[Syne] text-sm font-semibold">
+              Today&apos;s activity
             </h2>
 
             <p className="mt-1 text-[11px] text-[#71717A]">
-              Live records from Odoo
+              Upcoming pickups and returns
             </p>
 
           </div>
 
+          <div className="divide-y divide-[#2B2B30]">
 
-          <div>
+            {activity.map((item) => (
+              <div
+                key={`${item.time}-${item.vehicle}`}
+                className="flex items-center gap-3 px-5 py-3.5"
+              >
 
-            {data.recent_vehicles.length === 0 ? (
+                <div className="w-11 font-mono text-[10px] text-[#71717A]">
+                  {item.time}
+                </div>
 
-              <div className="px-5 py-10 text-center text-xs text-[#71717A]">
-                No vehicles found.
-              </div>
+                <div
+                  className={`h-1.5 w-1.5 rounded-full ${
+                    item.accent === "pink"
+                      ? "bg-[#F06AAA] shadow-[0_0_7px_rgba(240,106,170,.6)]"
+                      : "bg-[#C8F065] shadow-[0_0_7px_rgba(200,240,101,.6)]"
+                  }`}
+                />
 
-            ) : (
+                <div className="min-w-0 flex-1">
 
-              data.recent_vehicles
-                .slice(0, 5)
-                .map((vehicle) => (
-
-                  <div
-                    key={vehicle.id}
-                    className="
-                      flex
-                      items-center
-                      justify-between
-                      border-b
-                      border-[#2B2B30]
-                      px-5
-                      py-4
-                      last:border-0
-                    "
-                  >
-
-                    <div className="flex items-center gap-3">
-
-                      <div
-                        className="
-                          flex
-                          h-8
-                          w-8
-                          items-center
-                          justify-center
-                          rounded-lg
-                          bg-[#C8F065]/10
-                        "
-                      >
-                        <Car
-                          size={14}
-                          className="text-[#C8F065]"
-                        />
-                      </div>
-
-
-                      <div>
-
-                        <div className="text-sm font-medium">
-                          {vehicle.name}
-                        </div>
-
-                        <div className="mt-0.5 text-[10px] text-[#71717A]">
-                          {vehicle.license_plate || "No plate"}
-                        </div>
-
-                      </div>
-
-                    </div>
-
-
-                    <span
-                      className="
-                        rounded-md
-                        bg-[#C8F065]/10
-                        px-2
-                        py-1
-                        text-[10px]
-                        text-[#C8F065]
-                      "
-                    >
-                      {vehicle.state_id?.[1] || "Unknown"}
-                    </span>
-
+                  <div className="truncate text-xs font-medium">
+                    {item.vehicle}
                   </div>
 
-                ))
+                  <div className="mt-0.5 text-[10px] text-[#71717A]">
+                    {item.type}
+                  </div>
 
-            )}
+                </div>
+
+                <CalendarDays
+                  size={13}
+                  className="text-[#71717A]"
+                />
+
+              </div>
+            ))}
 
           </div>
+        </div>
 
-        </section>
+      </section>
 
-      </div>
+      {/* RECENT RENTALS */}
+      <section className="mt-4 overflow-hidden rounded-xl border border-[#2B2B30] bg-[#111113]/80">
 
-
-      {/* =======================================================
-          VEHICLES TABLE
-      ======================================================= */}
-
-      <section
-        className="
-          mt-4
-          overflow-hidden
-          rounded-xl
-          border
-          border-[#2B2B30]
-          bg-[#111113]
-        "
-      >
-
-        <div
-          className="
-            flex
-            items-center
-            justify-between
-            border-b
-            border-[#2B2B30]
-            px-5
-            py-4
-          "
-        >
+        <div className="flex items-center justify-between border-b border-[#2B2B30] px-5 py-4">
 
           <div>
-
-            <h2 className="text-sm font-medium">
-              Vehicles
+            <h2 className="font-[Syne] text-sm font-semibold">
+              Recent rentals
             </h2>
 
             <p className="mt-1 text-[11px] text-[#71717A]">
-              Fleet records from Odoo
+              Latest rental activity
             </p>
-
           </div>
 
-
-          <button
-            className="
-              text-xs
-              text-[#A1A1AA]
-              transition
-              hover:text-[#C8F065]
-            "
-          >
+          <button className="text-[11px] text-[#A1A1AA] transition hover:text-[#C8F065]">
             View all →
           </button>
 
         </div>
 
-
         <div className="overflow-x-auto">
 
-          <table className="w-full text-left">
+          <table className="w-full min-w-[700px] text-left">
 
             <thead>
+              <tr className="border-b border-[#2B2B30] text-[10px] uppercase tracking-wider text-[#71717A]">
 
-              <tr
-                className="
-                  border-b
-                  border-[#2B2B30]
-                  text-[10px]
-                  uppercase
-                  tracking-wider
-                  text-[#71717A]
-                "
-              >
+                <th className="px-5 py-3 font-medium">
+                  Customer
+                </th>
 
                 <th className="px-5 py-3 font-medium">
                   Vehicle
                 </th>
 
                 <th className="px-5 py-3 font-medium">
-                  Model
+                  Pickup
                 </th>
 
                 <th className="px-5 py-3 font-medium">
-                  Plate
+                  Return
                 </th>
 
                 <th className="px-5 py-3 font-medium">
                   Status
                 </th>
 
-              </tr>
+                <th className="px-5 py-3" />
 
+              </tr>
             </thead>
 
+            <tbody className="divide-y divide-[#2B2B30]">
 
-            <tbody>
-
-              {data.recent_vehicles.map((vehicle) => (
-
+              {rentals.map((rental) => (
                 <tr
-                  key={vehicle.id}
-                  className="
-                    border-b
-                    border-[#2B2B30]
-                    last:border-0
-                  "
+                  key={`${rental.customer}-${rental.vehicle}`}
+                  className="text-xs transition hover:bg-[#17171A]/50"
                 >
 
-                  <td className="px-5 py-4 text-sm font-medium">
-                    {vehicle.name}
+                  <td className="px-5 py-3.5 font-medium">
+                    {rental.customer}
                   </td>
 
-                  <td className="px-5 py-4 text-xs text-[#A1A1AA]">
-                    {vehicle.model_id?.[1] || "—"}
+                  <td className="px-5 py-3.5 text-[#A1A1AA]">
+                    {rental.vehicle}
                   </td>
 
-                  <td
-                    className="
-                      px-5
-                      py-4
-                      font-mono
-                      text-xs
-                      text-[#A1A1AA]
-                    "
-                  >
-                    {vehicle.license_plate || "—"}
+                  <td className="px-5 py-3.5 text-[#A1A1AA]">
+                    {rental.pickup}
                   </td>
 
-                  <td className="px-5 py-4">
+                  <td className="px-5 py-3.5 text-[#A1A1AA]">
+                    {rental.returnDate}
+                  </td>
 
-                    <span
-                      className="
-                        rounded-md
-                        bg-[#C8F065]/10
-                        px-2
-                        py-1
-                        text-[10px]
-                        text-[#C8F065]
-                      "
-                    >
-                      {vehicle.state_id?.[1] || "Unknown"}
-                    </span>
+                  <td className="px-5 py-3.5">
+                    <StatusBadge status={rental.status} />
+                  </td>
 
+                  <td className="px-5 py-3.5 text-right">
+                    <button className="text-[#71717A] hover:text-white">
+                      <MoreHorizontal size={15} />
+                    </button>
                   </td>
 
                 </tr>
-
               ))}
 
             </tbody>
-
           </table>
 
         </div>
+      </section>
+
+      {/* QUICK MODULES */}
+      <section className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+
+        <QuickModule
+          icon={<Car size={17} />}
+          title="Fleet"
+          description="Manage vehicles, availability and maintenance."
+          href="/dashboard/fleet"
+        />
+
+        <QuickModule
+          icon={<Users size={17} />}
+          title="Customers"
+          description="Customers, documents and rental history."
+          href="/dashboard/customers"
+        />
+
+        <QuickModule
+          icon={<CalendarDays size={17} />}
+          title="Calendar"
+          description="See pickups, returns and upcoming reservations."
+          href="/dashboard/calendar"
+        />
 
       </section>
 
+    </main>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  detail,
+  change,
+  icon,
+  accent,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  change: string;
+  icon: React.ReactNode;
+  accent: "green" | "pink";
+}) {
+  const isPink = accent === "pink";
+
+  return (
+    <div className="group relative overflow-hidden rounded-xl border border-[#2B2B30] bg-[#111113]/80 p-5 transition hover:border-[#3b3b42]">
+
+      <div
+        className={`pointer-events-none absolute -right-10 -top-10 h-24 w-24 rounded-full blur-3xl ${
+          isPink
+            ? "bg-[#F06AAA]/[0.05]"
+            : "bg-[#C8F065]/[0.05]"
+        }`}
+      />
+
+      <div className="relative">
+
+        <div className="flex items-center justify-between">
+
+          <div className="flex items-center gap-2 text-[11px] text-[#71717A]">
+
+            <span
+              className={
+                isPink
+                  ? "text-[#F06AAA]"
+                  : "text-[#C8F065]"
+              }
+            >
+              {icon}
+            </span>
+
+            {label}
+          </div>
+
+          <span
+            className={
+              isPink
+                ? "text-[10px] text-[#F06AAA]"
+                : "text-[10px] text-[#C8F065]"
+            }
+          >
+            {change}
+          </span>
+
+        </div>
+
+        <div className="mt-5 flex items-baseline gap-2">
+
+          <span className="font-[Syne] text-[26px] font-semibold tracking-[-0.03em]">
+            {value}
+          </span>
+
+          <span className="text-[10px] text-[#71717A]">
+            {detail}
+          </span>
+
+        </div>
+
+      </div>
     </div>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const styles = {
+    Active: "bg-[#C8F065]/10 text-[#C8F065]",
+    Returning: "bg-[#F06AAA]/10 text-[#F06AAA]",
+    Upcoming: "bg-[#17171A] text-[#A1A1AA]",
+  };
+
+  return (
+    <span
+      className={`inline-flex rounded-md px-2 py-1 text-[9px] ${
+        styles[status as keyof typeof styles]
+      }`}
+    >
+      {status}
+    </span>
+  );
+}
+
+function QuickModule({
+  icon,
+  title,
+  description,
+  href,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  href: string;
+}) {
+  return (
+    <a
+      href={href}
+      className="group rounded-xl border border-[#2B2B30] bg-[#111113]/60 p-4 transition hover:border-[#C8F065]/20 hover:bg-[#17171A]"
+    >
+      <div className="flex items-start justify-between">
+
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#C8F065]/10 text-[#C8F065]">
+          {icon}
+        </div>
+
+        <ArrowUpRight
+          size={15}
+          className="text-[#71717A] transition group-hover:text-[#C8F065]"
+        />
+
+      </div>
+
+      <h3 className="mt-4 font-[Syne] text-sm font-semibold">
+        {title}
+      </h3>
+
+      <p className="mt-1 text-[11px] leading-relaxed text-[#71717A]">
+        {description}
+      </p>
+    </a>
   );
 }
