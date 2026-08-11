@@ -1,4 +1,4 @@
-import OSLayout from "@/components/os/OSLayout";
+import OSLayout from "@/components/layout/OSLayout";
 
 export default function DashboardLayout({
  children
