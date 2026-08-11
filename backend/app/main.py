@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from app.odoo_client import odoo
 
@@ -9,6 +10,21 @@ app = FastAPI(
 
 
 # ==========================
+# CORS
+# ==========================
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://rental-os.klynx.net",
+        "http://localhost:3100",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ==========================
 # ROOT
 # ==========================
 
@@ -17,7 +33,6 @@ def root():
     return {
         "status": "Rental OS API"
     }
-
 
 # ==========================
 # TEST LOGIN

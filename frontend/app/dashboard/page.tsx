@@ -10,71 +10,206 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react";
-import React from "react";
+import React, { useEffect, useState } from "react";
+
+// ==========================================================
+// TYPES
+// ==========================================================
+
+type CarData = {
+  id: number;
+  name: string;
+  license_plate: string | null;
+  model: string | null;
+  status: string | null;
+};
+
+type CustomerData = {
+  id: number;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  mobile: string | null;
+};
+
+type LeadData = {
+  id: number;
+  name: string;
+  customer: string | null;
+  phone: string | null;
+  email: string | null;
+  stage: string | null;
+  created: string | null;
+};
+
+type CarsResponse = {
+  count: number;
+  cars: CarData[];
+};
+
+type CustomersResponse = {
+  count: number;
+  customers: CustomerData[];
+};
+
+type LeadsResponse = {
+  count: number;
+  leads: LeadData[];
+};
+
+// ==========================================================
+// API CONFIGURATION
+// ==========================================================
+
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  "https://api.rental-os.klynx.net";
+
+// ==========================================================
+// TEMPORARY RENTAL DATA
+// ==========================================================
+// Rentals will become live once the backend exposes
+// Odoo rental / reservation data.
+// ==========================================================
 
 const rentals = [
   {
-    customer: "Mohamed Ben Ali",
-    vehicle: "Kia Picanto",
-    pickup: "10:30",
-    returnDate: "Aug 14",
-    status: "Active",
-  },
-  {
-    customer: "Sarah Martin",
-    vehicle: "Peugeot 3008",
-    pickup: "12:00",
-    returnDate: "Aug 16",
-    status: "Active",
-  },
-  {
-    customer: "Youssef Trabelsi",
-    vehicle: "Renault Clio",
-    pickup: "14:30",
-    returnDate: "Aug 12",
-    status: "Returning",
-  },
-  {
-    customer: "Amine Khelifi",
-    vehicle: "BMW 220i",
-    pickup: "16:00",
-    returnDate: "Aug 18",
+    customer: "Rental data",
+    vehicle: "Waiting for Odoo rental data",
+    pickup: "--:--",
+    returnDate: "--",
     status: "Upcoming",
   },
 ];
 
+// ==========================================================
+// TEMPORARY ACTIVITY DATA
+// ==========================================================
+
 const activity = [
   {
-    time: "09:30",
-    vehicle: "Kia Picanto",
-    type: "Pickup",
-    accent: "green",
-  },
-  {
-    time: "10:15",
-    vehicle: "Peugeot 3008",
-    type: "Pickup",
-    accent: "green",
-  },
-  {
-    time: "11:00",
-    vehicle: "BMW 220i",
-    type: "Return",
-    accent: "pink",
-  },
-  {
-    time: "14:30",
-    vehicle: "Renault Clio",
-    type: "Pickup",
+    time: "--:--",
+    vehicle: "Rental activity",
+    type: "Waiting for rental API",
     accent: "green",
   },
 ];
 
+// ==========================================================
+// DASHBOARD PAGE
+// ==========================================================
+
 export default function DashboardPage() {
+  // ==========================================================
+// DEBUG
+// ==========================================================
+
+console.log("KLYNX DASHBOARD LOADED");
+console.log("API URL:", API_URL);
+
+  const [cars, setCars] = useState<CarData[]>([]);
+  const [customers, setCustomers] = useState<CustomerData[]>([]);
+  const [leads, setLeads] = useState<LeadData[]>([]);
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // ========================================================
+  // FETCH DASHBOARD DATA
+  // ========================================================
+
+  useEffect(() => {
+    async function loadDashboard() {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const [carsResponse, customersResponse, leadsResponse] =
+          await Promise.all([
+            fetch(`${API_URL}/cars`, {
+              cache: "no-store",
+            }),
+
+            fetch(`${API_URL}/customers`, {
+              cache: "no-store",
+            }),
+
+            fetch(`${API_URL}/leads`, {
+              cache: "no-store",
+            }),
+          ]);
+
+        if (!carsResponse.ok) {
+          throw new Error(
+            `Cars API returned ${carsResponse.status}`
+          );
+        }
+
+        if (!customersResponse.ok) {
+          throw new Error(
+            `Customers API returned ${customersResponse.status}`
+          );
+        }
+
+        if (!leadsResponse.ok) {
+          throw new Error(
+            `Leads API returned ${leadsResponse.status}`
+          );
+        }
+
+        const carsData: CarsResponse =
+          await carsResponse.json();
+
+        const customersData: CustomersResponse =
+          await customersResponse.json();
+
+        const leadsData: LeadsResponse =
+          await leadsResponse.json();
+
+        setCars(carsData.cars || []);
+        setCustomers(customersData.customers || []);
+        setLeads(leadsData.leads || []);
+      } catch (err) {
+        console.error("Dashboard API error:", err);
+
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Unable to load dashboard data."
+        );
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadDashboard();
+  }, []);
+
+  // ========================================================
+  // DERIVED DATA
+  // ========================================================
+
+  const availableCars = cars.filter((car) => {
+    const status = car.status?.toLowerCase() || "";
+
+    return (
+      status.includes("available") ||
+      status.includes("ready") ||
+      status.includes("available for rent")
+    );
+  }).length;
+
+  // ========================================================
+  // RENDER
+  // ========================================================
+
   return (
     <main className="mx-auto max-w-[1500px] p-5 sm:p-8">
 
-      {/* HEADER */}
+      {/* ====================================================
+          HEADER
+      ==================================================== */}
+
       <section className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
 
         <div>
@@ -91,7 +226,8 @@ export default function DashboardPage() {
           </h1>
 
           <p className="mt-1 text-sm text-[#71717A]">
-            Here&apos;s what&apos;s happening with your rental operation.
+            Here&apos;s what&apos;s happening with your rental
+            operation.
           </p>
         </div>
 
@@ -102,68 +238,106 @@ export default function DashboardPage() {
 
       </section>
 
-      {/* KPI CARDS */}
+      {/* ====================================================
+          API ERROR
+      ==================================================== */}
+
+      {error && (
+        <div className="mt-4 rounded-xl border border-[#F06AAA]/30 bg-[#F06AAA]/5 px-4 py-3 text-xs text-[#F06AAA]">
+          Unable to load live dashboard data: {error}
+        </div>
+      )}
+
+      {/* ====================================================
+          KPI CARDS
+      ==================================================== */}
+
       <section className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
 
         <StatCard
           label="Fleet"
-          value="248"
+          value={
+            loading
+              ? "—"
+              : cars.length.toString()
+          }
           detail="vehicles"
-          change="+8.2%"
+          change="Odoo"
           icon={<Car size={15} />}
           accent="green"
         />
 
         <StatCard
-          label="Active rentals"
-          value="42"
-          detail="currently rented"
-          change="+12.4%"
-          icon={<ClipboardList size={15} />}
+          label="Customers"
+          value={
+            loading
+              ? "—"
+              : customers.length.toString()
+          }
+          detail="in Odoo"
+          change="Odoo"
+          icon={<Users size={15} />}
           accent="green"
         />
 
         <StatCard
           label="Available"
-          value="18"
+          value={
+            loading
+              ? "—"
+              : availableCars.toString()
+          }
           detail="ready to rent"
-          change="+7.3%"
+          change="Odoo"
           icon={<Activity size={15} />}
           accent="pink"
         />
 
         <StatCard
-          label="Revenue"
-          value="48.2K"
-          detail="TND this month"
-          change="+18.7%"
+          label="CRM Leads"
+          value={
+            loading
+              ? "—"
+              : leads.length.toString()
+          }
+          detail="active leads"
+          change="Odoo"
           icon={<TrendingUp size={15} />}
           accent="green"
         />
 
       </section>
 
-      {/* MAIN GRID */}
+      {/* ====================================================
+          MAIN GRID
+      ==================================================== */}
+
       <section className="mt-4 grid gap-4 xl:grid-cols-[1.5fr_1fr]">
 
-        {/* UTILIZATION */}
+        {/* ==================================================
+            FLEET OVERVIEW
+        ================================================== */}
+
         <div className="overflow-hidden rounded-xl border border-[#2B2B30] bg-[#111113]/80">
 
           <div className="flex items-center justify-between border-b border-[#2B2B30] px-5 py-4">
 
             <div>
               <h2 className="font-[Syne] text-sm font-semibold">
-                Fleet utilization
+                Fleet overview
               </h2>
 
               <p className="mt-1 text-[11px] text-[#71717A]">
-                Vehicle usage over the last 30 days
+                Live vehicle data from Odoo
               </p>
             </div>
 
-            <button className="rounded-md border border-[#2B2B30] bg-[#17171A] px-2.5 py-1.5 text-[10px] text-[#A1A1AA] transition hover:text-white">
-              Last 30 days
-            </button>
+            <a
+              href="/dashboard/fleet"
+              className="rounded-md border border-[#2B2B30] bg-[#17171A] px-2.5 py-1.5 text-[10px] text-[#A1A1AA] transition hover:text-white"
+            >
+              View fleet
+            </a>
 
           </div>
 
@@ -173,147 +347,186 @@ export default function DashboardPage() {
 
               <div>
                 <div className="font-[Syne] text-3xl font-semibold">
-                  82.4%
+                  {loading
+                    ? "—"
+                    : cars.length}
                 </div>
 
                 <div className="mt-1 text-[11px] text-[#71717A]">
-                  average utilization
+                  vehicles in Odoo
                 </div>
               </div>
 
               <div className="flex items-center gap-1.5 text-[11px] text-[#C8F065]">
-                <Activity size={13} />
-                +6.4%
+                <Car size={13} />
+                Live
               </div>
 
             </div>
 
-            {/* CHART */}
-            <div className="relative mt-7 h-[180px]">
+            {/* ==================================================
+                FLEET LIST
+            ================================================== */}
 
-              <div className="absolute inset-0 flex flex-col justify-between">
-                {[0, 1, 2, 3].map((line) => (
-                  <div
-                    key={line}
-                    className="border-t border-[#2B2B30]/60"
-                  />
-                ))}
-              </div>
+            <div className="mt-7">
 
-              <svg
-                viewBox="0 0 800 180"
-                className="absolute inset-0 h-full w-full overflow-visible"
-                preserveAspectRatio="none"
-              >
-                <defs>
-                  <linearGradient
-                    id="utilizationGradient"
-                    x1="0"
-                    y1="0"
-                    x2="0"
-                    y2="1"
-                  >
-                    <stop
-                      offset="0%"
-                      stopColor="#C8F065"
-                      stopOpacity="0.22"
+              {loading ? (
+
+                <div className="space-y-3">
+
+                  {[1, 2, 3, 4].map((item) => (
+                    <div
+                      key={item}
+                      className="h-12 animate-pulse rounded-lg bg-[#17171A]"
                     />
+                  ))}
 
-                    <stop
-                      offset="100%"
-                      stopColor="#C8F065"
-                      stopOpacity="0"
-                    />
-                  </linearGradient>
-                </defs>
+                </div>
 
-                <path
-                  d="M0 138 C55 130 75 145 125 119 C175 93 185 110 235 96 C285 82 315 105 350 82 C390 56 415 75 455 61 C495 48 520 69 555 53 C595 35 625 57 665 39 C710 19 750 31 800 18 L800 180 L0 180 Z"
-                  fill="url(#utilizationGradient)"
-                />
+              ) : cars.length === 0 ? (
 
-                <path
-                  d="M0 138 C55 130 75 145 125 119 C175 93 185 110 235 96 C285 82 315 105 350 82 C390 56 415 75 455 61 C495 48 520 69 555 53 C595 35 625 57 665 39 C710 19 750 31 800 18"
-                  fill="none"
-                  stroke="#C8F065"
-                  strokeWidth="2"
-                  vectorEffect="non-scaling-stroke"
-                />
-              </svg>
+                <div className="rounded-lg border border-[#2B2B30] bg-[#17171A]/50 px-4 py-8 text-center text-xs text-[#71717A]">
+                  No vehicles found in Odoo.
+                </div>
 
-              <div className="absolute bottom-[-22px] left-0 right-0 flex justify-between text-[9px] text-[#71717A]">
-                <span>Jul 13</span>
-                <span>Jul 20</span>
-                <span>Jul 27</span>
-                <span>Aug 03</span>
-                <span>Aug 11</span>
-              </div>
+              ) : (
+
+                <div className="divide-y divide-[#2B2B30]">
+
+                  {cars.slice(0, 6).map((car) => (
+
+                    <div
+                      key={car.id}
+                      className="flex items-center gap-3 py-3"
+                    >
+
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#C8F065]/10 text-[#C8F065]">
+                        <Car size={15} />
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+
+                        <div className="truncate text-xs font-medium">
+                          {car.name ||
+                            "Unnamed vehicle"}
+                        </div>
+
+                        <div className="mt-0.5 truncate text-[10px] text-[#71717A]">
+                          {car.model ||
+                            "No model"}
+
+                          {car.license_plate
+                            ? ` · ${car.license_plate}`
+                            : ""}
+                        </div>
+
+                      </div>
+
+                      <span className="rounded-md bg-[#17171A] px-2 py-1 text-[9px] text-[#A1A1AA]">
+                        {car.status ||
+                          "No status"}
+                      </span>
+
+                    </div>
+
+                  ))}
+
+                </div>
+
+              )}
 
             </div>
+
           </div>
+
         </div>
 
-        {/* ACTIVITY */}
+        {/* ==================================================
+            CRM LEADS
+        ================================================== */}
+
         <div className="rounded-xl border border-[#2B2B30] bg-[#111113]/80">
 
           <div className="border-b border-[#2B2B30] px-5 py-4">
 
             <h2 className="font-[Syne] text-sm font-semibold">
-              Today&apos;s activity
+              CRM leads
             </h2>
 
             <p className="mt-1 text-[11px] text-[#71717A]">
-              Upcoming pickups and returns
+              Live leads from Odoo CRM
             </p>
 
           </div>
 
           <div className="divide-y divide-[#2B2B30]">
 
-            {activity.map((item) => (
-              <div
-                key={`${item.time}-${item.vehicle}`}
-                className="flex items-center gap-3 px-5 py-3.5"
-              >
+            {loading ? (
 
-                <div className="w-11 font-mono text-[10px] text-[#71717A]">
-                  {item.time}
-                </div>
+              [1, 2, 3, 4].map((item) => (
+                <div
+                  key={item}
+                  className="mx-5 h-12 animate-pulse bg-[#17171A]"
+                />
+              ))
+
+            ) : leads.length === 0 ? (
+
+              <div className="px-5 py-10 text-center text-xs text-[#71717A]">
+                No CRM leads found.
+              </div>
+
+            ) : (
+
+              leads.slice(0, 6).map((lead) => (
 
                 <div
-                  className={`h-1.5 w-1.5 rounded-full ${
-                    item.accent === "pink"
-                      ? "bg-[#F06AAA] shadow-[0_0_7px_rgba(240,106,170,.6)]"
-                      : "bg-[#C8F065] shadow-[0_0_7px_rgba(200,240,101,.6)]"
-                  }`}
-                />
+                  key={lead.id}
+                  className="flex items-center gap-3 px-5 py-3.5"
+                >
 
-                <div className="min-w-0 flex-1">
-
-                  <div className="truncate text-xs font-medium">
-                    {item.vehicle}
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#F06AAA]/10 text-[10px] text-[#F06AAA]">
+                    {lead.name
+                      ?.charAt(0)
+                      ?.toUpperCase() ||
+                      "L"}
                   </div>
 
-                  <div className="mt-0.5 text-[10px] text-[#71717A]">
-                    {item.type}
+                  <div className="min-w-0 flex-1">
+
+                    <div className="truncate text-xs font-medium">
+                      {lead.name ||
+                        "Untitled lead"}
+                    </div>
+
+                    <div className="mt-0.5 truncate text-[10px] text-[#71717A]">
+                      {lead.customer ||
+                        "No customer"}
+                    </div>
+
                   </div>
+
+                  <span className="rounded-md bg-[#17171A] px-2 py-1 text-[9px] text-[#A1A1AA]">
+                    {lead.stage ||
+                      "No stage"}
+                  </span>
 
                 </div>
 
-                <CalendarDays
-                  size={13}
-                  className="text-[#71717A]"
-                />
+              ))
 
-              </div>
-            ))}
+            )}
 
           </div>
+
         </div>
 
       </section>
 
-      {/* RECENT RENTALS */}
+      {/* ====================================================
+          RECENT RENTALS
+      ==================================================== */}
+
       <section className="mt-4 overflow-hidden rounded-xl border border-[#2B2B30] bg-[#111113]/80">
 
         <div className="flex items-center justify-between border-b border-[#2B2B30] px-5 py-4">
@@ -324,7 +537,7 @@ export default function DashboardPage() {
             </h2>
 
             <p className="mt-1 text-[11px] text-[#71717A]">
-              Latest rental activity
+              Rental activity
             </p>
           </div>
 
@@ -339,6 +552,7 @@ export default function DashboardPage() {
           <table className="w-full min-w-[700px] text-left">
 
             <thead>
+
               <tr className="border-b border-[#2B2B30] text-[10px] uppercase tracking-wider text-[#71717A]">
 
                 <th className="px-5 py-3 font-medium">
@@ -364,11 +578,13 @@ export default function DashboardPage() {
                 <th className="px-5 py-3" />
 
               </tr>
+
             </thead>
 
             <tbody className="divide-y divide-[#2B2B30]">
 
               {rentals.map((rental) => (
+
                 <tr
                   key={`${rental.customer}-${rental.vehicle}`}
                   className="text-xs transition hover:bg-[#17171A]/50"
@@ -391,25 +607,35 @@ export default function DashboardPage() {
                   </td>
 
                   <td className="px-5 py-3.5">
-                    <StatusBadge status={rental.status} />
+                    <StatusBadge
+                      status={rental.status}
+                    />
                   </td>
 
                   <td className="px-5 py-3.5 text-right">
+
                     <button className="text-[#71717A] hover:text-white">
                       <MoreHorizontal size={15} />
                     </button>
+
                   </td>
 
                 </tr>
+
               ))}
 
             </tbody>
+
           </table>
 
         </div>
+
       </section>
 
-      {/* QUICK MODULES */}
+      {/* ====================================================
+          QUICK MODULES
+      ==================================================== */}
+
       <section className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
 
         <QuickModule
@@ -438,6 +664,10 @@ export default function DashboardPage() {
     </main>
   );
 }
+
+// ==========================================================
+// STAT CARD
+// ==========================================================
 
 function StatCard({
   label,
@@ -484,6 +714,7 @@ function StatCard({
             </span>
 
             {label}
+
           </div>
 
           <span
@@ -511,11 +742,20 @@ function StatCard({
         </div>
 
       </div>
+
     </div>
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
+// ==========================================================
+// STATUS BADGE
+// ==========================================================
+
+function StatusBadge({
+  status,
+}: {
+  status: string;
+}) {
   const styles = {
     Active: "bg-[#C8F065]/10 text-[#C8F065]",
     Returning: "bg-[#F06AAA]/10 text-[#F06AAA]",
@@ -525,13 +765,18 @@ function StatusBadge({ status }: { status: string }) {
   return (
     <span
       className={`inline-flex rounded-md px-2 py-1 text-[9px] ${
-        styles[status as keyof typeof styles]
+        styles[status as keyof typeof styles] ||
+        "bg-[#17171A] text-[#A1A1AA]"
       }`}
     >
       {status}
     </span>
   );
 }
+
+// ==========================================================
+// QUICK MODULE
+// ==========================================================
 
 function QuickModule({
   icon,
@@ -549,6 +794,7 @@ function QuickModule({
       href={href}
       className="group rounded-xl border border-[#2B2B30] bg-[#111113]/60 p-4 transition hover:border-[#C8F065]/20 hover:bg-[#17171A]"
     >
+
       <div className="flex items-start justify-between">
 
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#C8F065]/10 text-[#C8F065]">
@@ -569,6 +815,7 @@ function QuickModule({
       <p className="mt-1 text-[11px] leading-relaxed text-[#71717A]">
         {description}
       </p>
+
     </a>
   );
 }
