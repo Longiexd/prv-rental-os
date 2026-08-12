@@ -4,15 +4,22 @@ from app.config import (
     ODOO_DB,
     ODOO_USERNAME,
     ODOO_PASSWORD,
-    ODOO_URL
+    ODOO_URL,
 )
 
 
 class OdooClient:
 
+    # =========================================================
+    # INIT
+    # =========================================================
+
     def __init__(self):
         self.uid = None
 
+    # =========================================================
+    # AUTHENTICATION
+    # =========================================================
 
     def authenticate(self):
 
@@ -26,15 +33,15 @@ class OdooClient:
                     ODOO_DB,
                     ODOO_USERNAME,
                     ODOO_PASSWORD,
-                    {}
-                ]
+                    {},
+                ],
             },
-            "id": 1
+            "id": 1,
         }
 
         response = requests.post(
             f"{ODOO_URL}/jsonrpc",
-            json=payload
+            json=payload,
         )
 
         data = response.json()
@@ -48,11 +55,20 @@ class OdooClient:
 
         return self.uid
 
+    # =========================================================
+    # EXECUTE ODOO RPC
+    # =========================================================
 
-    def execute(self, model, method, *args, **kwargs):
+    def execute(self, model, method, args=None, kwargs=None):
 
         if self.uid is None:
             self.authenticate()
+
+        if args is None:
+            args = []
+
+        if kwargs is None:
+            kwargs = {}
 
         payload = {
             "jsonrpc": "2.0",
@@ -66,16 +82,16 @@ class OdooClient:
                     ODOO_PASSWORD,
                     model,
                     method,
-                    list(args),
-                    kwargs
-                ]
+                    args,
+                    kwargs,
+                ],
             },
-            "id": 1
+            "id": 1,
         }
 
         response = requests.post(
             f"{ODOO_URL}/jsonrpc",
-            json=payload
+            json=payload,
         )
 
         data = response.json()

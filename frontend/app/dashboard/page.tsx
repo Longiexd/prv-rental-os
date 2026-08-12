@@ -134,7 +134,7 @@ console.log("API URL:", API_URL);
               cache: "no-store",
             }),
 
-            fetch(`${API_URL}/leads`, {
+            fetch(`${API_URL}/crm/leads`, {
               cache: "no-store",
             }),
           ]);
