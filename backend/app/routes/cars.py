@@ -1,4 +1,5 @@
 from fastapi import APIRouter
+
 from app.odoo_client import odoo
 
 
@@ -7,6 +8,10 @@ router = APIRouter(
     tags=["Cars"]
 )
 
+
+# =========================================================
+# GET CARS
+# =========================================================
 
 @router.get("")
 def get_cars():
@@ -17,14 +22,22 @@ def get_cars():
         [],
         {
             "fields": [
+                "id",
                 "name",
                 "license_plate",
                 "model_id",
-                "state_id"
-            ]
+                "brand_id",
+                "state_id",
+                "category_id",
+                "location",
+                "odometer",
+                "odometer_unit",
+                "active",
+            ],
+            "order": "id desc",
+            "limit": 200,
         }
     )
-
 
     cars = []
 
@@ -32,18 +45,45 @@ def get_cars():
 
         cars.append({
             "id": vehicle["id"],
+
             "name": vehicle["name"],
+
             "license_plate": vehicle["license_plate"],
-            "model": vehicle["model_id"][1]
+
+            "model": (
+                vehicle["model_id"][1]
                 if vehicle["model_id"]
-                else None,
-            "status": vehicle["state_id"][1]
+                else None
+            ),
+
+            "brand": (
+                vehicle["brand_id"][1]
+                if vehicle["brand_id"]
+                else None
+            ),
+
+            "category": (
+                vehicle["category_id"][1]
+                if vehicle["category_id"]
+                else None
+            ),
+
+            "status": (
+                vehicle["state_id"][1]
                 if vehicle["state_id"]
                 else None
-        })
+            ),
 
+            "location": vehicle["location"],
+
+            "odometer": vehicle["odometer"],
+
+            "odometer_unit": vehicle["odometer_unit"],
+
+            "active": vehicle["active"],
+        })
 
     return {
         "count": len(cars),
-        "cars": cars
+        "cars": cars,
     }

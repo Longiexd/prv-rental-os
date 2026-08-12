@@ -42,6 +42,45 @@ type LeadData = {
   created: string | null;
 };
 
+type SaleData = {
+  id: number;
+  name: string;
+  customer: {
+    id: number;
+    name: string;
+  } | null;
+  state: string | null;
+  date_order: string | null;
+  commitment_date: string | null;
+  amount_total: number;
+  invoice_status: string | null;
+  opportunity: {
+    id: number;
+    name: string;
+  } | null;
+  order_line_ids: number[];
+};
+
+type InvoiceData = {
+  id: number;
+  name: string | false;
+  customer: {
+    id: number;
+    name: string;
+  } | null;
+  type: string;
+  state: string;
+  invoice_date: string | false;
+  due_date: string | false;
+  amount_untaxed: number;
+  amount_tax: number;
+  amount_total: number;
+  amount_residual: number;
+  payment_state: string;
+  origin: string | false;
+  invoice_line_ids: number[];
+};
+
 type CarsResponse = {
   count: number;
   cars: CarData[];
@@ -57,6 +96,16 @@ type LeadsResponse = {
   leads: LeadData[];
 };
 
+type SalesResponse = {
+  count: number;
+  sales: SaleData[];
+};
+
+type InvoicesResponse = {
+  count: number;
+  invoices: InvoiceData[];
+};
+
 // ==========================================================
 // API CONFIGURATION
 // ==========================================================
@@ -66,50 +115,15 @@ const API_URL =
   "https://api.rental-os.klynx.net";
 
 // ==========================================================
-// TEMPORARY RENTAL DATA
-// ==========================================================
-// Rentals will become live once the backend exposes
-// Odoo rental / reservation data.
-// ==========================================================
-
-const rentals = [
-  {
-    customer: "Rental data",
-    vehicle: "Waiting for Odoo rental data",
-    pickup: "--:--",
-    returnDate: "--",
-    status: "Upcoming",
-  },
-];
-
-// ==========================================================
-// TEMPORARY ACTIVITY DATA
-// ==========================================================
-
-const activity = [
-  {
-    time: "--:--",
-    vehicle: "Rental activity",
-    type: "Waiting for rental API",
-    accent: "green",
-  },
-];
-
-// ==========================================================
 // DASHBOARD PAGE
 // ==========================================================
 
 export default function DashboardPage() {
-  // ==========================================================
-// DEBUG
-// ==========================================================
-
-console.log("KLYNX DASHBOARD LOADED");
-console.log("API URL:", API_URL);
-
   const [cars, setCars] = useState<CarData[]>([]);
   const [customers, setCustomers] = useState<CustomerData[]>([]);
   const [leads, setLeads] = useState<LeadData[]>([]);
+  const [sales, setSales] = useState<SaleData[]>([]);
+  const [invoices, setInvoices] = useState<InvoiceData[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -124,20 +138,33 @@ console.log("API URL:", API_URL);
         setLoading(true);
         setError(null);
 
-        const [carsResponse, customersResponse, leadsResponse] =
-          await Promise.all([
-            fetch(`${API_URL}/cars`, {
-              cache: "no-store",
-            }),
+        const [
+          carsResponse,
+          customersResponse,
+          leadsResponse,
+          salesResponse,
+          invoicesResponse,
+        ] = await Promise.all([
+          fetch(`${API_URL}/cars`, {
+            cache: "no-store",
+          }),
 
-            fetch(`${API_URL}/customers`, {
-              cache: "no-store",
-            }),
+          fetch(`${API_URL}/customers`, {
+            cache: "no-store",
+          }),
 
-            fetch(`${API_URL}/crm/leads`, {
-              cache: "no-store",
-            }),
-          ]);
+          fetch(`${API_URL}/crm/leads`, {
+            cache: "no-store",
+          }),
+
+          fetch(`${API_URL}/sales`, {
+            cache: "no-store",
+          }),
+
+          fetch(`${API_URL}/invoices`, {
+            cache: "no-store",
+          }),
+        ]);
 
         if (!carsResponse.ok) {
           throw new Error(
@@ -157,6 +184,18 @@ console.log("API URL:", API_URL);
           );
         }
 
+        if (!salesResponse.ok) {
+          throw new Error(
+            `Sales API returned ${salesResponse.status}`
+          );
+        }
+
+        if (!invoicesResponse.ok) {
+          throw new Error(
+            `Invoices API returned ${invoicesResponse.status}`
+          );
+        }
+
         const carsData: CarsResponse =
           await carsResponse.json();
 
@@ -166,9 +205,17 @@ console.log("API URL:", API_URL);
         const leadsData: LeadsResponse =
           await leadsResponse.json();
 
+        const salesData: SalesResponse =
+          await salesResponse.json();
+
+        const invoicesData: InvoicesResponse =
+          await invoicesResponse.json();
+
         setCars(carsData.cars || []);
         setCustomers(customersData.customers || []);
         setLeads(leadsData.leads || []);
+        setSales(salesData.sales || []);
+        setInvoices(invoicesData.invoices || []);
       } catch (err) {
         console.error("Dashboard API error:", err);
 
@@ -193,11 +240,28 @@ console.log("API URL:", API_URL);
     const status = car.status?.toLowerCase() || "";
 
     return (
+      status.includes("dispon") ||
       status.includes("available") ||
-      status.includes("ready") ||
-      status.includes("available for rent")
+      status.includes("ready")
     );
   }).length;
+
+  const totalSales = sales.reduce(
+    (sum, sale) => sum + (sale.amount_total || 0),
+    0
+  );
+
+  const unpaidInvoices = invoices.filter(
+    (invoice) =>
+      invoice.payment_state !== "paid" &&
+      invoice.state === "posted"
+  );
+
+  const outstandingAmount = unpaidInvoices.reduce(
+    (sum, invoice) =>
+      sum + (invoice.amount_residual || 0),
+    0
+  );
 
   // ========================================================
   // RENDER
@@ -206,12 +270,9 @@ console.log("API URL:", API_URL);
   return (
     <main className="mx-auto max-w-[1500px] p-5 sm:p-8">
 
-      {/* ====================================================
-          HEADER
-      ==================================================== */}
+      {/* HEADER */}
 
       <section className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
-
         <div>
           <div className="mb-2 flex items-center gap-2 text-[11px] text-[#71717A]">
             <span>Workspace</span>
@@ -235,12 +296,9 @@ console.log("API URL:", API_URL);
           <ClipboardList size={14} />
           New rental
         </button>
-
       </section>
 
-      {/* ====================================================
-          API ERROR
-      ==================================================== */}
+      {/* API ERROR */}
 
       {error && (
         <div className="mt-4 rounded-xl border border-[#F06AAA]/30 bg-[#F06AAA]/5 px-4 py-3 text-xs text-[#F06AAA]">
@@ -248,22 +306,29 @@ console.log("API URL:", API_URL);
         </div>
       )}
 
-      {/* ====================================================
-          KPI CARDS
-      ==================================================== */}
+      {/* KPI CARDS */}
 
-      <section className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
 
         <StatCard
           label="Fleet"
-          value={
-            loading
-              ? "—"
-              : cars.length.toString()
-          }
+          value={loading ? "—" : cars.length.toString()}
           detail="vehicles"
           change="Odoo"
           icon={<Car size={15} />}
+          accent="green"
+        />
+
+        <StatCard
+          label="Available"
+          value={
+            loading
+              ? "—"
+              : availableCars.toString()
+          }
+          detail="ready to rent"
+          change="LIVE"
+          icon={<Activity size={15} />}
           accent="green"
         />
 
@@ -281,47 +346,42 @@ console.log("API URL:", API_URL);
         />
 
         <StatCard
-          label="Available"
+          label="Sales"
           value={
             loading
               ? "—"
-              : availableCars.toString()
+              : `${totalSales.toLocaleString()} TND`
           }
-          detail="ready to rent"
-          change="Odoo"
-          icon={<Activity size={15} />}
-          accent="pink"
-        />
-
-        <StatCard
-          label="CRM Leads"
-          value={
-            loading
-              ? "—"
-              : leads.length.toString()
-          }
-          detail="active leads"
+          detail="confirmed orders"
           change="Odoo"
           icon={<TrendingUp size={15} />}
           accent="green"
         />
 
+        <StatCard
+          label="Outstanding"
+          value={
+            loading
+              ? "—"
+              : `${outstandingAmount.toLocaleString()} TND`
+          }
+          detail="to collect"
+          change="Invoices"
+          icon={<ArrowUpRight size={15} />}
+          accent="pink"
+        />
+
       </section>
 
-      {/* ====================================================
-          MAIN GRID
-      ==================================================== */}
+      {/* MAIN GRID */}
 
       <section className="mt-4 grid gap-4 xl:grid-cols-[1.5fr_1fr]">
 
-        {/* ==================================================
-            FLEET OVERVIEW
-        ================================================== */}
+        {/* FLEET OVERVIEW */}
 
         <div className="overflow-hidden rounded-xl border border-[#2B2B30] bg-[#111113]/80">
 
           <div className="flex items-center justify-between border-b border-[#2B2B30] px-5 py-4">
-
             <div>
               <h2 className="font-[Syne] text-sm font-semibold">
                 Fleet overview
@@ -338,7 +398,6 @@ console.log("API URL:", API_URL);
             >
               View fleet
             </a>
-
           </div>
 
           <div className="p-5">
@@ -347,9 +406,7 @@ console.log("API URL:", API_URL);
 
               <div>
                 <div className="font-[Syne] text-3xl font-semibold">
-                  {loading
-                    ? "—"
-                    : cars.length}
+                  {loading ? "—" : cars.length}
                 </div>
 
                 <div className="mt-1 text-[11px] text-[#71717A]">
@@ -364,23 +421,19 @@ console.log("API URL:", API_URL);
 
             </div>
 
-            {/* ==================================================
-                FLEET LIST
-            ================================================== */}
+            {/* FLEET LIST */}
 
             <div className="mt-7">
 
               {loading ? (
 
                 <div className="space-y-3">
-
                   {[1, 2, 3, 4].map((item) => (
                     <div
                       key={item}
                       className="h-12 animate-pulse rounded-lg bg-[#17171A]"
                     />
                   ))}
-
                 </div>
 
               ) : cars.length === 0 ? (
@@ -400,20 +453,18 @@ console.log("API URL:", API_URL);
                       className="flex items-center gap-3 py-3"
                     >
 
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#C8F065]/10 text-[#C8F065]">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#C8F065]/10 text-[#C8F065]">
                         <Car size={15} />
                       </div>
 
                       <div className="min-w-0 flex-1">
 
                         <div className="truncate text-xs font-medium">
-                          {car.name ||
-                            "Unnamed vehicle"}
+                          {car.name || "Unnamed vehicle"}
                         </div>
 
                         <div className="mt-0.5 truncate text-[10px] text-[#71717A]">
-                          {car.model ||
-                            "No model"}
+                          {car.model || "No model"}
 
                           {car.license_plate
                             ? ` · ${car.license_plate}`
@@ -422,10 +473,9 @@ console.log("API URL:", API_URL);
 
                       </div>
 
-                      <span className="rounded-md bg-[#17171A] px-2 py-1 text-[9px] text-[#A1A1AA]">
-                        {car.status ||
-                          "No status"}
-                      </span>
+                      <VehicleStatusBadge
+                        status={car.status}
+                      />
 
                     </div>
 
@@ -441,21 +491,28 @@ console.log("API URL:", API_URL);
 
         </div>
 
-        {/* ==================================================
-            CRM LEADS
-        ================================================== */}
+        {/* CRM LEADS */}
 
         <div className="rounded-xl border border-[#2B2B30] bg-[#111113]/80">
 
-          <div className="border-b border-[#2B2B30] px-5 py-4">
+          <div className="flex items-center justify-between border-b border-[#2B2B30] px-5 py-4">
 
-            <h2 className="font-[Syne] text-sm font-semibold">
-              CRM leads
-            </h2>
+            <div>
+              <h2 className="font-[Syne] text-sm font-semibold">
+                CRM leads
+              </h2>
 
-            <p className="mt-1 text-[11px] text-[#71717A]">
-              Live leads from Odoo CRM
-            </p>
+              <p className="mt-1 text-[11px] text-[#71717A]">
+                Live leads from Odoo CRM
+              </p>
+            </div>
+
+            <a
+              href="/dashboard/crm/leads"
+              className="text-[10px] text-[#A1A1AA] transition hover:text-white"
+            >
+              View all →
+            </a>
 
           </div>
 
@@ -485,30 +542,26 @@ console.log("API URL:", API_URL);
                   className="flex items-center gap-3 px-5 py-3.5"
                 >
 
-                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#F06AAA]/10 text-[10px] text-[#F06AAA]">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#F06AAA]/10 text-[10px] text-[#F06AAA]">
                     {lead.name
                       ?.charAt(0)
-                      ?.toUpperCase() ||
-                      "L"}
+                      ?.toUpperCase() || "L"}
                   </div>
 
                   <div className="min-w-0 flex-1">
 
                     <div className="truncate text-xs font-medium">
-                      {lead.name ||
-                        "Untitled lead"}
+                      {lead.name || "Untitled lead"}
                     </div>
 
                     <div className="mt-0.5 truncate text-[10px] text-[#71717A]">
-                      {lead.customer ||
-                        "No customer"}
+                      {lead.customer || "No customer"}
                     </div>
 
                   </div>
 
                   <span className="rounded-md bg-[#17171A] px-2 py-1 text-[9px] text-[#A1A1AA]">
-                    {lead.stage ||
-                      "No stage"}
+                    {lead.stage || "No stage"}
                   </span>
 
                 </div>
@@ -523,9 +576,7 @@ console.log("API URL:", API_URL);
 
       </section>
 
-      {/* ====================================================
-          RECENT RENTALS
-      ==================================================== */}
+      {/* RECENT SALES */}
 
       <section className="mt-4 overflow-hidden rounded-xl border border-[#2B2B30] bg-[#111113]/80">
 
@@ -533,17 +584,20 @@ console.log("API URL:", API_URL);
 
           <div>
             <h2 className="font-[Syne] text-sm font-semibold">
-              Recent rentals
+              Recent sales
             </h2>
 
             <p className="mt-1 text-[11px] text-[#71717A]">
-              Rental activity
+              Rental orders from Odoo Sales
             </p>
           </div>
 
-          <button className="text-[11px] text-[#A1A1AA] transition hover:text-[#C8F065]">
+          <a
+            href="/dashboard/rentals"
+            className="text-[11px] text-[#A1A1AA] transition hover:text-[#C8F065]"
+          >
             View all →
-          </button>
+          </a>
 
         </div>
 
@@ -556,23 +610,27 @@ console.log("API URL:", API_URL);
               <tr className="border-b border-[#2B2B30] text-[10px] uppercase tracking-wider text-[#71717A]">
 
                 <th className="px-5 py-3 font-medium">
+                  Order
+                </th>
+
+                <th className="px-5 py-3 font-medium">
                   Customer
                 </th>
 
                 <th className="px-5 py-3 font-medium">
-                  Vehicle
+                  Opportunity
                 </th>
 
                 <th className="px-5 py-3 font-medium">
-                  Pickup
+                  Date
                 </th>
 
                 <th className="px-5 py-3 font-medium">
-                  Return
+                  Invoice
                 </th>
 
-                <th className="px-5 py-3 font-medium">
-                  Status
+                <th className="px-5 py-3 text-right font-medium">
+                  Total
                 </th>
 
                 <th className="px-5 py-3" />
@@ -583,46 +641,78 @@ console.log("API URL:", API_URL);
 
             <tbody className="divide-y divide-[#2B2B30]">
 
-              {rentals.map((rental) => (
+              {loading ? (
 
-                <tr
-                  key={`${rental.customer}-${rental.vehicle}`}
-                  className="text-xs transition hover:bg-[#17171A]/50"
-                >
+                [1, 2, 3, 4].map((item) => (
+                  <tr key={item}>
+                    <td
+                      colSpan={7}
+                      className="px-5 py-4"
+                    >
+                      <div className="h-8 animate-pulse rounded bg-[#17171A]" />
+                    </td>
+                  </tr>
+                ))
 
-                  <td className="px-5 py-3.5 font-medium">
-                    {rental.customer}
+              ) : sales.length === 0 ? (
+
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-5 py-10 text-center text-xs text-[#71717A]"
+                  >
+                    No sales found in Odoo.
                   </td>
-
-                  <td className="px-5 py-3.5 text-[#A1A1AA]">
-                    {rental.vehicle}
-                  </td>
-
-                  <td className="px-5 py-3.5 text-[#A1A1AA]">
-                    {rental.pickup}
-                  </td>
-
-                  <td className="px-5 py-3.5 text-[#A1A1AA]">
-                    {rental.returnDate}
-                  </td>
-
-                  <td className="px-5 py-3.5">
-                    <StatusBadge
-                      status={rental.status}
-                    />
-                  </td>
-
-                  <td className="px-5 py-3.5 text-right">
-
-                    <button className="text-[#71717A] hover:text-white">
-                      <MoreHorizontal size={15} />
-                    </button>
-
-                  </td>
-
                 </tr>
 
-              ))}
+              ) : (
+
+                sales.slice(0, 6).map((sale) => (
+
+                  <tr
+                    key={sale.id}
+                    className="text-xs transition hover:bg-[#17171A]/50"
+                  >
+
+                    <td className="px-5 py-3.5 font-medium text-white">
+                      {sale.name}
+                    </td>
+
+                    <td className="px-5 py-3.5 text-[#A1A1AA]">
+                      {sale.customer?.name || "Unknown"}
+                    </td>
+
+                    <td className="max-w-[220px] px-5 py-3.5 text-[#A1A1AA]">
+                      <div className="truncate">
+                        {sale.opportunity?.name || "—"}
+                      </div>
+                    </td>
+
+                    <td className="px-5 py-3.5 text-[#A1A1AA]">
+                      {formatDate(sale.date_order)}
+                    </td>
+
+                    <td className="px-5 py-3.5">
+                      <InvoiceStatusBadge
+                        status={sale.invoice_status}
+                      />
+                    </td>
+
+                    <td className="px-5 py-3.5 text-right font-medium text-white">
+                      {(sale.amount_total || 0).toLocaleString()} TND
+                    </td>
+
+                    <td className="px-5 py-3.5 text-right">
+                      <button className="text-[#71717A] transition hover:text-white">
+                        <MoreHorizontal size={15} />
+                      </button>
+                    </td>
+
+                  </tr>
+
+                ))
+
+              )}
 
             </tbody>
 
@@ -632,9 +722,7 @@ console.log("API URL:", API_URL);
 
       </section>
 
-      {/* ====================================================
-          QUICK MODULES
-      ==================================================== */}
+      {/* QUICK MODULES */}
 
       <section className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
 
@@ -682,19 +770,30 @@ function StatCard({
   detail: string;
   change: string;
   icon: React.ReactNode;
-  accent: "green" | "pink";
+  accent: "green" | "pink" | "blue";
 }) {
-  const isPink = accent === "pink";
+  const accentClasses = {
+    green: {
+      text: "text-[#C8F065]",
+      glow: "bg-[#C8F065]/[0.05]",
+    },
+    pink: {
+      text: "text-[#F06AAA]",
+      glow: "bg-[#F06AAA]/[0.05]",
+    },
+    blue: {
+      text: "text-[#60A5FA]",
+      glow: "bg-[#60A5FA]/[0.05]",
+    },
+  };
+
+  const colors = accentClasses[accent];
 
   return (
     <div className="group relative overflow-hidden rounded-xl border border-[#2B2B30] bg-[#111113]/80 p-5 transition hover:border-[#3b3b42]">
 
       <div
-        className={`pointer-events-none absolute -right-10 -top-10 h-24 w-24 rounded-full blur-3xl ${
-          isPink
-            ? "bg-[#F06AAA]/[0.05]"
-            : "bg-[#C8F065]/[0.05]"
-        }`}
+        className={`pointer-events-none absolute -right-10 -top-10 h-24 w-24 rounded-full blur-3xl ${colors.glow}`}
       />
 
       <div className="relative">
@@ -702,28 +801,13 @@ function StatCard({
         <div className="flex items-center justify-between">
 
           <div className="flex items-center gap-2 text-[11px] text-[#71717A]">
-
-            <span
-              className={
-                isPink
-                  ? "text-[#F06AAA]"
-                  : "text-[#C8F065]"
-              }
-            >
+            <span className={colors.text}>
               {icon}
             </span>
-
             {label}
-
           </div>
 
-          <span
-            className={
-              isPink
-                ? "text-[10px] text-[#F06AAA]"
-                : "text-[10px] text-[#C8F065]"
-            }
-          >
+          <span className={`text-[10px] ${colors.text}`}>
             {change}
           </span>
 
@@ -748,30 +832,151 @@ function StatCard({
 }
 
 // ==========================================================
-// STATUS BADGE
+// VEHICLE STATUS BADGE
 // ==========================================================
 
-function StatusBadge({
+function VehicleStatusBadge({
   status,
 }: {
-  status: string;
+  status: string | null;
 }) {
-  const styles = {
-    Active: "bg-[#C8F065]/10 text-[#C8F065]",
-    Returning: "bg-[#F06AAA]/10 text-[#F06AAA]",
-    Upcoming: "bg-[#17171A] text-[#A1A1AA]",
-  };
+  const normalized = status?.toLowerCase().trim() || "";
+
+  let label = status || "Unknown";
+
+  let classes =
+    "border-[#2B2B30] bg-[#17171A] text-[#A1A1AA]";
+
+  // DISPONIBLE / AVAILABLE
+  if (
+    normalized.includes("dispon") ||
+    normalized.includes("available") ||
+    normalized.includes("ready")
+  ) {
+    label = "Disponible";
+
+    classes =
+      "border-[#C8F065]/20 bg-[#C8F065]/10 text-[#C8F065]";
+  }
+
+  // LOUÉ / RENTED
+  else if (
+    normalized.includes("lou") ||
+    normalized.includes("rent") ||
+    normalized.includes("rented")
+  ) {
+    label = "Loué";
+
+    classes =
+      "border-[#F06AAA]/20 bg-[#F06AAA]/10 text-[#F06AAA]";
+  }
+
+  // INDISPONIBLE / UNAVAILABLE
+  else if (
+    normalized.includes("indispon") ||
+    normalized.includes("unavailable") ||
+    normalized.includes("inactive")
+  ) {
+    label = "Indisponible";
+
+    classes =
+      "border-red-400/20 bg-red-500/10 text-red-400";
+  }
+
+  // NETTOYAGE / CLEANING
+  else if (
+    normalized.includes("nettoyage") ||
+    normalized.includes("clean") ||
+    normalized.includes("cleaning")
+  ) {
+    label = "Nettoyage";
+
+    classes =
+      "border-blue-400/20 bg-blue-500/10 text-blue-400";
+  }
+
+  // MAINTENANCE
+  else if (
+    normalized.includes("maintenance") ||
+    normalized.includes("repair")
+  ) {
+    label = "Maintenance";
+
+    classes =
+      "border-violet-400/20 bg-violet-500/10 text-violet-400";
+  }
 
   return (
     <span
-      className={`inline-flex rounded-md px-2 py-1 text-[9px] ${
-        styles[status as keyof typeof styles] ||
-        "bg-[#17171A] text-[#A1A1AA]"
-      }`}
+      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium ${classes}`}
     >
-      {status}
+      <span className="h-1.5 w-1.5 rounded-full bg-current" />
+      {label}
     </span>
   );
+}
+
+// ==========================================================
+// INVOICE STATUS BADGE
+// ==========================================================
+
+function InvoiceStatusBadge({
+  status,
+}: {
+  status: string | null;
+}) {
+  const normalized = status?.toLowerCase() || "";
+
+  let label = status || "Unknown";
+
+  let classes =
+    "border-[#2B2B30] bg-[#17171A] text-[#A1A1AA]";
+
+  if (normalized === "invoiced") {
+    label = "Invoiced";
+
+    classes =
+      "border-[#C8F065]/20 bg-[#C8F065]/10 text-[#C8F065]";
+  } else if (
+    normalized.includes("to invoice")
+  ) {
+    label = "To invoice";
+
+    classes =
+      "border-orange-400/20 bg-orange-500/10 text-orange-400";
+  }
+
+  return (
+    <span
+      className={`inline-flex rounded-full border px-2.5 py-1 text-[9px] font-medium ${classes}`}
+    >
+      {label}
+    </span>
+  );
+}
+
+// ==========================================================
+// DATE FORMATTER
+// ==========================================================
+
+function formatDate(value: string | null) {
+  if (!value) {
+    return "—";
+  }
+
+  const date = new Date(
+    value.replace(" ", "T")
+  );
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
 }
 
 // ==========================================================
