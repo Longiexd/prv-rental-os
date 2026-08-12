@@ -1,0 +1,564 @@
+[1mdiff --git a/frontend/app/dashboard/page.tsx b/frontend/app/dashboard/page.tsx[m
+[1mindex 7a9efee..3763a76 100644[m
+[1m--- a/frontend/app/dashboard/page.tsx[m
+[1m+++ b/frontend/app/dashboard/page.tsx[m
+[36m@@ -16,6 +16,15 @@[m [mimport React, { useEffect, useState } from "react";[m
+ // TYPES[m
+ // ==========================================================[m
+ [m
+[32m+[m[32mtype RelationalData =[m
+[32m+[m[32m  | string[m
+[32m+[m[32m  | {[m
+[32m+[m[32m      id: number;[m
+[32m+[m[32m      name: string;[m
+[32m+[m[32m    }[m
+[32m+[m[32m  | null[m
+[32m+[m[32m  | false;[m
+[32m+[m
+ type CarData = {[m
+   id: number;[m
+   name: string;[m
+[36m@@ -35,39 +44,54 @@[m [mtype CustomerData = {[m
+ type LeadData = {[m
+   id: number;[m
+   name: string;[m
+[31m-  customer: string | null;[m
+[32m+[m[32m  customer: RelationalData;[m
+   phone: string | null;[m
+   email: string | null;[m
+[31m-  stage: string | null;[m
+[32m+[m[32m  stage: RelationalData;[m
+   created: string | null;[m
+ };[m
+ [m
+ type SaleData = {[m
+   id: number;[m
+   name: string;[m
+[31m-  customer: {[m
+[31m-    id: number;[m
+[31m-    name: string;[m
+[31m-  } | null;[m
+[32m+[m
+[32m+[m[32m  customer:[m
+[32m+[m[32m    | {[m
+[32m+[m[32m        id: number;[m
+[32m+[m[32m        name: string;[m
+[32m+[m[32m      }[m
+[32m+[m[32m    | null[m
+[32m+[m[32m    | false;[m
+[32m+[m
+   state: string | null;[m
+   date_order: string | null;[m
+   commitment_date: string | null;[m
+   amount_total: number;[m
+   invoice_status: string | null;[m
+[31m-  opportunity: {[m
+[31m-    id: number;[m
+[31m-    name: string;[m
+[31m-  } | null;[m
+[32m+[m
+[32m+[m[32m  opportunity:[m
+[32m+[m[32m    | {[m
+[32m+[m[32m        id: number;[m
+[32m+[m[32m        name: string;[m
+[32m+[m[32m      }[m
+[32m+[m[32m    | null[m
+[32m+[m[32m    | false;[m
+[32m+[m
+   order_line_ids: number[];[m
+ };[m
+ [m
+ type InvoiceData = {[m
+   id: number;[m
+   name: string | false;[m
+[31m-  customer: {[m
+[31m-    id: number;[m
+[31m-    name: string;[m
+[31m-  } | null;[m
+[32m+[m
+[32m+[m[32m  customer:[m
+[32m+[m[32m    | {[m
+[32m+[m[32m        id: number;[m
+[32m+[m[32m        name: string;[m
+[32m+[m[32m      }[m
+[32m+[m[32m    | null[m
+[32m+[m[32m    | false;[m
+[32m+[m
+   type: string;[m
+   state: string;[m
+   invoice_date: string | false;[m
+[36m@@ -114,6 +138,45 @@[m [mconst API_URL =[m
+   process.env.NEXT_PUBLIC_API_URL ||[m
+   "https://api.rental-os.klynx.net";[m
+ [m
+[32m+[m[32m// ==========================================================[m
+[32m+[m[32m// SAFE VALUE HELPERS[m
+[32m+[m[32m// ==========================================================[m
+[32m+[m
+[32m+[m[32mfunction displayRelational(value: RelationalData): string {[m
+[32m+[m[32m  if (!value) {[m
+[32m+[m[32m    return "";[m
+[32m+[m[32m  }[m
+[32m+[m
+[32m+[m[32m  if (typeof value === "string") {[m
+[32m+[m[32m    return value;[m
+[32m+[m[32m  }[m
+[32m+[m
+[32m+[m[32m  return value.name || "";[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32mfunction displayGeneric([m
+[32m+[m[32m  value:[m
+[32m+[m[32m    | string[m
+[32m+[m[32m    | number[m
+[32m+[m[32m    | boolean[m
+[32m+[m[32m    | null[m
+[32m+[m[32m    | false[m
+[32m+[m[32m    | {[m
+[32m+[m[32m        id?: number;[m
+[32m+[m[32m        name?: string;[m
+[32m+[m[32m      }[m
+[32m+[m[32m): string {[m
+[32m+[m[32m  if (value === null || value === undefined || value === false) {[m
+[32m+[m[32m    return "";[m
+[32m+[m[32m  }[m
+[32m+[m
+[32m+[m[32m  if (typeof value === "object") {[m
+[32m+[m[32m    return value.name || "";[m
+[32m+[m[32m  }[m
+[32m+[m
+[32m+[m[32m  return String(value);[m
+[32m+[m[32m}[m
+[32m+[m
+ // ==========================================================[m
+ // DASHBOARD PAGE[m
+ // ==========================================================[m
+[36m@@ -269,7 +332,6 @@[m [mexport default function DashboardPage() {[m
+ [m
+   return ([m
+     <main className="mx-auto max-w-[1500px] p-5 sm:p-8">[m
+[31m-[m
+       {/* HEADER */}[m
+ [m
+       <section className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">[m
+[36m@@ -309,7 +371,6 @@[m [mexport default function DashboardPage() {[m
+       {/* KPI CARDS */}[m
+ [m
+       <section className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">[m
+[31m-[m
+         <StatCard[m
+           label="Fleet"[m
+           value={loading ? "—" : cars.length.toString()}[m
+[36m@@ -370,17 +431,14 @@[m [mexport default function DashboardPage() {[m
+           icon={<ArrowUpRight size={15} />}[m
+           accent="pink"[m
+         />[m
+[31m-[m
+       </section>[m
+ [m
+       {/* MAIN GRID */}[m
+ [m
+       <section className="mt-4 grid gap-4 xl:grid-cols-[1.5fr_1fr]">[m
+[31m-[m
+         {/* FLEET OVERVIEW */}[m
+ [m
+         <div className="overflow-hidden rounded-xl border border-[#2B2B30] bg-[#111113]/80">[m
+[31m-[m
+           <div className="flex items-center justify-between border-b border-[#2B2B30] px-5 py-4">[m
+             <div>[m
+               <h2 className="font-[Syne] text-sm font-semibold">[m
+[36m@@ -401,9 +459,7 @@[m [mexport default function DashboardPage() {[m
+           </div>[m
+ [m
+           <div className="p-5">[m
+[31m-[m
+             <div className="flex items-end justify-between">[m
+[31m-[m
+               <div>[m
+                 <div className="font-[Syne] text-3xl font-semibold">[m
+                   {loading ? "—" : cars.length}[m
+[36m@@ -418,15 +474,12 @@[m [mexport default function DashboardPage() {[m
+                 <Car size={13} />[m
+                 Live[m
+               </div>[m
+[31m-[m
+             </div>[m
+ [m
+             {/* FLEET LIST */}[m
+ [m
+             <div className="mt-7">[m
+[31m-[m
+               {loading ? ([m
+[31m-[m
+                 <div className="space-y-3">[m
+                   {[1, 2, 3, 4].map((item) => ([m
+                     <div[m
+[36m@@ -435,68 +488,52 @@[m [mexport default function DashboardPage() {[m
+                     />[m
+                   ))}[m
+                 </div>[m
+[31m-[m
+               ) : cars.length === 0 ? ([m
+[31m-[m
+                 <div className="rounded-lg border border-[#2B2B30] bg-[#17171A]/50 px-4 py-8 text-center text-xs text-[#71717A]">[m
+                   No vehicles found in Odoo.[m
+                 </div>[m
+[31m-[m
+               ) : ([m
+[31m-[m
+                 <div className="divide-y divide-[#2B2B30]">[m
+[31m-[m
+                   {cars.slice(0, 6).map((car) => ([m
+[31m-[m
+                     <div[m
+                       key={car.id}[m
+                       className="flex items-center gap-3 py-3"[m
+                     >[m
+[31m-[m
+                       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#C8F065]/10 text-[#C8F065]">[m
+                         <Car size={15} />[m
+                       </div>[m
+ [m
+                       <div className="min-w-0 flex-1">[m
+[31m-[m
+                         <div className="truncate text-xs font-medium">[m
+[31m-                          {car.name || "Unnamed vehicle"}[m
+[32m+[m[32m                          {displayGeneric(car.name) ||[m
+[32m+[m[32m                            "Unnamed vehicle"}[m
+                         </div>[m
+ [m
+                         <div className="mt-0.5 truncate text-[10px] text-[#71717A]">[m
+[31m-                          {car.model || "No model"}[m
+[32m+[m[32m                          {displayGeneric(car.model) ||[m
+[32m+[m[32m                            "No model"}[m
+ [m
+                           {car.license_plate[m
+                             ? ` · ${car.license_plate}`[m
+                             : ""}[m
+                         </div>[m
+[31m-[m
+                       </div>[m
+ [m
+                       <VehicleStatusBadge[m
+                         status={car.status}[m
+                       />[m
+[31m-[m
+                     </div>[m
+[31m-[m
+                   ))}[m
+[31m-[m
+                 </div>[m
+[31m-[m
+               )}[m
+[31m-[m
+             </div>[m
+[31m-[m
+           </div>[m
+[31m-[m
+         </div>[m
+ [m
+         {/* CRM LEADS */}[m
+ [m
+         <div className="rounded-xl border border-[#2B2B30] bg-[#111113]/80">[m
+[31m-[m
+           <div className="flex items-center justify-between border-b border-[#2B2B30] px-5 py-4">[m
+[31m-[m
+             <div>[m
+               <h2 className="font-[Syne] text-sm font-semibold">[m
+                 CRM leads[m
+[36m@@ -513,75 +550,59 @@[m [mexport default function DashboardPage() {[m
+             >[m
+               View all →[m
+             </a>[m
+[31m-[m
+           </div>[m
+ [m
+           <div className="divide-y divide-[#2B2B30]">[m
+[31m-[m
+             {loading ? ([m
+[31m-[m
+               [1, 2, 3, 4].map((item) => ([m
+                 <div[m
+                   key={item}[m
+                   className="mx-5 h-12 animate-pulse bg-[#17171A]"[m
+                 />[m
+               ))[m
+[31m-[m
+             ) : leads.length === 0 ? ([m
+[31m-[m
+               <div className="px-5 py-10 text-center text-xs text-[#71717A]">[m
+                 No CRM leads found.[m
+               </div>[m
+[31m-[m
+             ) : ([m
+[31m-[m
+               leads.slice(0, 6).map((lead) => ([m
+[31m-[m
+                 <div[m
+                   key={lead.id}[m
+                   className="flex items-center gap-3 px-5 py-3.5"[m
+                 >[m
+[31m-[m
+                   <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#F06AAA]/10 text-[10px] text-[#F06AAA]">[m
+[31m-                    {lead.name[m
+[32m+[m[32m                    {displayGeneric(lead.name)[m
+                       ?.charAt(0)[m
+                       ?.toUpperCase() || "L"}[m
+                   </div>[m
+ [m
+                   <div className="min-w-0 flex-1">[m
+[31m-[m
+                     <div className="truncate text-xs font-medium">[m
+[31m-                      {lead.name || "Untitled lead"}[m
+[32m+[m[32m                      {displayGeneric(lead.name) ||[m
+[32m+[m[32m                        "Untitled lead"}[m
+                     </div>[m
+ [m
+                     <div className="mt-0.5 truncate text-[10px] text-[#71717A]">[m
+[31m-                      {lead.customer || "No customer"}[m
+[32m+[m[32m                      {displayRelational(lead.customer) ||[m
+[32m+[m[32m                        "No customer"}[m
+                     </div>[m
+[31m-[m
+                   </div>[m
+ [m
+                   <span className="rounded-md bg-[#17171A] px-2 py-1 text-[9px] text-[#A1A1AA]">[m
+[31m-                    {lead.stage || "No stage"}[m
+[32m+[m[32m                    {displayRelational(lead.stage) ||[m
+[32m+[m[32m                      "No stage"}[m
+                   </span>[m
+[31m-[m
+                 </div>[m
+[31m-[m
+               ))[m
+[31m-[m
+             )}[m
+[31m-[m
+           </div>[m
+[31m-[m
+         </div>[m
+[31m-[m
+       </section>[m
+ [m
+       {/* RECENT SALES */}[m
+ [m
+       <section className="mt-4 overflow-hidden rounded-xl border border-[#2B2B30] bg-[#111113]/80">[m
+[31m-[m
+         <div className="flex items-center justify-between border-b border-[#2B2B30] px-5 py-4">[m
+[31m-[m
+           <div>[m
+             <h2 className="font-[Syne] text-sm font-semibold">[m
+               Recent sales[m
+[36m@@ -598,17 +619,12 @@[m [mexport default function DashboardPage() {[m
+           >[m
+             View all →[m
+           </a>[m
+[31m-[m
+         </div>[m
+ [m
+         <div className="overflow-x-auto">[m
+[31m-[m
+           <table className="w-full min-w-[700px] text-left">[m
+[31m-[m
+             <thead>[m
+[31m-[m
+               <tr className="border-b border-[#2B2B30] text-[10px] uppercase tracking-wider text-[#71717A]">[m
+[31m-[m
+                 <th className="px-5 py-3 font-medium">[m
+                   Order[m
+                 </th>[m
+[36m@@ -634,15 +650,11 @@[m [mexport default function DashboardPage() {[m
+                 </th>[m
+ [m
+                 <th className="px-5 py-3" />[m
+[31m-[m
+               </tr>[m
+[31m-[m
+             </thead>[m
+ [m
+             <tbody className="divide-y divide-[#2B2B30]">[m
+[31m-[m
+               {loading ? ([m
+[31m-[m
+                 [1, 2, 3, 4].map((item) => ([m
+                   <tr key={item}>[m
+                     <td[m
+[36m@@ -653,9 +665,7 @@[m [mexport default function DashboardPage() {[m
+                     </td>[m
+                   </tr>[m
+                 ))[m
+[31m-[m
+               ) : sales.length === 0 ? ([m
+[31m-[m
+                 <tr>[m
+                   <td[m
+                     colSpan={7}[m
+[36m@@ -664,22 +674,19 @@[m [mexport default function DashboardPage() {[m
+                     No sales found in Odoo.[m
+                   </td>[m
+                 </tr>[m
+[31m-[m
+               ) : ([m
+[31m-[m
+                 sales.slice(0, 6).map((sale) => ([m
+[31m-[m
+                   <tr[m
+                     key={sale.id}[m
+                     className="text-xs transition hover:bg-[#17171A]/50"[m
+                   >[m
+[31m-[m
+                     <td className="px-5 py-3.5 font-medium text-white">[m
+[31m-                      {sale.name}[m
+[32m+[m[32m                      {displayGeneric(sale.name)}[m
+                     </td>[m
+ [m
+                     <td className="px-5 py-3.5 text-[#A1A1AA]">[m
+[31m-                      {sale.customer?.name || "Unknown"}[m
+[32m+[m[32m                      {sale.customer?.name ||[m
+[32m+[m[32m                        "Unknown"}[m
+                     </td>[m
+ [m
+                     <td className="max-w-[220px] px-5 py-3.5 text-[#A1A1AA]">[m
+[36m@@ -699,7 +706,8 @@[m [mexport default function DashboardPage() {[m
+                     </td>[m
+ [m
+                     <td className="px-5 py-3.5 text-right font-medium text-white">[m
+[31m-                      {(sale.amount_total || 0).toLocaleString()} TND[m
+[32m+[m[32m                      {(sale.amount_total || 0).toLocaleString()}{" "}[m
+[32m+[m[32m                      TND[m
+                     </td>[m
+ [m
+                     <td className="px-5 py-3.5 text-right">[m
+[36m@@ -707,25 +715,17 @@[m [mexport default function DashboardPage() {[m
+                         <MoreHorizontal size={15} />[m
+                       </button>[m
+                     </td>[m
+[31m-[m
+                   </tr>[m
+[31m-[m
+                 ))[m
+[31m-[m
+               )}[m
+[31m-[m
+             </tbody>[m
+[31m-[m
+           </table>[m
+[31m-[m
+         </div>[m
+[31m-[m
+       </section>[m
+ [m
+       {/* QUICK MODULES */}[m
+ [m
+       <section className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">[m
+[31m-[m
+         <QuickModule[m
+           icon={<Car size={17} />}[m
+           title="Fleet"[m
+[36m@@ -746,9 +746,7 @@[m [mexport default function DashboardPage() {[m
+           description="See pickups, returns and upcoming reservations."[m
+           href="/dashboard/calendar"[m
+         />[m
+[31m-[m
+       </section>[m
+[31m-[m
+     </main>[m
+   );[m
+ }[m
+[36m@@ -777,10 +775,12 @@[m [mfunction StatCard({[m
+       text: "text-[#C8F065]",[m
+       glow: "bg-[#C8F065]/[0.05]",[m
+     },[m
+[32m+[m
+     pink: {[m
+       text: "text-[#F06AAA]",[m
+       glow: "bg-[#F06AAA]/[0.05]",[m
+     },[m
+[32m+[m
+     blue: {[m
+       text: "text-[#60A5FA]",[m
+       glow: "bg-[#60A5FA]/[0.05]",[m
+[36m@@ -791,30 +791,28 @@[m [mfunction StatCard({[m
+ [m
+   return ([m
+     <div className="group relative overflow-hidden rounded-xl border border-[#2B2B30] bg-[#111113]/80 p-5 transition hover:border-[#3b3b42]">[m
+[31m-[m
+       <div[m
+         className={`pointer-events-none absolute -right-10 -top-10 h-24 w-24 rounded-full blur-3xl ${colors.glow}`}[m
+       />[m
+ [m
+       <div className="relative">[m
+[31m-[m
+         <div className="flex items-center justify-between">[m
+[31m-[m
+           <div className="flex items-center gap-2 text-[11px] text-[#71717A]">[m
+             <span className={colors.text}>[m
+               {icon}[m
+             </span>[m
+[32m+[m
+             {label}[m
+           </div>[m
+ [m
+[31m-          <span className={`text-[10px] ${colors.text}`}>[m
+[32m+[m[32m          <span[m
+[32m+[m[32m            className={`text-[10px] ${colors.text}`}[m
+[32m+[m[32m          >[m
+             {change}[m
+           </span>[m
+[31m-[m
+         </div>[m
+ [m
+         <div className="mt-5 flex items-baseline gap-2">[m
+[31m-[m
+           <span className="font-[Syne] text-[26px] font-semibold tracking-[-0.03em]">[m
+             {value}[m
+           </span>[m
+[36m@@ -822,11 +820,8 @@[m [mfunction StatCard({[m
+           <span className="text-[10px] text-[#71717A]">[m
+             {detail}[m
+           </span>[m
+[31m-[m
+         </div>[m
+[31m-[m
+       </div>[m
+[31m-[m
+     </div>[m
+   );[m
+ }[m
+[36m@@ -840,7 +835,8 @@[m [mfunction VehicleStatusBadge({[m
+ }: {[m
+   status: string | null;[m
+ }) {[m
+[31m-  const normalized = status?.toLowerCase().trim() || "";[m
+[32m+[m[32m  const normalized =[m
+[32m+[m[32m    status?.toLowerCase().trim() || "";[m
+ [m
+   let label = status || "Unknown";[m
+ [m
+[36m@@ -999,9 +995,7 @@[m [mfunction QuickModule({[m
+       href={href}[m
+       className="group rounded-xl border border-[#2B2B30] bg-[#111113]/60 p-4 transition hover:border-[#C8F065]/20 hover:bg-[#17171A]"[m
+     >[m
+[31m-[m
+       <div className="flex items-start justify-between">[m
+[31m-[m
+         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#C8F065]/10 text-[#C8F065]">[m
+           {icon}[m
+         </div>[m
+[36m@@ -1010,7 +1004,6 @@[m [mfunction QuickModule({[m
+           size={15}[m
+           className="text-[#71717A] transition group-hover:text-[#C8F065]"[m
+         />[m
+[31m-[m
+       </div>[m
+ [m
+       <h3 className="mt-4 font-[Syne] text-sm font-semibold">[m
+[36m@@ -1020,7 +1013,6 @@[m [mfunction QuickModule({[m
+       <p className="mt-1 text-[11px] leading-relaxed text-[#71717A]">[m
+         {description}[m
+       </p>[m
+[31m-[m
+     </a>[m
+   );[m
+ }[m
+\ No newline at end of file[m

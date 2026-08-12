@@ -16,12 +16,23 @@ import React, { useEffect, useState } from "react";
 // TYPES
 // ==========================================================
 
+type RelationalValue =
+  | string
+  | number
+  | {
+      id?: number;
+      name?: string;
+    }
+  | null
+  | false
+  | undefined;
+
 type CarData = {
   id: number;
   name: string;
   license_plate: string | null;
   model: string | null;
-  status: string | null;
+  status: RelationalValue;
 };
 
 type CustomerData = {
@@ -35,39 +46,30 @@ type CustomerData = {
 type LeadData = {
   id: number;
   name: string;
-  customer: string | null;
+  customer: RelationalValue;
   phone: string | null;
   email: string | null;
-  stage: string | null;
+  stage: RelationalValue;
   created: string | null;
 };
 
 type SaleData = {
   id: number;
   name: string;
-  customer: {
-    id: number;
-    name: string;
-  } | null;
-  state: string | null;
+  customer: RelationalValue;
+  state: RelationalValue;
   date_order: string | null;
   commitment_date: string | null;
   amount_total: number;
-  invoice_status: string | null;
-  opportunity: {
-    id: number;
-    name: string;
-  } | null;
+  invoice_status: RelationalValue;
+  opportunity: RelationalValue;
   order_line_ids: number[];
 };
 
 type InvoiceData = {
   id: number;
   name: string | false;
-  customer: {
-    id: number;
-    name: string;
-  } | null;
+  customer: RelationalValue;
   type: string;
   state: string;
   invoice_date: string | false;
@@ -105,6 +107,30 @@ type InvoicesResponse = {
   count: number;
   invoices: InvoiceData[];
 };
+
+// ==========================================================
+// SAFE ODOO VALUE HELPERS
+// ==========================================================
+
+function displayValue(value: RelationalValue): string {
+  if (value === null || value === undefined || value === false) {
+    return "";
+  }
+
+  if (typeof value === "string" || typeof value === "number") {
+    return String(value);
+  }
+
+  if (typeof value === "object") {
+    return value.name || "";
+  }
+
+  return "";
+}
+
+function normalizeValue(value: RelationalValue): string {
+  return displayValue(value).toLowerCase().trim();
+}
 
 // ==========================================================
 // API CONFIGURATION
@@ -167,9 +193,7 @@ export default function DashboardPage() {
         ]);
 
         if (!carsResponse.ok) {
-          throw new Error(
-            `Cars API returned ${carsResponse.status}`
-          );
+          throw new Error(`Cars API returned ${carsResponse.status}`);
         }
 
         if (!customersResponse.ok) {
@@ -179,15 +203,11 @@ export default function DashboardPage() {
         }
 
         if (!leadsResponse.ok) {
-          throw new Error(
-            `Leads API returned ${leadsResponse.status}`
-          );
+          throw new Error(`Leads API returned ${leadsResponse.status}`);
         }
 
         if (!salesResponse.ok) {
-          throw new Error(
-            `Sales API returned ${salesResponse.status}`
-          );
+          throw new Error(`Sales API returned ${salesResponse.status}`);
         }
 
         if (!invoicesResponse.ok) {
@@ -196,26 +216,31 @@ export default function DashboardPage() {
           );
         }
 
-        const carsData: CarsResponse =
-          await carsResponse.json();
-
+        const carsData: CarsResponse = await carsResponse.json();
         const customersData: CustomersResponse =
           await customersResponse.json();
-
-        const leadsData: LeadsResponse =
-          await leadsResponse.json();
-
-        const salesData: SalesResponse =
-          await salesResponse.json();
-
+        const leadsData: LeadsResponse = await leadsResponse.json();
+        const salesData: SalesResponse = await salesResponse.json();
         const invoicesData: InvoicesResponse =
           await invoicesResponse.json();
 
-        setCars(carsData.cars || []);
-        setCustomers(customersData.customers || []);
-        setLeads(leadsData.leads || []);
-        setSales(salesData.sales || []);
-        setInvoices(invoicesData.invoices || []);
+        setCars(Array.isArray(carsData.cars) ? carsData.cars : []);
+        setCustomers(
+          Array.isArray(customersData.customers)
+            ? customersData.customers
+            : []
+        );
+        setLeads(
+          Array.isArray(leadsData.leads) ? leadsData.leads : []
+        );
+        setSales(
+          Array.isArray(salesData.sales) ? salesData.sales : []
+        );
+        setInvoices(
+          Array.isArray(invoicesData.invoices)
+            ? invoicesData.invoices
+            : []
+        );
       } catch (err) {
         console.error("Dashboard API error:", err);
 
@@ -237,7 +262,7 @@ export default function DashboardPage() {
   // ========================================================
 
   const availableCars = cars.filter((car) => {
-    const status = car.status?.toLowerCase() || "";
+    const status = normalizeValue(car.status);
 
     return (
       status.includes("dispon") ||
@@ -247,7 +272,7 @@ export default function DashboardPage() {
   }).length;
 
   const totalSales = sales.reduce(
-    (sum, sale) => sum + (sale.amount_total || 0),
+    (sum, sale) => sum + (Number(sale.amount_total) || 0),
     0
   );
 
@@ -259,7 +284,7 @@ export default function DashboardPage() {
 
   const outstandingAmount = unpaidInvoices.reduce(
     (sum, invoice) =>
-      sum + (invoice.amount_residual || 0),
+      sum + (Number(invoice.amount_residual) || 0),
     0
   );
 
@@ -535,38 +560,45 @@ export default function DashboardPage() {
 
             ) : (
 
-              leads.slice(0, 6).map((lead) => (
+              leads.slice(0, 6).map((lead) => {
 
-                <div
-                  key={lead.id}
-                  className="flex items-center gap-3 px-5 py-3.5"
-                >
+                const customerName =
+                  displayValue(lead.customer);
 
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#F06AAA]/10 text-[10px] text-[#F06AAA]">
-                    {lead.name
-                      ?.charAt(0)
-                      ?.toUpperCase() || "L"}
-                  </div>
+                const stageName =
+                  displayValue(lead.stage);
 
-                  <div className="min-w-0 flex-1">
+                return (
+                  <div
+                    key={lead.id}
+                    className="flex items-center gap-3 px-5 py-3.5"
+                  >
 
-                    <div className="truncate text-xs font-medium">
-                      {lead.name || "Untitled lead"}
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#F06AAA]/10 text-[10px] text-[#F06AAA]">
+                      {lead.name
+                        ?.charAt(0)
+                        ?.toUpperCase() || "L"}
                     </div>
 
-                    <div className="mt-0.5 truncate text-[10px] text-[#71717A]">
-                      {lead.customer || "No customer"}
+                    <div className="min-w-0 flex-1">
+
+                      <div className="truncate text-xs font-medium">
+                        {lead.name || "Untitled lead"}
+                      </div>
+
+                      <div className="mt-0.5 truncate text-[10px] text-[#71717A]">
+                        {customerName || "No customer"}
+                      </div>
+
                     </div>
 
+                    <span className="rounded-md bg-[#17171A] px-2 py-1 text-[9px] text-[#A1A1AA]">
+                      {stageName || "No stage"}
+                    </span>
+
                   </div>
-
-                  <span className="rounded-md bg-[#17171A] px-2 py-1 text-[9px] text-[#A1A1AA]">
-                    {lead.stage || "No stage"}
-                  </span>
-
-                </div>
-
-              ))
+                );
+              })
 
             )}
 
@@ -667,50 +699,57 @@ export default function DashboardPage() {
 
               ) : (
 
-                sales.slice(0, 6).map((sale) => (
+                sales.slice(0, 6).map((sale) => {
 
-                  <tr
-                    key={sale.id}
-                    className="text-xs transition hover:bg-[#17171A]/50"
-                  >
+                  const customerName =
+                    displayValue(sale.customer);
 
-                    <td className="px-5 py-3.5 font-medium text-white">
-                      {sale.name}
-                    </td>
+                  const opportunityName =
+                    displayValue(sale.opportunity);
 
-                    <td className="px-5 py-3.5 text-[#A1A1AA]">
-                      {sale.customer?.name || "Unknown"}
-                    </td>
+                  return (
+                    <tr
+                      key={sale.id}
+                      className="text-xs transition hover:bg-[#17171A]/50"
+                    >
 
-                    <td className="max-w-[220px] px-5 py-3.5 text-[#A1A1AA]">
-                      <div className="truncate">
-                        {sale.opportunity?.name || "—"}
-                      </div>
-                    </td>
+                      <td className="px-5 py-3.5 font-medium text-white">
+                        {sale.name}
+                      </td>
 
-                    <td className="px-5 py-3.5 text-[#A1A1AA]">
-                      {formatDate(sale.date_order)}
-                    </td>
+                      <td className="px-5 py-3.5 text-[#A1A1AA]">
+                        {customerName || "Unknown"}
+                      </td>
 
-                    <td className="px-5 py-3.5">
-                      <InvoiceStatusBadge
-                        status={sale.invoice_status}
-                      />
-                    </td>
+                      <td className="max-w-[220px] px-5 py-3.5 text-[#A1A1AA]">
+                        <div className="truncate">
+                          {opportunityName || "—"}
+                        </div>
+                      </td>
 
-                    <td className="px-5 py-3.5 text-right font-medium text-white">
-                      {(sale.amount_total || 0).toLocaleString()} TND
-                    </td>
+                      <td className="px-5 py-3.5 text-[#A1A1AA]">
+                        {formatDate(sale.date_order)}
+                      </td>
 
-                    <td className="px-5 py-3.5 text-right">
-                      <button className="text-[#71717A] transition hover:text-white">
-                        <MoreHorizontal size={15} />
-                      </button>
-                    </td>
+                      <td className="px-5 py-3.5">
+                        <InvoiceStatusBadge
+                          status={sale.invoice_status}
+                        />
+                      </td>
 
-                  </tr>
+                      <td className="px-5 py-3.5 text-right font-medium text-white">
+                        {(Number(sale.amount_total) || 0).toLocaleString()} TND
+                      </td>
 
-                ))
+                      <td className="px-5 py-3.5 text-right">
+                        <button className="text-[#71717A] transition hover:text-white">
+                          <MoreHorizontal size={15} />
+                        </button>
+                      </td>
+
+                    </tr>
+                  );
+                })
 
               )}
 
@@ -838,11 +877,11 @@ function StatCard({
 function VehicleStatusBadge({
   status,
 }: {
-  status: string | null;
+  status: RelationalValue;
 }) {
-  const normalized = status?.toLowerCase().trim() || "";
+  const normalized = normalizeValue(status);
 
-  let label = status || "Unknown";
+  let label = displayValue(status) || "Unknown";
 
   let classes =
     "border-[#2B2B30] bg-[#17171A] text-[#A1A1AA]";
@@ -859,18 +898,6 @@ function VehicleStatusBadge({
       "border-[#C8F065]/20 bg-[#C8F065]/10 text-[#C8F065]";
   }
 
-  // LOUÉ / RENTED
-  else if (
-    normalized.includes("lou") ||
-    normalized.includes("rent") ||
-    normalized.includes("rented")
-  ) {
-    label = "Loué";
-
-    classes =
-      "border-[#F06AAA]/20 bg-[#F06AAA]/10 text-[#F06AAA]";
-  }
-
   // INDISPONIBLE / UNAVAILABLE
   else if (
     normalized.includes("indispon") ||
@@ -881,6 +908,18 @@ function VehicleStatusBadge({
 
     classes =
       "border-red-400/20 bg-red-500/10 text-red-400";
+  }
+
+  // LOUÉ / RENTED
+  else if (
+    normalized.includes("lou") ||
+    normalized.includes("rent") ||
+    normalized.includes("rented")
+  ) {
+    label = "Loué";
+
+    classes =
+      "border-[#F06AAA]/20 bg-[#F06AAA]/10 text-[#F06AAA]";
   }
 
   // NETTOYAGE / CLEANING
@@ -923,11 +962,11 @@ function VehicleStatusBadge({
 function InvoiceStatusBadge({
   status,
 }: {
-  status: string | null;
+  status: RelationalValue;
 }) {
-  const normalized = status?.toLowerCase() || "";
+  const normalized = normalizeValue(status);
 
-  let label = status || "Unknown";
+  let label = displayValue(status) || "Unknown";
 
   let classes =
     "border-[#2B2B30] bg-[#17171A] text-[#A1A1AA]";

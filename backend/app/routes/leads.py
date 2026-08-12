@@ -6,7 +6,7 @@ from app.odoo_client import odoo
 
 router = APIRouter(
     prefix="/crm/leads",
-    tags=["CRM Leads"]
+    tags=["CRM Leads"],
 )
 
 
@@ -34,15 +34,20 @@ def get_leads():
         [],
         {
             "fields": [
+                "id",
                 "name",
                 "partner_id",
                 "phone",
+                "mobile",
                 "email_from",
                 "stage_id",
+                "user_id",
                 "expected_revenue",
                 "create_date",
-            ]
-        }
+            ],
+            "order": "id desc",
+            "limit": 500,
+        },
     )
 
     result = []
@@ -51,25 +56,46 @@ def get_leads():
 
         result.append({
             "id": lead["id"],
+
             "name": lead["name"],
 
             "customer": (
-                lead["partner_id"][1]
-                if lead["partner_id"]
+                {
+                    "id": lead["partner_id"][0],
+                    "name": lead["partner_id"][1],
+                }
+                if lead.get("partner_id")
                 else None
             ),
 
-            "phone": lead["phone"],
-            "email": lead["email_from"],
+            "phone": (
+                lead.get("phone")
+                or lead.get("mobile")
+                or None
+            ),
+
+            "email": lead.get("email_from"),
 
             "stage": (
                 lead["stage_id"][1]
-                if lead["stage_id"]
+                if lead.get("stage_id")
                 else None
             ),
 
-            "expected_revenue": lead["expected_revenue"],
-            "created": lead["create_date"],
+            "salesperson": (
+                {
+                    "id": lead["user_id"][0],
+                    "name": lead["user_id"][1],
+                }
+                if lead.get("user_id")
+                else None
+            ),
+
+            "expected_revenue": (
+                lead.get("expected_revenue") or 0
+            ),
+
+            "created": lead.get("create_date"),
         })
 
     return {
@@ -93,7 +119,7 @@ def create_lead(lead: LeadCreate):
             "phone": lead.phone,
             "email_from": lead.email,
             "description": lead.description,
-        }
+        },
     )
 
     return {
