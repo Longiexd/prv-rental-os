@@ -9,6 +9,8 @@ import {
   Users,
 } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import AddCustomerModal from "@/components/customers/AddCustomerModal";
 
 // ============================================================
 // TYPES
@@ -40,38 +42,41 @@ const API_URL =
 // ============================================================
 
 export default function CustomersPage() {
+  const router = useRouter();
+
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [showAddModal, setShowAddModal] = useState(false);
 
   // ============================================================
   // FETCH CUSTOMERS
   // ============================================================
 
-  useEffect(() => {
-    async function loadCustomers() {
-      try {
-        setLoading(true);
-        setError("");
+  async function loadCustomers() {
+    try {
+      setLoading(true);
+      setError("");
 
-        const response = await fetch(`${API_URL}/customers`);
+      const response = await fetch(`${API_URL}/customers`);
 
-        if (!response.ok) {
-          throw new Error(`API returned ${response.status}`);
-        }
-
-        const data: CustomersResponse = await response.json();
-
-        setCustomers(data.customers);
-      } catch (err) {
-        console.error("Failed to load customers:", err);
-        setError("Unable to load customer data.");
-      } finally {
-        setLoading(false);
+      if (!response.ok) {
+        throw new Error(`API returned ${response.status}`);
       }
-    }
 
+      const data: CustomersResponse = await response.json();
+
+      setCustomers(data.customers);
+    } catch (err) {
+      console.error("Failed to load customers:", err);
+      setError("Unable to load customer data.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
     loadCustomers();
   }, []);
 
@@ -135,7 +140,10 @@ export default function CustomersPage() {
 
         </div>
 
-        <button className="flex h-9 items-center justify-center gap-2 rounded-lg bg-[#C8F065] px-4 text-xs font-medium text-[#09090B] transition hover:bg-[#d7ff80]">
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="flex h-9 items-center justify-center gap-2 rounded-lg bg-[#C8F065] px-4 text-xs font-medium text-[#09090B] transition hover:bg-[#d7ff80]"
+        >
           <UserPlus size={14} />
           Add customer
         </button>
@@ -349,6 +357,20 @@ export default function CustomersPage() {
         )}
 
       </section>
+
+      {/* ADD CUSTOMER MODAL */}
+
+      {showAddModal && (
+        <AddCustomerModal
+          apiUrl={API_URL}
+          onClose={() => setShowAddModal(false)}
+          onSuccess={(partnerId) => {
+            setShowAddModal(false);
+            loadCustomers();
+            router.push(`/dashboard/customers/${partnerId}`);
+          }}
+        />
+      )}
 
     </main>
   );

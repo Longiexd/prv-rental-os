@@ -19,6 +19,7 @@ class LeadCreate(BaseModel):
     phone: str | None = None
     email: str | None = None
     description: str | None = None
+    partner_id: int | None = None
 
 
 # =========================================================
@@ -82,6 +83,12 @@ def get_leads():
                 else None
             ),
 
+            "stage_id": (
+                lead["stage_id"][0]
+                if lead.get("stage_id")
+                else None
+            ),
+
             "salesperson": (
                 {
                     "id": lead["user_id"][0],
@@ -111,18 +118,64 @@ def get_leads():
 @router.post("")
 def create_lead(lead: LeadCreate):
 
+    # --------------------------------------------------------
+    # NOTE: odoo.execute()'s "args" positional slot is passed
+    # straight through to Odoo's execute_kw, which expects a
+    # LIST of positional args for the target method (e.g.
+    # crm.lead.create(vals_list)). Passing a bare dict here
+    # (instead of [dict]) is what broke lead creation.
+    # --------------------------------------------------------
+
+    vals = {
+        "name": lead.name,
+        "phone": lead.phone,
+        "email_from": lead.email,
+        "description": lead.description,
+    }
+
+    # partner_id is how a lead becomes a Rental OS "customer"
+    # (see customers.py: a contact only qualifies once it has
+    # an associated crm.lead). Only set it when attaching this
+    # lead to an existing customer/contact.
+
+    if lead.partner_id:
+        vals["partner_id"] = lead.partner_id
+
     lead_id = odoo.execute(
         "crm.lead",
         "create",
-        {
-            "name": lead.name,
-            "phone": lead.phone,
-            "email_from": lead.email,
-            "description": lead.description,
-        },
+        [vals],
     )
 
     return {
         "success": True,
         "lead_id": lead_id,
+        "partner_id": lead.partner_id,
+    }
+
+
+# =========================================================
+# UPDATE LEAD STAGE (kanban drag & drop)
+# =========================================================
+
+class LeadStageUpdate(BaseModel):
+    stage_id: int
+
+
+@router.patch("/{lead_id}/stage")
+def update_lead_stage(lead_id: int, payload: LeadStageUpdate):
+
+    odoo.execute(
+        "crm.lead",
+        "write",
+        [
+            [lead_id],
+            {"stage_id": payload.stage_id},
+        ],
+    )
+
+    return {
+        "success": True,
+        "lead_id": lead_id,
+        "stage_id": payload.stage_id,
     }

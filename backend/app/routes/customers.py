@@ -646,6 +646,98 @@ def get_customers():
 
 
 # ============================================================
+# SEARCH CUSTOMERS (duplicate detection)
+# ============================================================
+
+@router.get("/search")
+def search_customers(q: str = ""):
+    """
+    Search ALL res.partner contacts by name — not just the ones
+    already linked to a CRM lead. Used by the "Add customer"
+    flow on the frontend: before creating a brand-new contact,
+    we check whether a similar contact already exists so the
+    user can attach a new opportunity to it instead of creating
+    a duplicate res.partner.
+    """
+
+    query = (q or "").strip()
+
+    if not query:
+        return {
+            "count": 0,
+            "matches": [],
+        }
+
+    partners = odoo.execute(
+        "res.partner",
+        "search_read",
+        [
+            [
+                ["name", "ilike", query],
+            ]
+        ],
+        {
+            "fields": [
+                "id",
+                "name",
+                "phone",
+                "email",
+            ],
+            "limit": 8,
+        },
+    )
+
+    if not partners:
+        return {
+            "count": 0,
+            "matches": [],
+        }
+
+    partner_ids = [p["id"] for p in partners]
+
+    # Figure out which of these matches are already "customers"
+    # (i.e. already have a linked crm.lead), so the frontend can
+    # word the suggestion accordingly.
+
+    linked_leads = odoo.execute(
+        "crm.lead",
+        "search_read",
+        [
+            [
+                ["partner_id", "in", partner_ids],
+            ]
+        ],
+        {
+            "fields": [
+                "partner_id",
+            ],
+        },
+    )
+
+    linked_partner_ids = {
+        many2one_id(lead.get("partner_id"))
+        for lead in linked_leads
+        if lead.get("partner_id")
+    }
+
+    matches = [
+        {
+            "id": partner["id"],
+            "name": partner["name"],
+            "phone": partner.get("phone"),
+            "email": partner.get("email"),
+            "is_customer": partner["id"] in linked_partner_ids,
+        }
+        for partner in partners
+    ]
+
+    return {
+        "count": len(matches),
+        "matches": matches,
+    }
+
+
+# ============================================================
 # GET CUSTOMER
 # ============================================================
 
