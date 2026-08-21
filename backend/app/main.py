@@ -6,6 +6,7 @@ from app.odoo_client import odoo
 from app.routes import (
     cars,
     customers,
+    leads,
     crm,
     sales,
     invoices,
@@ -80,6 +81,10 @@ app.include_router(
 
 app.include_router(
     customers.router
+)
+
+app.include_router(
+    leads.router
 )
 
 app.include_router(

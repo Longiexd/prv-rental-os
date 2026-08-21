@@ -5,7 +5,7 @@ from app.odoo_client import odoo
 
 
 router = APIRouter(
-    prefix="/crm",
+    prefix="/crm/leads",
     tags=["CRM Leads"],
 )
 
