@@ -1,3 +1,5 @@
+import re
+
 from fastapi import APIRouter
 
 from app.odoo_client import odoo
@@ -7,6 +9,15 @@ router = APIRouter(
     prefix="/sales",
     tags=["Sales"]
 )
+
+
+def get_rental_vehicle_id(note):
+    """Read the stable fleet reference written by the Rental OS creator."""
+    if not isinstance(note, str):
+        return None
+
+    match = re.search(r"\[Rental OS fleet\.vehicle:(\d+)\]", note)
+    return int(match.group(1)) if match else None
 
 
 # =========================================================
@@ -32,6 +43,7 @@ def get_sales():
                 "invoice_status",
                 "opportunity_id",
                 "order_line",
+                "note",
             ],
             "order": "id desc",
             "limit": 100,
@@ -72,6 +84,7 @@ def get_sales():
             ),
 
             "order_line_ids": order["order_line"],
+            "vehicle_id": get_rental_vehicle_id(order.get("note")),
         })
 
     return {
@@ -112,6 +125,7 @@ def get_sale(order_id: int):
                 "invoice_ids",
                 "opportunity_id",
                 "order_line",
+                "note",
             ]
         }
     )
@@ -160,4 +174,5 @@ def get_sale(order_id: int):
         ),
 
         "order_line_ids": order["order_line"],
+        "vehicle_id": get_rental_vehicle_id(order.get("note")),
     }

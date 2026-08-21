@@ -1,16 +1,14 @@
 "use client";
 
+import Link from "next/link";
 import {
   Mail,
-  MoreHorizontal,
   Phone,
   Search,
   UserPlus,
   Users,
 } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import AddCustomerModal from "@/components/customers/AddCustomerModal";
 
 // ============================================================
 // TYPES
@@ -21,7 +19,8 @@ type Customer = {
   name: string;
   phone: string | false;
   email: string | false;
-  mobile: string | false;
+  crm_stage: string | null;
+  salesperson: string | null;
 };
 
 type CustomersResponse = {
@@ -42,41 +41,38 @@ const API_URL =
 // ============================================================
 
 export default function CustomersPage() {
-  const router = useRouter();
-
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
-  const [showAddModal, setShowAddModal] = useState(false);
 
   // ============================================================
   // FETCH CUSTOMERS
   // ============================================================
 
-  async function loadCustomers() {
-    try {
-      setLoading(true);
-      setError("");
-
-      const response = await fetch(`${API_URL}/customers`);
-
-      if (!response.ok) {
-        throw new Error(`API returned ${response.status}`);
-      }
-
-      const data: CustomersResponse = await response.json();
-
-      setCustomers(data.customers);
-    } catch (err) {
-      console.error("Failed to load customers:", err);
-      setError("Unable to load customer data.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   useEffect(() => {
+    async function loadCustomers() {
+      try {
+        setLoading(true);
+        setError("");
+
+        const response = await fetch(`${API_URL}/customers`);
+
+        if (!response.ok) {
+          throw new Error(`API returned ${response.status}`);
+        }
+
+        const data: CustomersResponse = await response.json();
+
+        setCustomers(data.customers);
+      } catch (err) {
+        console.error("Failed to load customers:", err);
+        setError("Unable to load customer data.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
     loadCustomers();
   }, []);
 
@@ -95,9 +91,6 @@ export default function CustomersPage() {
       return (
         customer.name?.toLowerCase().includes(query) ||
         String(customer.phone || "")
-          .toLowerCase()
-          .includes(query) ||
-        String(customer.mobile || "")
           .toLowerCase()
           .includes(query) ||
         String(customer.email || "")
@@ -140,10 +133,7 @@ export default function CustomersPage() {
 
         </div>
 
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex h-9 items-center justify-center gap-2 rounded-lg bg-[#C8F065] px-4 text-xs font-medium text-[#09090B] transition hover:bg-[#d7ff80]"
-        >
+        <button className="flex h-9 items-center justify-center gap-2 rounded-lg bg-[#C8F065] px-4 text-xs font-medium text-[#09090B] transition hover:bg-[#d7ff80]">
           <UserPlus size={14} />
           Add customer
         </button>
@@ -253,11 +243,15 @@ export default function CustomersPage() {
                   </th>
 
                   <th className="px-5 py-3 font-medium">
-                    Mobile
+                    CRM stage
                   </th>
 
                   <th className="px-5 py-3 font-medium">
                     Email
+                  </th>
+
+                  <th className="px-5 py-3 font-medium">
+                    Salesperson
                   </th>
 
                   <th className="px-5 py-3" />
@@ -283,7 +277,7 @@ export default function CustomersPage() {
                           {getInitials(customer.name)}
                         </div>
 
-                        <div>
+                        <Link href={`/dashboard/customers/${customer.id}`}>
                           <div className="font-medium">
                             {customer.name}
                           </div>
@@ -291,7 +285,7 @@ export default function CustomersPage() {
                           <div className="mt-0.5 text-[9px] text-[#52525B]">
                             ID #{customer.id}
                           </div>
-                        </div>
+                        </Link>
 
                       </div>
 
@@ -313,7 +307,7 @@ export default function CustomersPage() {
                     </td>
 
                     <td className="px-5 py-4 text-[#A1A1AA]">
-                      {customer.mobile || "—"}
+                      {customer.crm_stage || "—"}
                     </td>
 
                     <td className="px-5 py-4 text-[#A1A1AA]">
@@ -331,12 +325,8 @@ export default function CustomersPage() {
 
                     </td>
 
-                    <td className="px-5 py-4 text-right">
-
-                      <button className="text-[#71717A] transition hover:text-white">
-                        <MoreHorizontal size={15} />
-                      </button>
-
+                    <td className="px-5 py-4 text-[#A1A1AA]">
+                      {customer.salesperson || "—"}
                     </td>
 
                   </tr>
@@ -357,20 +347,6 @@ export default function CustomersPage() {
         )}
 
       </section>
-
-      {/* ADD CUSTOMER MODAL */}
-
-      {showAddModal && (
-        <AddCustomerModal
-          apiUrl={API_URL}
-          onClose={() => setShowAddModal(false)}
-          onSuccess={(partnerId) => {
-            setShowAddModal(false);
-            loadCustomers();
-            router.push(`/dashboard/customers/${partnerId}`);
-          }}
-        />
-      )}
 
     </main>
   );

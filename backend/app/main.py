@@ -6,10 +6,10 @@ from app.odoo_client import odoo
 from app.routes import (
     cars,
     customers,
-    leads,
     crm,
     sales,
     invoices,
+    rentals,
 )
 
 
@@ -32,6 +32,7 @@ app.add_middleware(
 
     allow_origins=[
         "https://rental-os.klynx.net",
+        "http://localhost:3000",
         "http://localhost:3100",
     ],
 
@@ -82,10 +83,6 @@ app.include_router(
 )
 
 app.include_router(
-    leads.router
-)
-
-app.include_router(
     crm.router
 )
 
@@ -95,4 +92,8 @@ app.include_router(
 
 app.include_router(
     invoices.router
+)
+
+app.include_router(
+    rentals.router
 )

@@ -317,10 +317,13 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <button className="flex h-9 items-center justify-center gap-2 rounded-lg bg-[#C8F065] px-4 text-xs font-medium text-[#09090B] shadow-[0_0_24px_rgba(200,240,101,.08)] transition hover:bg-[#d7ff80]">
+        <a
+          href="/dashboard/crm"
+          className="flex h-9 items-center justify-center gap-2 rounded-lg bg-[#C8F065] px-4 text-xs font-medium text-[#09090B] shadow-[0_0_24px_rgba(200,240,101,.08)] transition hover:bg-[#d7ff80]"
+        >
           <ClipboardList size={14} />
-          New rental
-        </button>
+          Add new opportunity
+        </a>
       </section>
 
       {/* API ERROR */}

@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   CalendarDays,
   Car,
   CircleDollarSign,
   FileText,
+  LoaderCircle,
   Search,
+  X,
 } from "lucide-react";
 
 type Customer = {
@@ -30,6 +33,33 @@ type Sale = {
   invoice_status: string;
   opportunity: Opportunity | null;
   order_line_ids: number[];
+  vehicle_id?: number | null;
+};
+
+type Vehicle = {
+  id: number;
+  name: string;
+  license_plate: string | null;
+};
+
+type RentalOption = {
+  id: number;
+  name: string;
+};
+
+type RentalVehicleOption = Vehicle & {
+  status: string | null;
+};
+
+type ProductOption = RentalOption & {
+  list_price: number;
+  suggested_product_ids: number[];
+};
+
+type RentalOptionsResponse = {
+  customers: RentalOption[];
+  vehicles: RentalVehicleOption[];
+  products: ProductOption[];
 };
 
 type Invoice = {
@@ -53,6 +83,10 @@ type SalesResponse = {
 type InvoicesResponse = {
   count: number;
   invoices: Invoice[];
+};
+
+type CarsResponse = {
+  cars: Vehicle[];
 };
 
 const API_URL =
@@ -109,21 +143,43 @@ function getRentalState(sale: Sale) {
 export default function RentalsPage() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [options, setOptions] = useState<RentalOptionsResponse | null>(null);
+  const [optionsLoading, setOptionsLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [customerText, setCustomerText] = useState("");
+  const [vehicleText, setVehicleText] = useState("");
+  const [productText, setProductText] = useState("");
+  const [optionalProductIds, setOptionalProductIds] = useState<number[]>([]);
+  const [form, setForm] = useState({
+    partner_id: "",
+    vehicle_id: "",
+    product_id: "",
+    start_date: "",
+    end_date: "",
+    quantity: "1",
+    unit_price: "",
+  });
 
   useEffect(() => {
     async function loadRentals() {
       try {
         setLoading(true);
 
-        const [salesResponse, invoicesResponse] =
+        const [salesResponse, invoicesResponse, carsResponse] =
           await Promise.all([
             fetch(`${API_URL}/sales`, {
               cache: "no-store",
             }),
             fetch(`${API_URL}/invoices`, {
+              cache: "no-store",
+            }),
+            fetch(`${API_URL}/cars`, {
               cache: "no-store",
             }),
           ]);
@@ -140,14 +196,23 @@ export default function RentalsPage() {
           );
         }
 
+        if (!carsResponse.ok) {
+          throw new Error(
+            `Cars API returned ${carsResponse.status}`
+          );
+        }
+
         const salesData: SalesResponse =
           await salesResponse.json();
 
         const invoicesData: InvoicesResponse =
           await invoicesResponse.json();
 
+        const carsData: CarsResponse = await carsResponse.json();
+
         setSales(salesData.sales || []);
         setInvoices(invoicesData.invoices || []);
+        setVehicles(carsData.cars || []);
       } catch (err) {
         console.error(err);
         setError("Unable to load rental data.");
@@ -158,6 +223,87 @@ export default function RentalsPage() {
 
     loadRentals();
   }, []);
+
+  const openCreateForm = useCallback(async () => {
+    setFormError(null);
+    setOptionsLoading(true);
+    setShowCreateForm(true);
+
+    try {
+      const response = await fetch(`${API_URL}/rentals/options`, {
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        throw new Error(`Rental options API returned ${response.status}`);
+      }
+
+      setOptions(await response.json());
+    } catch (err) {
+      console.error(err);
+      setFormError("Unable to load rental choices.");
+    } finally {
+      setOptionsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const shouldOpenRentalForm = new URLSearchParams(
+      window.location.search
+    ).get("new") === "1";
+
+    if (shouldOpenRentalForm) {
+      void openCreateForm();
+    }
+  }, [openCreateForm]);
+
+  async function createRental(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setFormError(null);
+    setSubmitting(true);
+
+    try {
+      const response = await fetch(`${API_URL}/rentals`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          partner_id: Number(form.partner_id),
+          vehicle_id: Number(form.vehicle_id),
+          product_id: Number(form.product_id),
+          start_date: form.start_date,
+          end_date: form.end_date,
+          quantity: Number(form.quantity),
+          optional_product_ids: optionalProductIds,
+          ...(form.unit_price === ""
+            ? {}
+            : { unit_price: Number(form.unit_price) }),
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail || "Unable to create rental.");
+      }
+
+      setSales((current) => [data.sale, ...current]);
+      setShowCreateForm(false);
+      setCustomerText("");
+      setVehicleText("");
+      setProductText("");
+      setOptionalProductIds([]);
+      setForm({
+        partner_id: "", vehicle_id: "", product_id: "", start_date: "",
+        end_date: "", quantity: "1", unit_price: "",
+      });
+    } catch (err) {
+      console.error(err);
+      setFormError(
+        err instanceof Error ? err.message : "Unable to create rental."
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   const filteredSales = useMemo(() => {
     const query = search.toLowerCase().trim();
@@ -214,7 +360,10 @@ export default function RentalsPage() {
           </p>
         </div>
 
-        <button className="flex h-9 items-center justify-center gap-2 rounded-lg bg-[#C8F065] px-4 text-xs font-medium text-black transition hover:bg-[#d7ff80]">
+        <button
+          onClick={openCreateForm}
+          className="flex h-9 items-center justify-center gap-2 rounded-lg bg-[#C8F065] px-4 text-xs font-medium text-black transition hover:bg-[#d7ff80]"
+        >
           <CalendarDays size={14} />
           New rental
         </button>
@@ -354,10 +503,18 @@ export default function RentalsPage() {
                         </span>
                       </div>
 
-                      <div className="mt-1 text-sm text-zinc-300">
-                        {sale.customer?.name ||
-                          "Unknown customer"}
-                      </div>
+                      {sale.customer ? (
+                        <Link
+                          href={`/dashboard/customers/${sale.customer.id}`}
+                          className="mt-1 block text-sm text-zinc-300 hover:text-[#C8F065]"
+                        >
+                          {sale.customer.name}
+                        </Link>
+                      ) : (
+                        <div className="mt-1 text-sm text-zinc-300">
+                          Unknown customer
+                        </div>
+                      )}
 
                       <div className="mt-1 text-xs text-zinc-600">
                         {sale.opportunity?.name ||
@@ -382,7 +539,11 @@ export default function RentalsPage() {
                         Vehicle
                       </div>
                       <div className="mt-1 text-zinc-500">
-                        Unassigned
+                        {sale.vehicle_id
+                          ? vehicles.find(
+                              (vehicle) => vehicle.id === sale.vehicle_id
+                            )?.name || "Assigned vehicle"
+                          : "Unassigned"}
                       </div>
                     </div>
 
@@ -459,6 +620,173 @@ export default function RentalsPage() {
         )}
 
       </section>
+
+      {showCreateForm && (
+        <div className="fixed inset-0 z-50 flex items-end bg-black/70 p-0 sm:items-center sm:justify-center sm:p-6">
+          <div
+            className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-2xl border border-[#2B2B30] bg-[#111113] p-5 shadow-2xl sm:rounded-2xl sm:p-6"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="new-rental-title"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 id="new-rental-title" className="text-lg font-semibold text-white">
+                  New rental
+                </h2>
+                <p className="mt-1 text-sm text-zinc-500">
+                  Creates a draft sale order in Odoo. Its invoices remain linked by Odoo.
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label="Close new rental form"
+                onClick={() => setShowCreateForm(false)}
+                className="rounded-lg p-2 text-zinc-500 transition hover:bg-[#1B1B1E] hover:text-white"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {optionsLoading ? (
+              <div className="flex h-56 items-center justify-center gap-2 text-sm text-zinc-500">
+                <LoaderCircle size={17} className="animate-spin" />
+                Loading Odoo options...
+              </div>
+            ) : (
+              <form onSubmit={createRental} className="mt-6 space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="space-y-1.5 text-xs text-zinc-400">
+                    Customer
+                    <select
+                      required
+                      value={form.partner_id}
+                      onChange={(event) => setForm({ ...form, partner_id: event.target.value })}
+                      className="h-10 w-full rounded-lg border border-[#2B2B30] bg-[#17171A] px-3 text-sm text-white outline-none focus:border-[#C8F065]/50"
+                    >
+                      <option value="">Select customer</option>
+                      {options?.customers.map((customer) => (
+                        <option key={customer.id} value={customer.id}>{customer.name}</option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="space-y-1.5 text-xs text-zinc-400">
+                    Fleet vehicle
+                    <select
+                      required
+                      value={form.vehicle_id}
+                      onChange={(event) => setForm({ ...form, vehicle_id: event.target.value })}
+                      className="h-10 w-full rounded-lg border border-[#2B2B30] bg-[#17171A] px-3 text-sm text-white outline-none focus:border-[#C8F065]/50"
+                    >
+                      <option value="">Select available vehicle</option>
+                      {options?.vehicles.map((vehicle) => (
+                        <option key={vehicle.id} value={vehicle.id}>
+                          {vehicle.name}{vehicle.license_plate ? ` — ${vehicle.license_plate}` : ""}{vehicle.status ? ` (${vehicle.status})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="space-y-1.5 text-xs text-zinc-400">
+                    Sale option
+                    <select
+                      required
+                      value={form.product_id}
+                      onChange={(event) => setForm({ ...form, product_id: event.target.value })}
+                      className="h-10 w-full rounded-lg border border-[#2B2B30] bg-[#17171A] px-3 text-sm text-white outline-none focus:border-[#C8F065]/50"
+                    >
+                      <option value="">Select product or service</option>
+                      {options?.products.map((product) => (
+                        <option key={product.id} value={product.id}>
+                          {product.name} — {product.list_price.toLocaleString()} TND
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="space-y-1.5 text-xs text-zinc-400">
+                    Quantity
+                    <input
+                      required
+                      min="0.01"
+                      step="0.01"
+                      type="number"
+                      value={form.quantity}
+                      onChange={(event) => setForm({ ...form, quantity: event.target.value })}
+                      className="h-10 w-full rounded-lg border border-[#2B2B30] bg-[#17171A] px-3 text-sm text-white outline-none focus:border-[#C8F065]/50"
+                    />
+                  </label>
+
+                  <label className="space-y-1.5 text-xs text-zinc-400">
+                    Rental start
+                    <input
+                      required
+                      type="date"
+                      value={form.start_date}
+                      onChange={(event) => setForm({ ...form, start_date: event.target.value })}
+                      className="h-10 w-full rounded-lg border border-[#2B2B30] bg-[#17171A] px-3 text-sm text-white outline-none focus:border-[#C8F065]/50"
+                    />
+                  </label>
+
+                  <label className="space-y-1.5 text-xs text-zinc-400">
+                    Return date
+                    <input
+                      required
+                      type="date"
+                      value={form.end_date}
+                      onChange={(event) => setForm({ ...form, end_date: event.target.value })}
+                      className="h-10 w-full rounded-lg border border-[#2B2B30] bg-[#17171A] px-3 text-sm text-white outline-none focus:border-[#C8F065]/50"
+                    />
+                  </label>
+
+                  <label className="space-y-1.5 text-xs text-zinc-400 sm:col-span-2">
+                    Unit price (optional — uses the Odoo sales price when blank)
+                    <input
+                      min="0"
+                      step="0.001"
+                      type="number"
+                      value={form.unit_price}
+                      onChange={(event) => setForm({ ...form, unit_price: event.target.value })}
+                      className="h-10 w-full rounded-lg border border-[#2B2B30] bg-[#17171A] px-3 text-sm text-white outline-none focus:border-[#C8F065]/50"
+                    />
+                  </label>
+                </div>
+
+                {formError && (
+                  <p className="rounded-lg border border-red-900/40 bg-red-950/20 px-3 py-2 text-sm text-red-300">
+                    {formError}
+                  </p>
+                )}
+
+                <div className="flex justify-end gap-3 border-t border-[#2B2B30] pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateForm(false)}
+                    className="h-9 rounded-lg px-4 text-xs font-medium text-zinc-400 transition hover:bg-[#1B1B1E] hover:text-white"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    disabled={submitting || !options}
+                    className="flex h-9 items-center gap-2 rounded-lg bg-[#C8F065] px-4 text-xs font-medium text-black transition hover:bg-[#d7ff80] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {submitting && <LoaderCircle size={14} className="animate-spin" />}
+                    Create rental
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </main>
   );
+
+  const selectedProduct = options?.products.find(
+    (product) => product.id === Number(form.product_id)
+  );
+  const suggestedProducts = options?.products.filter((product) =>
+    selectedProduct?.suggested_product_ids.includes(product.id)
+  ) || [];
 }
