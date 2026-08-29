@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.odoo_client import odoo
@@ -16,10 +16,11 @@ router = APIRouter(
 
 class LeadCreate(BaseModel):
     name: str
+    partner_id: int | None = None
     phone: str | None = None
     email: str | None = None
     description: str | None = None
-    partner_id: int | None = None
+    expected_revenue: float | None = 0
 
 
 # =========================================================
@@ -55,55 +56,51 @@ def get_leads():
 
     for lead in leads:
 
-        result.append({
-            "id": lead["id"],
+        result.append(
+            {
+                "id": lead["id"],
 
-            "name": lead["name"],
+                "name": lead["name"],
 
-            "customer": (
-                {
-                    "id": lead["partner_id"][0],
-                    "name": lead["partner_id"][1],
-                }
-                if lead.get("partner_id")
-                else None
-            ),
+                "customer": (
+                    {
+                        "id": lead["partner_id"][0],
+                        "name": lead["partner_id"][1],
+                    }
+                    if lead.get("partner_id")
+                    else None
+                ),
 
-            "phone": (
-                lead.get("phone")
-                or lead.get("mobile")
-                or None
-            ),
+                "phone": (
+                    lead.get("phone")
+                    or lead.get("mobile")
+                    or None
+                ),
 
-            "email": lead.get("email_from"),
+                "email": lead.get("email_from"),
 
-            "stage": (
-                lead["stage_id"][1]
-                if lead.get("stage_id")
-                else None
-            ),
+                "stage": (
+                    lead["stage_id"][1]
+                    if lead.get("stage_id")
+                    else None
+                ),
 
-            "stage_id": (
-                lead["stage_id"][0]
-                if lead.get("stage_id")
-                else None
-            ),
+                "salesperson": (
+                    {
+                        "id": lead["user_id"][0],
+                        "name": lead["user_id"][1],
+                    }
+                    if lead.get("user_id")
+                    else None
+                ),
 
-            "salesperson": (
-                {
-                    "id": lead["user_id"][0],
-                    "name": lead["user_id"][1],
-                }
-                if lead.get("user_id")
-                else None
-            ),
+                "expected_revenue": (
+                    lead.get("expected_revenue") or 0
+                ),
 
-            "expected_revenue": (
-                lead.get("expected_revenue") or 0
-            ),
-
-            "created": lead.get("create_date"),
-        })
+                "created": lead.get("create_date"),
+            }
+        )
 
     return {
         "count": len(result),
@@ -112,70 +109,82 @@ def get_leads():
 
 
 # =========================================================
-# CREATE LEAD
+# CREATE LEAD / OPPORTUNITY
 # =========================================================
 
 @router.post("")
 def create_lead(lead: LeadCreate):
 
-    # --------------------------------------------------------
-    # NOTE: odoo.execute()'s "args" positional slot is passed
-    # straight through to Odoo's execute_kw, which expects a
-    # LIST of positional args for the target method (e.g.
-    # crm.lead.create(vals_list)). Passing a bare dict here
-    # (instead of [dict]) is what broke lead creation.
-    # --------------------------------------------------------
+    name = lead.name.strip()
 
-    vals = {
-        "name": lead.name,
+    if not name:
+        raise HTTPException(
+            status_code=400,
+            detail="Opportunity name is required.",
+        )
+
+    values = {
+        "name": name,
         "phone": lead.phone,
         "email_from": lead.email,
         "description": lead.description,
+        "expected_revenue": lead.expected_revenue or 0,
     }
 
-    # partner_id is how a lead becomes a Rental OS "customer"
-    # (see customers.py: a contact only qualifies once it has
-    # an associated crm.lead). Only set it when attaching this
-    # lead to an existing customer/contact.
+    # -----------------------------------------------------
+    # LINK EXISTING CUSTOMER
+    # -----------------------------------------------------
 
     if lead.partner_id:
-        vals["partner_id"] = lead.partner_id
+
+        partners = odoo.execute(
+            "res.partner",
+            "search_read",
+            [
+                [
+                    ["id", "=", lead.partner_id],
+                ]
+            ],
+            {
+                "fields": [
+                    "id",
+                    "name",
+                    "phone",
+                    "email",
+                ],
+                "limit": 1,
+            },
+        )
+
+        if not partners:
+            raise HTTPException(
+                status_code=404,
+                detail="Customer not found.",
+            )
+
+        partner = partners[0]
+
+        values["partner_id"] = partner["id"]
+
+        # Use customer information if the opportunity
+        # itself did not explicitly provide it.
+        if not values["phone"]:
+            values["phone"] = partner.get("phone")
+
+        if not values["email_from"]:
+            values["email_from"] = partner.get("email")
+
+    # -----------------------------------------------------
+    # CREATE ODOO CRM OPPORTUNITY
+    # -----------------------------------------------------
 
     lead_id = odoo.execute(
         "crm.lead",
         "create",
-        [vals],
+        values,
     )
 
     return {
         "success": True,
         "lead_id": lead_id,
-        "partner_id": lead.partner_id,
-    }
-
-
-# =========================================================
-# UPDATE LEAD STAGE (kanban drag & drop)
-# =========================================================
-
-class LeadStageUpdate(BaseModel):
-    stage_id: int
-
-
-@router.patch("/{lead_id}/stage")
-def update_lead_stage(lead_id: int, payload: LeadStageUpdate):
-
-    odoo.execute(
-        "crm.lead",
-        "write",
-        [
-            [lead_id],
-            {"stage_id": payload.stage_id},
-        ],
-    )
-
-    return {
-        "success": True,
-        "lead_id": lead_id,
-        "stage_id": payload.stage_id,
     }

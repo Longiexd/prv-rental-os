@@ -10,7 +10,7 @@ from app.routes import (
     crm,
     sales,
     invoices,
-    rentals,
+    customer_create,
 )
 
 
@@ -33,7 +33,6 @@ app.add_middleware(
 
     allow_origins=[
         "https://rental-os.klynx.net",
-        "http://localhost:3000",
         "http://localhost:3100",
     ],
 
@@ -84,6 +83,10 @@ app.include_router(
 )
 
 app.include_router(
+    customer_create.router
+)
+
+app.include_router(
     leads.router
 )
 
@@ -97,8 +100,4 @@ app.include_router(
 
 app.include_router(
     invoices.router
-)
-
-app.include_router(
-    rentals.router
 )

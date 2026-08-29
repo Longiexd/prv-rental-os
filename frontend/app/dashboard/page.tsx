@@ -5,16 +5,14 @@ import {
   ArrowUpRight,
   CalendarDays,
   Car,
-  ClipboardList,
   MoreHorizontal,
+  Plus,
   TrendingUp,
   Users,
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 
-// ==========================================================
-// TYPES
-// ==========================================================
+import AddLeadModal from "@/components/crm/AddLeadModal";
 
 type RelationalValue =
   | string
@@ -108,41 +106,32 @@ type InvoicesResponse = {
   invoices: InvoiceData[];
 };
 
-// ==========================================================
-// SAFE ODOO VALUE HELPERS
-// ==========================================================
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  "https://api.rental-os.klynx.net";
 
 function displayValue(value: RelationalValue): string {
-  if (value === null || value === undefined || value === false) {
+  if (
+    value === null ||
+    value === undefined ||
+    value === false
+  ) {
     return "";
   }
 
-  if (typeof value === "string" || typeof value === "number") {
+  if (
+    typeof value === "string" ||
+    typeof value === "number"
+  ) {
     return String(value);
   }
 
-  if (typeof value === "object") {
-    return value.name || "";
-  }
-
-  return "";
+  return value.name || "";
 }
 
 function normalizeValue(value: RelationalValue): string {
   return displayValue(value).toLowerCase().trim();
 }
-
-// ==========================================================
-// API CONFIGURATION
-// ==========================================================
-
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://api.rental-os.klynx.net";
-
-// ==========================================================
-// DASHBOARD PAGE
-// ==========================================================
 
 export default function DashboardPage() {
   const [cars, setCars] = useState<CarData[]>([]);
@@ -154,112 +143,131 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // ========================================================
-  // FETCH DASHBOARD DATA
-  // ========================================================
+  const [addLeadOpen, setAddLeadOpen] = useState(false);
+
+  async function loadDashboard() {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const [
+        carsResponse,
+        customersResponse,
+        leadsResponse,
+        salesResponse,
+        invoicesResponse,
+      ] = await Promise.all([
+        fetch(`${API_URL}/cars`, {
+          cache: "no-store",
+        }),
+
+        fetch(`${API_URL}/customers`, {
+          cache: "no-store",
+        }),
+
+        fetch(`${API_URL}/crm/leads`, {
+          cache: "no-store",
+        }),
+
+        fetch(`${API_URL}/sales`, {
+          cache: "no-store",
+        }),
+
+        fetch(`${API_URL}/invoices`, {
+          cache: "no-store",
+        }),
+      ]);
+
+      if (!carsResponse.ok) {
+        throw new Error(
+          `Cars API returned ${carsResponse.status}`
+        );
+      }
+
+      if (!customersResponse.ok) {
+        throw new Error(
+          `Customers API returned ${customersResponse.status}`
+        );
+      }
+
+      if (!leadsResponse.ok) {
+        throw new Error(
+          `Leads API returned ${leadsResponse.status}`
+        );
+      }
+
+      if (!salesResponse.ok) {
+        throw new Error(
+          `Sales API returned ${salesResponse.status}`
+        );
+      }
+
+      if (!invoicesResponse.ok) {
+        throw new Error(
+          `Invoices API returned ${invoicesResponse.status}`
+        );
+      }
+
+      const carsData: CarsResponse =
+        await carsResponse.json();
+
+      const customersData: CustomersResponse =
+        await customersResponse.json();
+
+      const leadsData: LeadsResponse =
+        await leadsResponse.json();
+
+      const salesData: SalesResponse =
+        await salesResponse.json();
+
+      const invoicesData: InvoicesResponse =
+        await invoicesResponse.json();
+
+      setCars(
+        Array.isArray(carsData.cars)
+          ? carsData.cars
+          : []
+      );
+
+      setCustomers(
+        Array.isArray(customersData.customers)
+          ? customersData.customers
+          : []
+      );
+
+      setLeads(
+        Array.isArray(leadsData.leads)
+          ? leadsData.leads
+          : []
+      );
+
+      setSales(
+        Array.isArray(salesData.sales)
+          ? salesData.sales
+          : []
+      );
+
+      setInvoices(
+        Array.isArray(invoicesData.invoices)
+          ? invoicesData.invoices
+          : []
+      );
+    } catch (err) {
+      console.error("Dashboard API error:", err);
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to load dashboard data."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    async function loadDashboard() {
-      try {
-        setLoading(true);
-        setError(null);
-
-        const [
-          carsResponse,
-          customersResponse,
-          leadsResponse,
-          salesResponse,
-          invoicesResponse,
-        ] = await Promise.all([
-          fetch(`${API_URL}/cars`, {
-            cache: "no-store",
-          }),
-
-          fetch(`${API_URL}/customers`, {
-            cache: "no-store",
-          }),
-
-          fetch(`${API_URL}/crm/leads`, {
-            cache: "no-store",
-          }),
-
-          fetch(`${API_URL}/sales`, {
-            cache: "no-store",
-          }),
-
-          fetch(`${API_URL}/invoices`, {
-            cache: "no-store",
-          }),
-        ]);
-
-        if (!carsResponse.ok) {
-          throw new Error(`Cars API returned ${carsResponse.status}`);
-        }
-
-        if (!customersResponse.ok) {
-          throw new Error(
-            `Customers API returned ${customersResponse.status}`
-          );
-        }
-
-        if (!leadsResponse.ok) {
-          throw new Error(`Leads API returned ${leadsResponse.status}`);
-        }
-
-        if (!salesResponse.ok) {
-          throw new Error(`Sales API returned ${salesResponse.status}`);
-        }
-
-        if (!invoicesResponse.ok) {
-          throw new Error(
-            `Invoices API returned ${invoicesResponse.status}`
-          );
-        }
-
-        const carsData: CarsResponse = await carsResponse.json();
-        const customersData: CustomersResponse =
-          await customersResponse.json();
-        const leadsData: LeadsResponse = await leadsResponse.json();
-        const salesData: SalesResponse = await salesResponse.json();
-        const invoicesData: InvoicesResponse =
-          await invoicesResponse.json();
-
-        setCars(Array.isArray(carsData.cars) ? carsData.cars : []);
-        setCustomers(
-          Array.isArray(customersData.customers)
-            ? customersData.customers
-            : []
-        );
-        setLeads(
-          Array.isArray(leadsData.leads) ? leadsData.leads : []
-        );
-        setSales(
-          Array.isArray(salesData.sales) ? salesData.sales : []
-        );
-        setInvoices(
-          Array.isArray(invoicesData.invoices)
-            ? invoicesData.invoices
-            : []
-        );
-      } catch (err) {
-        console.error("Dashboard API error:", err);
-
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Unable to load dashboard data."
-        );
-      } finally {
-        setLoading(false);
-      }
-    }
-
     loadDashboard();
   }, []);
-
-  // ========================================================
-  // DERIVED DATA
-  // ========================================================
 
   const availableCars = cars.filter((car) => {
     const status = normalizeValue(car.status);
@@ -272,7 +280,8 @@ export default function DashboardPage() {
   }).length;
 
   const totalSales = sales.reduce(
-    (sum, sale) => sum + (Number(sale.amount_total) || 0),
+    (sum, sale) =>
+      sum + (Number(sale.amount_total) || 0),
     0
   );
 
@@ -288,15 +297,9 @@ export default function DashboardPage() {
     0
   );
 
-  // ========================================================
-  // RENDER
-  // ========================================================
-
   return (
     <main className="mx-auto max-w-[1500px] p-5 sm:p-8">
-
       {/* HEADER */}
-
       <section className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
         <div>
           <div className="mb-2 flex items-center gap-2 text-[11px] text-[#71717A]">
@@ -317,17 +320,17 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <a
-          href="/dashboard/crm"
+        <button
+          type="button"
+          onClick={() => setAddLeadOpen(true)}
           className="flex h-9 items-center justify-center gap-2 rounded-lg bg-[#C8F065] px-4 text-xs font-medium text-[#09090B] shadow-[0_0_24px_rgba(200,240,101,.08)] transition hover:bg-[#d7ff80]"
         >
-          <ClipboardList size={14} />
-          Add new opportunity
-        </a>
+          <Plus size={14} />
+          Add new lead
+        </button>
       </section>
 
-      {/* API ERROR */}
-
+      {/* ERROR */}
       {error && (
         <div className="mt-4 rounded-xl border border-[#F06AAA]/30 bg-[#F06AAA]/5 px-4 py-3 text-xs text-[#F06AAA]">
           Unable to load live dashboard data: {error}
@@ -335,9 +338,7 @@ export default function DashboardPage() {
       )}
 
       {/* KPI CARDS */}
-
       <section className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-
         <StatCard
           label="Fleet"
           value={loading ? "—" : cars.length.toString()}
@@ -398,17 +399,12 @@ export default function DashboardPage() {
           icon={<ArrowUpRight size={15} />}
           accent="pink"
         />
-
       </section>
 
       {/* MAIN GRID */}
-
       <section className="mt-4 grid gap-4 xl:grid-cols-[1.5fr_1fr]">
-
-        {/* FLEET OVERVIEW */}
-
+        {/* FLEET */}
         <div className="overflow-hidden rounded-xl border border-[#2B2B30] bg-[#111113]/80">
-
           <div className="flex items-center justify-between border-b border-[#2B2B30] px-5 py-4">
             <div>
               <h2 className="font-[Syne] text-sm font-semibold">
@@ -429,9 +425,7 @@ export default function DashboardPage() {
           </div>
 
           <div className="p-5">
-
             <div className="flex items-end justify-between">
-
               <div>
                 <div className="font-[Syne] text-3xl font-semibold">
                   {loading ? "—" : cars.length}
@@ -446,15 +440,10 @@ export default function DashboardPage() {
                 <Car size={13} />
                 Live
               </div>
-
             </div>
 
-            {/* FLEET LIST */}
-
             <div className="mt-7">
-
               {loading ? (
-
                 <div className="space-y-3">
                   {[1, 2, 3, 4].map((item) => (
                     <div
@@ -463,32 +452,25 @@ export default function DashboardPage() {
                     />
                   ))}
                 </div>
-
               ) : cars.length === 0 ? (
-
                 <div className="rounded-lg border border-[#2B2B30] bg-[#17171A]/50 px-4 py-8 text-center text-xs text-[#71717A]">
                   No vehicles found in Odoo.
                 </div>
-
               ) : (
-
                 <div className="divide-y divide-[#2B2B30]">
-
                   {cars.slice(0, 6).map((car) => (
-
                     <div
                       key={car.id}
                       className="flex items-center gap-3 py-3"
                     >
-
                       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#C8F065]/10 text-[#C8F065]">
                         <Car size={15} />
                       </div>
 
                       <div className="min-w-0 flex-1">
-
                         <div className="truncate text-xs font-medium">
-                          {car.name || "Unnamed vehicle"}
+                          {car.name ||
+                            "Unnamed vehicle"}
                         </div>
 
                         <div className="mt-0.5 truncate text-[10px] text-[#71717A]">
@@ -498,33 +480,22 @@ export default function DashboardPage() {
                             ? ` · ${car.license_plate}`
                             : ""}
                         </div>
-
                       </div>
 
                       <VehicleStatusBadge
                         status={car.status}
                       />
-
                     </div>
-
                   ))}
-
                 </div>
-
               )}
-
             </div>
-
           </div>
-
         </div>
 
-        {/* CRM LEADS */}
-
+        {/* CRM */}
         <div className="rounded-xl border border-[#2B2B30] bg-[#111113]/80">
-
           <div className="flex items-center justify-between border-b border-[#2B2B30] px-5 py-4">
-
             <div>
               <h2 className="font-[Syne] text-sm font-semibold">
                 CRM leads
@@ -536,35 +507,27 @@ export default function DashboardPage() {
             </div>
 
             <a
-              href="/dashboard/crm/leads"
+              href="/crm/leads"
               className="text-[10px] text-[#A1A1AA] transition hover:text-white"
             >
               View all →
             </a>
-
           </div>
 
           <div className="divide-y divide-[#2B2B30]">
-
             {loading ? (
-
               [1, 2, 3, 4].map((item) => (
                 <div
                   key={item}
                   className="mx-5 h-12 animate-pulse bg-[#17171A]"
                 />
               ))
-
             ) : leads.length === 0 ? (
-
               <div className="px-5 py-10 text-center text-xs text-[#71717A]">
                 No CRM leads found.
               </div>
-
             ) : (
-
               leads.slice(0, 6).map((lead) => {
-
                 const customerName =
                   displayValue(lead.customer);
 
@@ -576,7 +539,6 @@ export default function DashboardPage() {
                     key={lead.id}
                     className="flex items-center gap-3 px-5 py-3.5"
                   >
-
                     <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#F06AAA]/10 text-[10px] text-[#F06AAA]">
                       {lead.name
                         ?.charAt(0)
@@ -584,39 +546,31 @@ export default function DashboardPage() {
                     </div>
 
                     <div className="min-w-0 flex-1">
-
                       <div className="truncate text-xs font-medium">
-                        {lead.name || "Untitled lead"}
+                        {lead.name ||
+                          "Untitled lead"}
                       </div>
 
                       <div className="mt-0.5 truncate text-[10px] text-[#71717A]">
-                        {customerName || "No customer"}
+                        {customerName ||
+                          "No customer"}
                       </div>
-
                     </div>
 
                     <span className="rounded-md bg-[#17171A] px-2 py-1 text-[9px] text-[#A1A1AA]">
                       {stageName || "No stage"}
                     </span>
-
                   </div>
                 );
               })
-
             )}
-
           </div>
-
         </div>
-
       </section>
 
       {/* RECENT SALES */}
-
       <section className="mt-4 overflow-hidden rounded-xl border border-[#2B2B30] bg-[#111113]/80">
-
         <div className="flex items-center justify-between border-b border-[#2B2B30] px-5 py-4">
-
           <div>
             <h2 className="font-[Syne] text-sm font-semibold">
               Recent sales
@@ -633,17 +587,12 @@ export default function DashboardPage() {
           >
             View all →
           </a>
-
         </div>
 
         <div className="overflow-x-auto">
-
           <table className="w-full min-w-[700px] text-left">
-
             <thead>
-
               <tr className="border-b border-[#2B2B30] text-[10px] uppercase tracking-wider text-[#71717A]">
-
                 <th className="px-5 py-3 font-medium">
                   Order
                 </th>
@@ -669,15 +618,11 @@ export default function DashboardPage() {
                 </th>
 
                 <th className="px-5 py-3" />
-
               </tr>
-
             </thead>
 
             <tbody className="divide-y divide-[#2B2B30]">
-
               {loading ? (
-
                 [1, 2, 3, 4].map((item) => (
                   <tr key={item}>
                     <td
@@ -688,9 +633,7 @@ export default function DashboardPage() {
                     </td>
                   </tr>
                 ))
-
               ) : sales.length === 0 ? (
-
                 <tr>
                   <td
                     colSpan={7}
@@ -699,29 +642,28 @@ export default function DashboardPage() {
                     No sales found in Odoo.
                   </td>
                 </tr>
-
               ) : (
-
                 sales.slice(0, 6).map((sale) => {
-
                   const customerName =
                     displayValue(sale.customer);
 
                   const opportunityName =
-                    displayValue(sale.opportunity);
+                    displayValue(
+                      sale.opportunity
+                    );
 
                   return (
                     <tr
                       key={sale.id}
                       className="text-xs transition hover:bg-[#17171A]/50"
                     >
-
                       <td className="px-5 py-3.5 font-medium text-white">
                         {sale.name}
                       </td>
 
                       <td className="px-5 py-3.5 text-[#A1A1AA]">
-                        {customerName || "Unknown"}
+                        {customerName ||
+                          "Unknown"}
                       </td>
 
                       <td className="max-w-[220px] px-5 py-3.5 text-[#A1A1AA]">
@@ -731,43 +673,46 @@ export default function DashboardPage() {
                       </td>
 
                       <td className="px-5 py-3.5 text-[#A1A1AA]">
-                        {formatDate(sale.date_order)}
+                        {formatDate(
+                          sale.date_order
+                        )}
                       </td>
 
                       <td className="px-5 py-3.5">
                         <InvoiceStatusBadge
-                          status={sale.invoice_status}
+                          status={
+                            sale.invoice_status
+                          }
                         />
                       </td>
 
                       <td className="px-5 py-3.5 text-right font-medium text-white">
-                        {(Number(sale.amount_total) || 0).toLocaleString()} TND
+                        {(
+                          Number(
+                            sale.amount_total
+                          ) || 0
+                        ).toLocaleString()}{" "}
+                        TND
                       </td>
 
                       <td className="px-5 py-3.5 text-right">
                         <button className="text-[#71717A] transition hover:text-white">
-                          <MoreHorizontal size={15} />
+                          <MoreHorizontal
+                            size={15}
+                          />
                         </button>
                       </td>
-
                     </tr>
                   );
                 })
-
               )}
-
             </tbody>
-
           </table>
-
         </div>
-
       </section>
 
       {/* QUICK MODULES */}
-
       <section className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-
         <QuickModule
           icon={<Car size={17} />}
           title="Fleet"
@@ -788,16 +733,16 @@ export default function DashboardPage() {
           description="See pickups, returns and upcoming reservations."
           href="/dashboard/calendar"
         />
-
       </section>
 
+      <AddLeadModal
+        open={addLeadOpen}
+        onClose={() => setAddLeadOpen(false)}
+        onCreated={loadDashboard}
+      />
     </main>
   );
 }
-
-// ==========================================================
-// STAT CARD
-// ==========================================================
 
 function StatCard({
   label,
@@ -833,30 +778,28 @@ function StatCard({
 
   return (
     <div className="group relative overflow-hidden rounded-xl border border-[#2B2B30] bg-[#111113]/80 p-5 transition hover:border-[#3b3b42]">
-
       <div
         className={`pointer-events-none absolute -right-10 -top-10 h-24 w-24 rounded-full blur-3xl ${colors.glow}`}
       />
 
       <div className="relative">
-
         <div className="flex items-center justify-between">
-
           <div className="flex items-center gap-2 text-[11px] text-[#71717A]">
             <span className={colors.text}>
               {icon}
             </span>
+
             {label}
           </div>
 
-          <span className={`text-[10px] ${colors.text}`}>
+          <span
+            className={`text-[10px] ${colors.text}`}
+          >
             {change}
           </span>
-
         </div>
 
         <div className="mt-5 flex items-baseline gap-2">
-
           <span className="font-[Syne] text-[26px] font-semibold tracking-[-0.03em]">
             {value}
           </span>
@@ -864,18 +807,11 @@ function StatCard({
           <span className="text-[10px] text-[#71717A]">
             {detail}
           </span>
-
         </div>
-
       </div>
-
     </div>
   );
 }
-
-// ==========================================================
-// VEHICLE STATUS BADGE
-// ==========================================================
 
 function VehicleStatusBadge({
   status,
@@ -889,7 +825,6 @@ function VehicleStatusBadge({
   let classes =
     "border-[#2B2B30] bg-[#17171A] text-[#A1A1AA]";
 
-  // DISPONIBLE / AVAILABLE
   if (
     normalized.includes("dispon") ||
     normalized.includes("available") ||
@@ -899,10 +834,7 @@ function VehicleStatusBadge({
 
     classes =
       "border-[#C8F065]/20 bg-[#C8F065]/10 text-[#C8F065]";
-  }
-
-  // INDISPONIBLE / UNAVAILABLE
-  else if (
+  } else if (
     normalized.includes("indispon") ||
     normalized.includes("unavailable") ||
     normalized.includes("inactive")
@@ -911,10 +843,7 @@ function VehicleStatusBadge({
 
     classes =
       "border-red-400/20 bg-red-500/10 text-red-400";
-  }
-
-  // LOUÉ / RENTED
-  else if (
+  } else if (
     normalized.includes("lou") ||
     normalized.includes("rent") ||
     normalized.includes("rented")
@@ -923,10 +852,7 @@ function VehicleStatusBadge({
 
     classes =
       "border-[#F06AAA]/20 bg-[#F06AAA]/10 text-[#F06AAA]";
-  }
-
-  // NETTOYAGE / CLEANING
-  else if (
+  } else if (
     normalized.includes("nettoyage") ||
     normalized.includes("clean") ||
     normalized.includes("cleaning")
@@ -935,10 +861,7 @@ function VehicleStatusBadge({
 
     classes =
       "border-blue-400/20 bg-blue-500/10 text-blue-400";
-  }
-
-  // MAINTENANCE
-  else if (
+  } else if (
     normalized.includes("maintenance") ||
     normalized.includes("repair")
   ) {
@@ -957,10 +880,6 @@ function VehicleStatusBadge({
     </span>
   );
 }
-
-// ==========================================================
-// INVOICE STATUS BADGE
-// ==========================================================
 
 function InvoiceStatusBadge({
   status,
@@ -997,10 +916,6 @@ function InvoiceStatusBadge({
   );
 }
 
-// ==========================================================
-// DATE FORMATTER
-// ==========================================================
-
 function formatDate(value: string | null) {
   if (!value) {
     return "—";
@@ -1021,10 +936,6 @@ function formatDate(value: string | null) {
   });
 }
 
-// ==========================================================
-// QUICK MODULE
-// ==========================================================
-
 function QuickModule({
   icon,
   title,
@@ -1041,9 +952,7 @@ function QuickModule({
       href={href}
       className="group rounded-xl border border-[#2B2B30] bg-[#111113]/60 p-4 transition hover:border-[#C8F065]/20 hover:bg-[#17171A]"
     >
-
       <div className="flex items-start justify-between">
-
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#C8F065]/10 text-[#C8F065]">
           {icon}
         </div>
@@ -1052,7 +961,6 @@ function QuickModule({
           size={15}
           className="text-[#71717A] transition group-hover:text-[#C8F065]"
         />
-
       </div>
 
       <h3 className="mt-4 font-[Syne] text-sm font-semibold">
@@ -1062,7 +970,6 @@ function QuickModule({
       <p className="mt-1 text-[11px] leading-relaxed text-[#71717A]">
         {description}
       </p>
-
     </a>
   );
 }

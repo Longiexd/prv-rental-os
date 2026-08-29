@@ -40,6 +40,11 @@ const navigation = [
     href: "/dashboard/customers",
   },
   {
+    label: "CRM — Leads",
+    icon: Users,
+    href: "/crm/leads",
+  },
+  {
     label: "Calendar",
     icon: CalendarDays,
     href: "/dashboard/calendar",
@@ -66,10 +71,8 @@ export default function OSLayout({
       </div>
 
       <div className="relative flex min-h-screen">
-
         {/* SIDEBAR */}
         <aside className="hidden w-[230px] shrink-0 border-r border-[#2B2B30] bg-[#09090B]/90 lg:flex lg:flex-col">
-
           {/* BRAND */}
           <div className="flex h-[68px] items-center border-b border-[#2B2B30] px-5">
             <Link
@@ -77,8 +80,13 @@ export default function OSLayout({
               className="font-[Syne] text-[19px] font-semibold tracking-[-0.04em]"
             >
               Klyn
-              <span className="text-[#C8F065]">x</span>
-              <span className="text-[#F06AAA]"> OS</span>
+              <span className="text-[#C8F065]">
+                x
+              </span>
+              <span className="text-[#F06AAA]">
+                {" "}
+                OS
+              </span>
             </Link>
           </div>
 
@@ -89,29 +97,21 @@ export default function OSLayout({
             </div>
 
             <nav className="space-y-1">
-              {navigation.map((item, index) => {
+              {navigation.map((item) => {
                 const Icon = item.icon;
 
                 return (
                   <Link
                     key={item.label}
                     href={item.href}
-                    className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] transition ${
-                      index === 0
-                        ? "bg-[#C8F065]/[0.09] text-[#C8F065]"
-                        : "text-[#A1A1AA] hover:bg-[#111113] hover:text-white"
-                    }`}
+                    className="group flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] text-[#A1A1AA] transition hover:bg-[#111113] hover:text-white"
                   >
                     <Icon
                       size={16}
-                      strokeWidth={index === 0 ? 2 : 1.7}
+                      strokeWidth={1.7}
                     />
 
                     <span>{item.label}</span>
-
-                    {index === 0 && (
-                      <span className="ml-auto h-1.5 w-1.5 rounded-full bg-[#C8F065] shadow-[0_0_8px_rgba(200,240,101,.7)]" />
-                    )}
                   </Link>
                 );
               })}
@@ -151,10 +151,8 @@ export default function OSLayout({
 
         {/* APPLICATION */}
         <div className="min-w-0 flex-1">
-
           {/* TOP BAR */}
           <header className="flex h-[68px] items-center justify-between border-b border-[#2B2B30] px-5 sm:px-8">
-
             {/* SEARCH */}
             <div className="flex h-9 w-full max-w-[340px] items-center gap-2 rounded-lg border border-[#2B2B30] bg-[#111113]/70 px-3 text-[#71717A] transition focus-within:border-[#C8F065]/30">
               <Search size={15} />
@@ -176,7 +174,6 @@ export default function OSLayout({
 
             {/* RIGHT */}
             <div className="ml-4 flex items-center gap-2">
-
               <button className="relative flex h-9 w-9 items-center justify-center rounded-lg text-[#71717A] transition hover:bg-[#111113] hover:text-white">
                 <Bell size={17} />
 
@@ -186,7 +183,6 @@ export default function OSLayout({
               <div className="ml-1 hidden h-7 w-px bg-[#2B2B30] sm:block" />
 
               <button className="ml-1 flex items-center gap-2 rounded-lg px-2 py-1.5 transition hover:bg-[#111113]">
-
                 <div className="flex h-7 w-7 items-center justify-center rounded-md bg-gradient-to-br from-[#C8F065] to-[#6E9501] text-[10px] font-semibold text-[#09090B]">
                   KL
                 </div>

@@ -22,81 +22,160 @@ type NavItem = {
 };
 
 const nav: NavItem[] = [
-  { title: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
+  {
+    title: "Dashboard",
+    icon: LayoutDashboard,
+    href: "/dashboard",
+  },
+
   {
     title: "CRM",
     icon: Users,
     children: [
-      { title: "Leads", href: "/crm/leads" },
-      { title: "Customers", href: "/crm/customers" },
-      { title: "Contacts", href: "/crm/contacts" },
-      { title: "Follow-ups", href: "/crm/follow-ups" },
-      { title: "Communication", href: "/crm/communication" },
+      {
+        title: "Leads",
+        href: "/dashboard/crm/leads",
+      },
+      {
+        title: "Customers",
+        href: "/dashboard/customers",
+      },
+      {
+        title: "Contacts",
+        href: "/crm/contacts",
+      },
+      {
+        title: "Follow-ups",
+        href: "/crm/follow-ups",
+      },
+      {
+        title: "Communication",
+        href: "/crm/communication",
+      },
     ],
   },
+
   {
     title: "Vehicles",
     icon: Car,
     children: [
-      { title: "Fleet Overview", href: "/vehicles" },
-      { title: "Vehicle Profiles", href: "/vehicles/profiles" },
-      { title: "Availability Calendar", href: "/vehicles/availability" },
-      { title: "Cleaning", href: "/vehicles/cleaning" },
-      { title: "Maintenance", href: "/vehicles/maintenance" },
-      { title: "Compliance", href: "/vehicles/compliance" },
+      {
+        title: "Fleet Overview",
+        href: "/dashboard/fleet",
+      },
+      {
+        title: "Vehicle Profiles",
+        href: "/vehicles/profiles",
+      },
+      {
+        title: "Availability Calendar",
+        href: "/vehicles/availability",
+      },
+      {
+        title: "Cleaning",
+        href: "/vehicles/cleaning",
+      },
+      {
+        title: "Maintenance",
+        href: "/vehicles/maintenance",
+      },
+      {
+        title: "Compliance",
+        href: "/vehicles/compliance",
+      },
     ],
   },
+
   {
     title: "Reservations",
     icon: CalendarDays,
     children: [
-      { title: "Calendar", href: "/reservations/calendar" },
-      { title: "Active Rentals", href: "/reservations/active" },
-      { title: "Returns", href: "/reservations/returns" },
+      {
+        title: "Calendar",
+        href: "/reservations/calendar",
+      },
+      {
+        title: "Active Rentals",
+        href: "/reservations/active",
+      },
+      {
+        title: "Returns",
+        href: "/reservations/returns",
+      },
     ],
   },
+
   {
     title: "Finance",
     icon: Wallet,
     children: [
-      { title: "Revenue", href: "/finance/revenue" },
-      { title: "Expenses", href: "/finance/expenses" },
-      { title: "Vehicle Profitability", href: "/finance/profitability" },
+      {
+        title: "Revenue",
+        href: "/finance/revenue",
+      },
+      {
+        title: "Expenses",
+        href: "/finance/expenses",
+      },
+      {
+        title: "Vehicle Profitability",
+        href: "/finance/profitability",
+      },
     ],
   },
-  { title: "Settings", icon: Settings, href: "/settings" },
+
+  {
+    title: "Settings",
+    icon: Settings,
+    href: "/settings",
+  },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
+
   const [open, setOpen] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};
+
     nav.forEach((item) => {
-      if (item.children?.some((c) => pathname.startsWith(c.href))) {
+      if (
+        item.children?.some((child) =>
+          pathname.startsWith(child.href)
+        )
+      ) {
         initial[item.title] = true;
       }
     });
+
     return initial;
   });
 
-  const toggle = (title: string) =>
-    setOpen((prev) => ({ ...prev, [title]: !prev[title] }));
+  const toggle = (title: string) => {
+    setOpen((prev) => ({
+      ...prev,
+      [title]: !prev[title],
+    }));
+  };
 
   return (
-    <aside className="w-72 border-r border-border bg-surface p-5 flex flex-col">
+    <aside className="flex w-72 flex-col border-r border-border bg-surface p-5">
       <div className="mb-10">
         <h1 className="font-syne text-2xl font-bold tracking-tight">
           Klyn<span className="text-lime">x</span>
         </h1>
-        <p className="text-sm text-muted">Rental OS</p>
+
+        <p className="text-sm text-muted">
+          Rental OS
+        </p>
       </div>
 
-      <nav className="space-y-1 flex-1">
+      <nav className="flex-1 space-y-1">
         {nav.map((item) => {
           const Icon = item.icon;
 
           if (!item.children) {
             const active = pathname === item.href;
+
             return (
               <Link
                 key={item.title}
@@ -115,7 +194,10 @@ export default function Sidebar() {
           }
 
           const isOpen = open[item.title];
-          const hasActiveChild = item.children.some((c) => pathname.startsWith(c.href));
+
+          const hasActiveChild = item.children.some((child) =>
+            pathname.startsWith(child.href)
+          );
 
           return (
             <div key={item.title}>
@@ -132,9 +214,13 @@ export default function Sidebar() {
                   <Icon size={18} />
                   {item.title}
                 </span>
+
                 <ChevronDown
                   size={14}
-                  className={cn("transition-transform", isOpen && "rotate-180")}
+                  className={cn(
+                    "transition-transform",
+                    isOpen && "rotate-180"
+                  )}
                 />
               </button>
 
@@ -142,6 +228,7 @@ export default function Sidebar() {
                 <div className="ml-9 mt-1 space-y-1 border-l border-border pl-3">
                   {item.children.map((child) => {
                     const active = pathname === child.href;
+
                     return (
                       <Link
                         key={child.href}
