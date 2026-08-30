@@ -11,6 +11,7 @@ from app.routes import (
     sales,
     invoices,
     customer_create,
+    rentals,
 )
 
 
@@ -100,4 +101,8 @@ app.include_router(
 
 app.include_router(
     invoices.router
+)
+
+app.include_router(
+    rentals.router
 )
