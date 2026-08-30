@@ -8,22 +8,25 @@ import {
 } from "react";
 
 import {
-  CalendarDays,
-  Car,
-  Check,
-  ChevronDown,
+
+    Check,
   LoaderCircle,
+  Plus,
   Search,
-  UserRound,
+  Trash2,
   X,
+
 } from "lucide-react";
 
-type Customer = {
-  id: number;
-  name: string;
-};
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  "https://api.rental-os.klynx.net";
 
-type Opportunity = {
+// ============================================================
+// TYPES
+// ============================================================
+
+type Customer = {
   id: number;
   name: string;
 };
@@ -42,267 +45,98 @@ type Product = {
   suggested_product_ids: number[];
 };
 
-type RentalOptions = {
+type RentalOptionsResponse = {
   customers: Customer[];
   vehicles: Vehicle[];
   products: Product[];
 };
 
-type CreateRentalResult = {
-  sale: {
-    id: number;
-    name: string;
-    customer: Customer | null;
-    state: string;
-    date_order: string | null;
-    commitment_date: string | null;
-    amount_total: number;
-    invoice_status: string;
-    opportunity: Opportunity | null;
-    order_line_ids: number[];
-    vehicle_id: number;
-    vehicle_name: string;
-    vehicle_status: string | null;
-  };
+type SelectedProduct = {
+  product_id: number;
+  quantity: number;
+  unit_price?: number;
 };
 
-type Props = {
+type CreateRentalModalProps = {
   open: boolean;
   onClose: () => void;
+  onCreated?: (sale: unknown) => void;
 
-  /**
-   * Optional customer to preselect when opened
-   * from CRM.
-   */
-  initialCustomerId?: number | null;
+  // Optional CRM opportunity.
+  opportunityId?: number | null;
 
-  /**
-   * Optional CRM opportunity to preselect.
-   */
-  initialOpportunityId?: number | null;
+  // Optional pre-selected customer.
+  customerId?: number | null;
 
-  /**
-   * Called after Odoo successfully creates
-   * the rental.
-   */
-  onCreated?: (
-    result: CreateRentalResult
-  ) => void;
+  // Optional pre-filled dates.
+  startDate?: string;
+  endDate?: string;
 };
 
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://api.rental-os.klynx.net";
-
-
-function getVehicleStatusStyle(
-  status: string | null
-) {
-  const normalized =
-    (status || "")
-      .trim()
-      .toLowerCase();
-
-  if (
-    normalized.includes("dispon")
-    || normalized.includes("available")
-  ) {
-    return {
-      text: "text-[#C8F065]",
-      dot: "bg-[#C8F065]",
-      bg: "bg-[#C8F065]/10",
-      border: "border-[#C8F065]/20",
-    };
-  }
-
-  if (
-    normalized.includes("loué")
-    || normalized.includes("loue")
-    || normalized.includes("rented")
-  ) {
-    return {
-      text: "text-[#F06AAA]",
-      dot: "bg-[#F06AAA]",
-      bg: "bg-[#F06AAA]/10",
-      border: "border-[#F06AAA]/20",
-    };
-  }
-
-  if (
-    normalized.includes("maintenance")
-    || normalized.includes("entretien")
-  ) {
-    return {
-      text: "text-orange-300",
-      dot: "bg-orange-400",
-      bg: "bg-orange-400/10",
-      border: "border-orange-400/20",
-    };
-  }
-
-  if (
-    normalized.includes("nettoyage")
-    || normalized.includes("clean")
-  ) {
-    return {
-      text: "text-blue-300",
-      dot: "bg-blue-400",
-      bg: "bg-blue-400/10",
-      border: "border-blue-400/20",
-    };
-  }
-
-  return {
-    text: "text-zinc-400",
-    dot: "bg-zinc-500",
-    bg: "bg-zinc-500/10",
-    border: "border-zinc-500/20",
-  };
-}
-
+// ============================================================
+// COMPONENT
+// ============================================================
 
 export default function CreateRentalModal({
   open,
   onClose,
-  initialCustomerId = null,
-  initialOpportunityId = null,
   onCreated,
-}: Props) {
+  opportunityId = null,
+  customerId = null,
+  startDate = "",
+  endDate = "",
+}: CreateRentalModalProps) {
+  const [options, setOptions] =
+    useState<RentalOptionsResponse | null>(null);
 
-  const [
-    options,
-    setOptions,
-  ] = useState<RentalOptions | null>(
-    null
-  );
+  const [loading, setLoading] =
+    useState(false);
 
-  const [
-    opportunities,
-    setOpportunities,
-  ] = useState<Opportunity[]>([]);
+  const [submitting, setSubmitting] =
+    useState(false);
 
-  const [
-    loading,
-    setLoading,
-  ] = useState(false);
+  const [error, setError] =
+    useState<string | null>(null);
 
-  const [
-    submitting,
-    setSubmitting,
-  ] = useState(false);
+  const [customerSearch, setCustomerSearch] =
+    useState("");
 
-  const [
-    error,
-    setError,
-  ] = useState<string | null>(
-    null
-  );
+  const [productSearch, setProductSearch] =
+    useState("");
 
-  const [
-    customerSearch,
-    setCustomerSearch,
-  ] = useState("");
+  const [selectedProducts, setSelectedProducts] =
+    useState<SelectedProduct[]>([]);
 
-  const [
-    vehicleSearch,
-    setVehicleSearch,
-  ] = useState("");
-
-  const [
-    productSearch,
-    setProductSearch,
-  ] = useState("");
-
-  const [
-    optionalProductIds,
-    setOptionalProductIds,
-  ] = useState<number[]>([]);
-
-  const [
-    form,
-    setForm,
-  ] = useState({
-    partner_id:
-      initialCustomerId
-        ? String(initialCustomerId)
-        : "",
-
-    opportunity_id:
-      initialOpportunityId
-        ? String(initialOpportunityId)
-        : "",
+  const [form, setForm] = useState({
+    partner_id: customerId
+      ? String(customerId)
+      : "",
 
     vehicle_id: "",
 
-    product_id: "",
+    start_date: startDate,
 
-    start_date: "",
-
-    end_date: "",
-
-    quantity: "1",
-
-    unit_price: "",
+    end_date: endDate,
   });
 
-
-  // =========================================================
-  // RESET / LOAD
-  // =========================================================
+  // ==========================================================
+  // LOAD OPTIONS
+  // ==========================================================
 
   useEffect(() => {
-
-    if (!open) {
-      return;
-    }
-
-    setForm({
-      partner_id:
-        initialCustomerId
-          ? String(initialCustomerId)
-          : "",
-
-      opportunity_id:
-        initialOpportunityId
-          ? String(initialOpportunityId)
-          : "",
-
-      vehicle_id: "",
-
-      product_id: "",
-
-      start_date: "",
-
-      end_date: "",
-
-      quantity: "1",
-
-      unit_price: "",
-    });
-
-    setOptionalProductIds([]);
-
-    setCustomerSearch("");
-
-    setVehicleSearch("");
-
-    setProductSearch("");
-
-    setError(null);
+    if (!open) return;
 
     async function loadOptions() {
-
       try {
-
         setLoading(true);
+        setError(null);
 
-        const response =
-          await fetch(
-            `${API_URL}/rentals/options`,
-            {
-              cache: "no-store",
-            }
-          );
+        const response = await fetch(
+          `${API_URL}/rentals/options`,
+          {
+            cache: "no-store",
+          }
+        );
 
         if (!response.ok) {
           throw new Error(
@@ -310,346 +144,342 @@ export default function CreateRentalModal({
           );
         }
 
-        const data =
+        const data: RentalOptionsResponse =
           await response.json();
 
         setOptions(data);
 
+        // Preserve customer passed by CRM.
+        if (customerId) {
+          setForm((current) => ({
+            ...current,
+            partner_id: String(customerId),
+          }));
+        }
       } catch (err) {
-
-        console.error(err);
+        console.error(
+          "Failed to load rental options:",
+          err
+        );
 
         setError(
           err instanceof Error
             ? err.message
-            : "Unable to load rental options."
+            : "Unable to load rental choices."
         );
-
       } finally {
-
         setLoading(false);
-
       }
     }
 
     void loadOptions();
+  }, [open, customerId]);
 
-  }, [
-    open,
-    initialCustomerId,
-    initialOpportunityId,
-  ]);
-
-
-  // =========================================================
-  // LOAD CRM OPPORTUNITIES
-  // =========================================================
+  // ==========================================================
+  // RESET WHEN CLOSED
+  // ==========================================================
 
   useEffect(() => {
+    if (open) return;
 
-    if (
-      !open ||
-      !form.partner_id
-    ) {
-      setOpportunities([]);
-      return;
-    }
+    setCustomerSearch("");
+    setProductSearch("");
+    setSelectedProducts([]);
 
-    async function loadOpportunities() {
+    setForm({
+      partner_id: customerId
+        ? String(customerId)
+        : "",
 
-      try {
+      vehicle_id: "",
 
-        const response =
-          await fetch(
-            `${API_URL}/crm/leads`,
-            {
-              cache: "no-store",
-            }
-          );
+      start_date: startDate,
 
-        if (!response.ok) {
-          return;
-        }
+      end_date: endDate,
+    });
 
-        const data =
-          await response.json();
-
-        const leads =
-          Array.isArray(data.leads)
-            ? data.leads
-            : [];
-
-        const customerId =
-          Number(form.partner_id);
-
-        const customerOpportunities =
-          leads
-            .filter(
-              (lead: any) =>
-                lead.customer?.id ===
-                customerId
-            )
-            .map(
-              (lead: any) => ({
-                id: lead.id,
-                name: lead.name,
-              })
-            );
-
-        setOpportunities(
-          customerOpportunities
-        );
-
-      } catch (err) {
-
-        console.error(
-          "Unable to load CRM opportunities:",
-          err
-        );
-
-      }
-    }
-
-    void loadOpportunities();
-
+    setError(null);
   }, [
     open,
-    form.partner_id,
+    customerId,
+    startDate,
+    endDate,
   ]);
 
+  // ==========================================================
+  // SELECTED PRODUCT HELPERS
+  // ==========================================================
 
-  // =========================================================
-  // CUSTOMER OPTIONS
-  // =========================================================
+  const selectedProductIds = useMemo(
+    () =>
+      new Set(
+        selectedProducts.map(
+          (product) =>
+            product.product_id
+        )
+      ),
+    [selectedProducts]
+  );
+
+  const selectedProductObjects =
+    useMemo(() => {
+      if (!options) return [];
+
+      return selectedProducts
+        .map((selected) => {
+          const product =
+            options.products.find(
+              (item) =>
+                item.id ===
+                selected.product_id
+            );
+
+          if (!product) return null;
+
+          return {
+            ...selected,
+            product,
+          };
+        })
+        .filter(
+          (
+            item
+          ): item is {
+            product_id: number;
+            quantity: number;
+            unit_price?: number;
+            product: Product;
+          } => Boolean(item)
+        );
+    }, [
+      options,
+      selectedProducts,
+    ]);
+
+  // ==========================================================
+  // FILTER CUSTOMERS
+  // ==========================================================
 
   const filteredCustomers =
     useMemo(() => {
-
-      if (!options) {
-        return [];
-      }
+      if (!options) return [];
 
       const query =
         customerSearch
-          .trim()
-          .toLowerCase();
+          .toLowerCase()
+          .trim();
 
       if (!query) {
-        return options.customers.slice(
-          0,
-          100
-        );
+        return options.customers;
       }
 
-      return options.customers
-        .filter(
-          (customer) =>
-            customer.name
-              .toLowerCase()
-              .includes(query)
-        )
-        .slice(
-          0,
-          100
-        );
-
+      return options.customers.filter(
+        (customer) =>
+          customer.name
+            .toLowerCase()
+            .includes(query)
+      );
     }, [
       options,
       customerSearch,
     ]);
 
+  // ==========================================================
+  // FILTER PRODUCTS
+  // ==========================================================
 
-  // =========================================================
-  // VEHICLE OPTIONS
-  // =========================================================
-
-  const filteredVehicles =
+  const filteredProducts =
     useMemo(() => {
-
-      if (!options) {
-        return [];
-      }
+      if (!options) return [];
 
       const query =
-        vehicleSearch
-          .trim()
-          .toLowerCase();
+        productSearch
+          .toLowerCase()
+          .trim();
 
-      let vehicles =
-        options.vehicles;
-
-      if (query) {
-        vehicles =
-          vehicles.filter(
-            (vehicle) =>
-              vehicle.name
-                .toLowerCase()
-                .includes(query)
-              ||
-              vehicle.license_plate
-                ?.toLowerCase()
-                .includes(query)
-              ||
-              vehicle.status
-                ?.toLowerCase()
-                .includes(query)
-          );
-      }
-
-      /*
-       * Available vehicles are intentionally
-       * placed first.
-       *
-       * We still display rented / maintenance /
-       * nettoyage vehicles so the user can see
-       * the complete Odoo fleet.
-       */
-      return [
-        ...vehicles.filter(
-          (vehicle) => {
-            const status =
-              (
-                vehicle.status || ""
-              ).toLowerCase();
-
-            return (
-              status.includes(
-                "dispon"
-              ) ||
-              status.includes(
-                "available"
-              )
-            );
-          }
-        ),
-
-        ...vehicles.filter(
-          (vehicle) => {
-            const status =
-              (
-                vehicle.status || ""
-              ).toLowerCase();
-
-            return !(
-              status.includes(
-                "dispon"
-              ) ||
-              status.includes(
-                "available"
-              )
-            );
-          }
-        ),
-      ].slice(
-        0,
-        100
-      );
-
-    }, [
-      options,
-      vehicleSearch,
-    ]);
-
-
-  // =========================================================
-  // PRODUCT OPTIONS
-  // =========================================================
-
-  const selectedProduct =
-    options?.products.find(
-      (product) =>
-        product.id ===
-        Number(
-          form.product_id
-        )
-    );
-
-
-  const suggestedProducts =
-    useMemo(() => {
-
-      if (
-        !options ||
-        !selectedProduct
-      ) {
-        return [];
+      if (!query) {
+        return options.products;
       }
 
       return options.products.filter(
         (product) =>
-          selectedProduct
-            .suggested_product_ids
-            .includes(
-              product.id
-            )
+          product.name
+            .toLowerCase()
+            .includes(query)
       );
-
-    }, [
-      options,
-      selectedProduct,
-    ]);
-
-
-  const filteredProducts =
-    useMemo(() => {
-
-      if (!options) {
-        return [];
-      }
-
-      const query =
-        productSearch
-          .trim()
-          .toLowerCase();
-
-      if (!query) {
-        return options.products.slice(
-          0,
-          100
-        );
-      }
-
-      return options.products
-        .filter(
-          (product) =>
-            product.name
-              .toLowerCase()
-              .includes(query)
-        )
-        .slice(
-          0,
-          100
-        );
-
     }, [
       options,
       productSearch,
     ]);
 
+  // ==========================================================
+  // SUGGESTIONS
+  // ==========================================================
 
-  // =========================================================
-  // CREATE
-  // =========================================================
+  const suggestedProducts =
+    useMemo(() => {
+      if (!options) return [];
+
+      const suggestedIds =
+        new Set<number>();
+
+      for (
+        const selected of selectedProducts
+      ) {
+        const product =
+          options.products.find(
+            (item) =>
+              item.id ===
+              selected.product_id
+          );
+
+        if (!product) continue;
+
+        for (
+          const suggestedId
+          of product.suggested_product_ids
+        ) {
+          if (
+            !selectedProductIds.has(
+              suggestedId
+            )
+          ) {
+            suggestedIds.add(
+              suggestedId
+            );
+          }
+        }
+      }
+
+      return options.products.filter(
+        (product) =>
+          suggestedIds.has(
+            product.id
+          )
+      );
+    }, [
+      options,
+      selectedProducts,
+      selectedProductIds,
+    ]);
+
+  // ==========================================================
+  // ADD PRODUCT
+  // ==========================================================
+
+  function addProduct(
+    product: Product
+  ) {
+    setSelectedProducts(
+      (current) => {
+        const existing =
+          current.find(
+            (item) =>
+              item.product_id ===
+              product.id
+          );
+
+        if (existing) {
+          return current.map(
+            (item) =>
+              item.product_id ===
+              product.id
+                ? {
+                    ...item,
+                    quantity:
+                      item.quantity + 1,
+                  }
+                : item
+          );
+        }
+
+        return [
+          ...current,
+          {
+            product_id:
+              product.id,
+            quantity: 1,
+          },
+        ];
+      }
+    );
+  }
+
+  // ==========================================================
+  // REMOVE PRODUCT
+  // ==========================================================
+
+  function removeProduct(
+    productId: number
+  ) {
+    setSelectedProducts(
+      (current) =>
+        current.filter(
+          (product) =>
+            product.product_id !==
+            productId
+        )
+    );
+  }
+
+  // ==========================================================
+  // CHANGE QUANTITY
+  // ==========================================================
+
+  function updateQuantity(
+    productId: number,
+    quantity: number
+  ) {
+    if (quantity <= 0) {
+      removeProduct(productId);
+      return;
+    }
+
+    setSelectedProducts(
+      (current) =>
+        current.map((product) =>
+          product.product_id ===
+          productId
+            ? {
+                ...product,
+                quantity,
+              }
+            : product
+        )
+    );
+  }
+
+  // ==========================================================
+  // TOTAL
+  // ==========================================================
+
+  const estimatedTotal =
+    selectedProductObjects.reduce(
+      (sum, item) =>
+        sum +
+        item.product.list_price *
+          item.quantity,
+      0
+    );
+
+  // ==========================================================
+  // CREATE RENTAL
+  // ==========================================================
 
   async function createRental(
     event: FormEvent<HTMLFormElement>
   ) {
-
     event.preventDefault();
 
     setError(null);
 
     if (
-      !form.partner_id ||
-      !form.vehicle_id ||
-      !form.product_id ||
-      !form.start_date ||
-      !form.end_date
+      selectedProducts.length ===
+      0
     ) {
       setError(
-        "Customer, vehicle, product, start date and return date are required."
+        "Add at least one product to the rental."
       );
-
       return;
     }
 
@@ -658,70 +488,13 @@ export default function CreateRentalModal({
       form.start_date
     ) {
       setError(
-        "Return date must be on or after the rental start date."
+        "The return date must be on or after the rental start date."
       );
-
       return;
     }
 
     try {
-
       setSubmitting(true);
-
-      const body: Record<
-        string,
-        unknown
-      > = {
-        partner_id:
-          Number(
-            form.partner_id
-          ),
-
-        vehicle_id:
-          Number(
-            form.vehicle_id
-          ),
-
-        product_id:
-          Number(
-            form.product_id
-          ),
-
-        start_date:
-          form.start_date,
-
-        end_date:
-          form.end_date,
-
-        quantity:
-          Number(
-            form.quantity
-          ),
-
-        optional_product_ids:
-          optionalProductIds,
-      };
-
-
-      if (
-        form.unit_price !== ""
-      ) {
-        body.unit_price =
-          Number(
-            form.unit_price
-          );
-      }
-
-
-      if (
-        form.opportunity_id
-      ) {
-        body.opportunity_id =
-          Number(
-            form.opportunity_id
-          );
-      }
-
 
       const response =
         await fetch(
@@ -734,752 +507,368 @@ export default function CreateRentalModal({
                 "application/json",
             },
 
-            body:
-              JSON.stringify(
-                body
-              ),
+            body: JSON.stringify({
+              partner_id:
+                Number(
+                  form.partner_id
+                ),
+
+              vehicle_id:
+                Number(
+                  form.vehicle_id
+                ),
+
+              start_date:
+                form.start_date,
+
+              end_date:
+                form.end_date,
+
+              products:
+                selectedProducts,
+
+              ...(opportunityId
+                ? {
+                    opportunity_id:
+                      opportunityId,
+                  }
+                : {}),
+            }),
           }
         );
-
 
       const data =
         await response.json();
 
-
       if (!response.ok) {
-
         throw new Error(
           data.detail ||
-          "Unable to create rental."
+            "Unable to create rental."
         );
-
       }
 
-
       onCreated?.(
-        data
+        data.sale
       );
 
       onClose();
-
     } catch (err) {
-
-      console.error(err);
+      console.error(
+        "Failed to create rental:",
+        err
+      );
 
       setError(
         err instanceof Error
           ? err.message
           : "Unable to create rental."
       );
-
     } finally {
-
       setSubmitting(false);
-
     }
   }
 
-
-  // =========================================================
-  // OPTIONAL PRODUCT TOGGLE
-  // =========================================================
-
-  function toggleOptionalProduct(
-    productId: number
-  ) {
-
-    setOptionalProductIds(
-      (current) =>
-        current.includes(
-          productId
-        )
-
-          ? current.filter(
-              (id) =>
-                id !== productId
-            )
-
-          : [
-              ...current,
-              productId,
-            ]
-    );
-
-  }
-
+  // ==========================================================
+  // CLOSED
+  // ==========================================================
 
   if (!open) {
     return null;
   }
 
-
-  // =========================================================
+  // ==========================================================
   // RENDER
-  // =========================================================
+  // ==========================================================
 
   return (
-    <div
-      className="
-        fixed inset-0 z-50
-        flex items-end
-        bg-black/70
-        p-0
-        sm:items-center
-        sm:justify-center
-        sm:p-6
-      "
-    >
+    <div className="fixed inset-0 z-50 flex items-end bg-black/70 p-0 sm:items-center sm:justify-center sm:p-6">
 
       <div
+        className="max-h-[94vh] w-full max-w-3xl overflow-y-auto rounded-t-2xl border border-[#2B2B30] bg-[#111113] shadow-2xl sm:rounded-2xl"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="create-rental-title"
-        className="
-          max-h-[94vh]
-          w-full
-          max-w-3xl
-          overflow-y-auto
-          rounded-t-2xl
-          border border-[#2B2B30]
-          bg-[#111113]
-          shadow-2xl
-          sm:rounded-2xl
-        "
+        aria-labelledby="new-rental-title"
       >
 
-        {/* =================================================
+        {/* ====================================================
             HEADER
-        ================================================= */}
+        ==================================================== */}
 
-        <div
-          className="
-            sticky top-0 z-10
-            flex items-start
-            justify-between
-            gap-4
-            border-b
-            border-[#2B2B30]
-            bg-[#111113]
-            px-5 py-5
-            sm:px-6
-          "
-        >
+        <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-[#2B2B30] bg-[#111113] p-5 sm:p-6">
 
           <div>
-
-            <div
-              className="
-                mb-1
-                flex
-                items-center
-                gap-2
-                text-[10px]
-                uppercase
-                tracking-wider
-                text-[#71717A]
-              "
-            >
-              <Car size={12} />
-              Rental operation
+            <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-[#C8F065]">
+              Rental
             </div>
 
             <h2
-              id="create-rental-title"
-              className="
-                text-lg
-                font-semibold
-                text-white
-              "
+              id="new-rental-title"
+              className="mt-1 text-xl font-semibold text-white"
             >
               New rental
             </h2>
 
-            <p
-              className="
-                mt-1
-                text-sm
-                text-zinc-500
-              "
-            >
-              Customer, vehicle, products and
-              rental dates stay connected to Odoo.
+            <p className="mt-1 text-sm text-zinc-500">
+              Build a rental with a vehicle and multiple products.
             </p>
-
           </div>
-
 
           <button
             type="button"
             onClick={onClose}
-            className="
-              rounded-lg
-              p-2
-              text-zinc-500
-              transition
-              hover:bg-[#1B1B1E]
-              hover:text-white
-            "
+            className="rounded-lg p-2 text-zinc-500 transition hover:bg-[#1B1B1E] hover:text-white"
           >
             <X size={18} />
           </button>
 
         </div>
 
-
-        {/* =================================================
+        {/* ====================================================
             LOADING
-        ================================================= */}
+        ==================================================== */}
 
         {loading ? (
-
-          <div
-            className="
-              flex
-              h-72
-              items-center
-              justify-center
-              gap-2
-              text-sm
-              text-zinc-500
-            "
-          >
+          <div className="flex h-72 items-center justify-center gap-2 text-sm text-zinc-500">
             <LoaderCircle
-              size={18}
+              size={17}
               className="animate-spin"
             />
-
-            Loading Odoo data...
-
+            Loading Odoo options...
           </div>
-
+        ) : !options ? (
+          <div className="p-6">
+            {error && (
+              <div className="rounded-xl border border-red-900/40 bg-red-950/20 px-4 py-3 text-sm text-red-300">
+                {error}
+              </div>
+            )}
+          </div>
         ) : (
-
           <form
-            onSubmit={
-              createRental
-            }
-            className="
-              space-y-6
-              px-5 py-5
-              sm:px-6
-            "
+            onSubmit={createRental}
+            className="p-5 sm:p-6"
           >
 
-            {/* =================================================
-                CUSTOMER
-            ================================================= */}
+            {/* ==================================================
+                CUSTOMER + VEHICLE
+            ================================================== */}
 
-            <section>
+            <div className="grid gap-4 sm:grid-cols-2">
 
-              <div className="mb-3">
+              {/* CUSTOMER */}
 
-                <div
-                  className="
-                    flex
-                    items-center
-                    gap-2
-                    text-xs
-                    font-medium
-                    text-white
-                  "
-                >
-                  <UserRound
+              <div className="space-y-2">
+
+                <label className="text-xs font-medium text-zinc-400">
+                  Customer
+                </label>
+
+                <div className="relative">
+
+                  <Search
                     size={14}
-                    className="text-[#C8F065]"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600"
                   />
 
-                  Customer
+                  <input
+                    value={
+                      customerSearch
+                    }
+                    onChange={(event) =>
+                      setCustomerSearch(
+                        event.target.value
+                      )
+                    }
+                    placeholder="Search customers..."
+                    className="h-10 w-full rounded-lg border border-[#2B2B30] bg-[#17171A] pl-9 pr-3 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-[#C8F065]/50"
+                  />
 
-                </div>
-
-                <p
-                  className="
-                    mt-1
-                    text-[11px]
-                    text-zinc-600
-                  "
-                >
-                  Existing Odoo customers and CRM
-                  contacts.
-                </p>
-
-              </div>
-
-
-              <div
-                className="
-                  relative
-                "
-              >
-
-                <Search
-                  size={14}
-                  className="
-                    absolute
-                    left-3
-                    top-1/2
-                    -translate-y-1/2
-                    text-zinc-600
-                  "
-                />
-
-                <input
-                  value={
-                    customerSearch
-                  }
-                  onChange={(event) =>
-                    setCustomerSearch(
-                      event.target.value
-                    )
-                  }
-                  placeholder="Search customers..."
-                  className="
-                    h-10
-                    w-full
-                    rounded-lg
-                    border
-                    border-[#2B2B30]
-                    bg-[#17171A]
-                    pl-9 pr-3
-                    text-sm
-                    text-white
-                    outline-none
-                    placeholder:text-zinc-600
-                    focus:border-[#C8F065]/50
-                  "
-                />
-
-              </div>
-
-
-              <select
-                required
-                value={
-                  form.partner_id
-                }
-                onChange={(event) =>
-                  setForm(
-                    (current) => ({
-                      ...current,
-                      partner_id:
-                        event.target
-                          .value,
-                      opportunity_id:
-                        "",
-                    })
-                  )
-                }
-                className="
-                  mt-2
-                  h-10
-                  w-full
-                  rounded-lg
-                  border
-                  border-[#2B2B30]
-                  bg-[#17171A]
-                  px-3
-                  text-sm
-                  text-white
-                  outline-none
-                  focus:border-[#C8F065]/50
-                "
-              >
-
-                <option value="">
-                  Select customer
-                </option>
-
-                {filteredCustomers.map(
-                  (customer) => (
-                    <option
-                      key={
-                        customer.id
-                      }
-                      value={
-                        customer.id
-                      }
-                    >
-                      {customer.name}
-                    </option>
-                  )
-                )}
-
-              </select>
-
-            </section>
-
-
-            {/* =================================================
-                CRM OPPORTUNITY
-            ================================================= */}
-
-            {form.partner_id && (
-
-              <section
-                className="
-                  rounded-xl
-                  border
-                  border-[#2B2B30]
-                  bg-[#17171A]/50
-                  p-4
-                "
-              >
-
-                <div
-                  className="
-                    mb-2
-                    text-xs
-                    font-medium
-                    text-white
-                  "
-                >
-                  CRM opportunity
                 </div>
 
                 <select
+                  required
                   value={
-                    form.opportunity_id
+                    form.partner_id
                   }
                   onChange={(event) =>
-                    setForm(
-                      (current) => ({
-                        ...current,
-                        opportunity_id:
-                          event.target
-                            .value,
-                      })
-                    )
+                    setForm({
+                      ...form,
+                      partner_id:
+                        event.target.value,
+                    })
                   }
-                  className="
-                    h-10
-                    w-full
-                    rounded-lg
-                    border
-                    border-[#2B2B30]
-                    bg-[#17171A]
-                    px-3
-                    text-sm
-                    text-white
-                    outline-none
-                    focus:border-[#C8F065]/50
-                  "
+                  className="h-10 w-full rounded-lg border border-[#2B2B30] bg-[#17171A] px-3 text-sm text-white outline-none focus:border-[#C8F065]/50"
                 >
 
                   <option value="">
-                    No CRM opportunity
+                    Select customer
                   </option>
 
-                  {opportunities.map(
-                    (opportunity) => (
+                  {filteredCustomers.map(
+                    (customer) => (
                       <option
                         key={
-                          opportunity.id
+                          customer.id
                         }
                         value={
-                          opportunity.id
+                          customer.id
                         }
                       >
-                        {opportunity.name}
+                        {customer.name}
                       </option>
                     )
                   )}
 
                 </select>
 
-                {opportunities.length ===
-                  0 && (
-                  <p
-                    className="
-                      mt-2
-                      text-[10px]
-                      text-zinc-600
-                    "
-                  >
-                    No CRM opportunities
-                    found for this customer.
-                  </p>
-                )}
-
-              </section>
-
-            )}
-
-
-            {/* =================================================
-                VEHICLE
-            ================================================= */}
-
-            <section>
-
-              <div className="mb-3">
-
-                <div
-                  className="
-                    flex
-                    items-center
-                    gap-2
-                    text-xs
-                    font-medium
-                    text-white
-                  "
-                >
-                  <Car
-                    size={14}
-                    className="text-[#C8F065]"
-                  />
-
-                  Fleet vehicle
-
-                </div>
-
-                <p
-                  className="
-                    mt-1
-                    text-[11px]
-                    text-zinc-600
-                  "
-                >
-                  Available vehicles are suggested
-                  first. All active Odoo fleet
-                  vehicles remain visible.
-                </p>
-
               </div>
 
+              {/* VEHICLE */}
 
-              <div className="relative">
+              <label className="space-y-2 text-xs font-medium text-zinc-400">
 
-                <Search
-                  size={14}
-                  className="
-                    absolute
-                    left-3
-                    top-1/2
-                    -translate-y-1/2
-                    text-zinc-600
-                  "
-                />
+                Fleet vehicle
 
-                <input
+                <select
+                  required
                   value={
-                    vehicleSearch
+                    form.vehicle_id
                   }
                   onChange={(event) =>
-                    setVehicleSearch(
-                      event.target.value
-                    )
+                    setForm({
+                      ...form,
+                      vehicle_id:
+                        event.target.value,
+                    })
                   }
-                  placeholder="Search vehicle or plate..."
-                  className="
-                    h-10
-                    w-full
-                    rounded-lg
-                    border
-                    border-[#2B2B30]
-                    bg-[#17171A]
-                    pl-9 pr-3
-                    text-sm
-                    text-white
-                    outline-none
-                    placeholder:text-zinc-600
-                    focus:border-[#C8F065]/50
-                  "
-                />
+                  className="h-10 w-full rounded-lg border border-[#2B2B30] bg-[#17171A] px-3 text-sm text-white outline-none focus:border-[#C8F065]/50"
+                >
 
-              </div>
+                  <option value="">
+                    Select vehicle
+                  </option>
 
-
-              <div
-                className="
-                  mt-2
-                  max-h-52
-                  overflow-y-auto
-                  rounded-lg
-                  border
-                  border-[#2B2B30]
-                  bg-[#17171A]
-                "
-              >
-
-                {filteredVehicles.map(
-                  (vehicle) => {
-
-                    const selected =
-                      Number(
-                        form.vehicle_id
-                      ) ===
-                      vehicle.id;
-
-                    const statusStyle =
-                      getVehicleStatusStyle(
-                        vehicle.status
-                      );
-
-                    return (
-                      <button
+                  {options.vehicles.map(
+                    (vehicle) => (
+                      <option
                         key={
                           vehicle.id
                         }
-                        type="button"
-                        onClick={() =>
-                          setForm(
-                            (current) => ({
-                              ...current,
-                              vehicle_id:
-                                String(
-                                  vehicle.id
-                                ),
-                            })
-                          )
+                        value={
+                          vehicle.id
                         }
-                        className={`
-                          flex
-                          w-full
-                          items-center
-                          justify-between
-                          gap-3
-                          border-b
-                          border-[#2B2B30]
-                          px-3
-                          py-3
-                          text-left
-                          last:border-0
-                          hover:bg-[#1D1D20]
-                          ${
-                            selected
-                              ? "bg-[#C8F065]/[0.04]"
-                              : ""
-                          }
-                        `}
                       >
+                        {vehicle.name}
 
-                        <div className="min-w-0">
+                        {vehicle.license_plate
+                          ? ` — ${vehicle.license_plate}`
+                          : ""}
 
-                          <div
-                            className="
-                              truncate
-                              text-sm
-                              font-medium
-                              text-white
-                            "
-                          >
-                            {vehicle.name}
-                          </div>
+                        {vehicle.status
+                          ? ` (${vehicle.status})`
+                          : ""}
+                      </option>
+                    )
+                  )}
 
-                          {vehicle.license_plate && (
-                            <div
-                              className="
-                                mt-0.5
-                                text-[10px]
-                                text-zinc-600
-                              "
-                            >
-                              {
-                                vehicle.license_plate
-                              }
-                            </div>
-                          )}
+                </select>
 
-                        </div>
+              </label>
 
+            </div>
 
-                        <div
-                          className={`
-                            flex
-                            shrink-0
-                            items-center
-                            gap-1.5
-                            rounded-full
-                            border
-                            px-2
-                            py-1
-                            text-[9px]
-                            font-medium
-                            ${statusStyle.border}
-                            ${statusStyle.bg}
-                            ${statusStyle.text}
-                          `}
-                        >
+            {/* ==================================================
+                DATES
+            ================================================== */}
 
-                          <span
-                            className={`
-                              h-1.5
-                              w-1.5
-                              rounded-full
-                              ${statusStyle.dot}
-                            `}
-                          />
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
 
-                          {vehicle.status ||
-                            "No status"}
+              <label className="space-y-2 text-xs font-medium text-zinc-400">
 
-                        </div>
+                Rental start
 
-
-                        {selected && (
-                          <Check
-                            size={15}
-                            className="
-                              shrink-0
-                              text-[#C8F065]
-                            "
-                          />
-                        )}
-
-                      </button>
-                    );
-
+                <input
+                  required
+                  type="date"
+                  value={
+                    form.start_date
                   }
-                )}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      start_date:
+                        event.target.value,
+                    })
+                  }
+                  className="h-10 w-full rounded-lg border border-[#2B2B30] bg-[#17171A] px-3 text-sm text-white outline-none focus:border-[#C8F065]/50"
+                />
 
-              </div>
+              </label>
 
-            </section>
+              <label className="space-y-2 text-xs font-medium text-zinc-400">
 
+                Return date
 
-            {/* =================================================
+                <input
+                  required
+                  type="date"
+                  value={
+                    form.end_date
+                  }
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      end_date:
+                        event.target.value,
+                    })
+                  }
+                  className="h-10 w-full rounded-lg border border-[#2B2B30] bg-[#17171A] px-3 text-sm text-white outline-none focus:border-[#C8F065]/50"
+                />
+
+              </label>
+
+            </div>
+
+            {/* ==================================================
                 PRODUCTS
-            ================================================= */}
+            ================================================== */}
 
-            <section>
+            <div className="mt-7">
 
-              <div className="mb-3">
+              <div className="flex items-end justify-between gap-4">
 
-                <div
-                  className="
-                    text-xs
-                    font-medium
-                    text-white
-                  "
-                >
-                  Sales & inventory
+                <div>
+                  <div className="text-xs font-medium text-zinc-400">
+                    Products
+                  </div>
+
+                  <p className="mt-1 text-[11px] text-zinc-600">
+                    Add the rental product and any extras.
+                  </p>
                 </div>
 
-                <p
-                  className="
-                    mt-1
-                    text-[11px]
-                    text-zinc-600
-                  "
-                >
-                  Products and rental services come
-                  directly from Odoo Sales.
-                </p>
+                <div className="text-right">
+
+                  <div className="text-[10px] uppercase tracking-wider text-zinc-600">
+                    Estimated
+                  </div>
+
+                  <div className="mt-0.5 text-sm font-semibold text-white">
+                    {estimatedTotal.toLocaleString()}{" "}
+                    TND
+                  </div>
+
+                </div>
 
               </div>
 
+              {/* PRODUCT SEARCH */}
 
-              <div className="relative">
+              <div className="relative mt-3">
 
                 <Search
-                  size={14}
-                  className="
-                    absolute
-                    left-3
-                    top-1/2
-                    -translate-y-1/2
-                    text-zinc-600
-                  "
+                  size={15}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600"
                 />
 
                 <input
@@ -1492,574 +881,300 @@ export default function CreateRentalModal({
                     )
                   }
                   placeholder="Search products..."
-                  className="
-                    h-10
-                    w-full
-                    rounded-lg
-                    border
-                    border-[#2B2B30]
-                    bg-[#17171A]
-                    pl-9 pr-3
-                    text-sm
-                    text-white
-                    outline-none
-                    placeholder:text-zinc-600
-                    focus:border-[#C8F065]/50
-                  "
+                  className="h-10 w-full rounded-lg border border-[#2B2B30] bg-[#17171A] pl-9 pr-3 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-[#C8F065]/50"
                 />
 
               </div>
 
+              {/* PRODUCT LIST */}
 
-              <select
-                required
-                value={
-                  form.product_id
-                }
-                onChange={(event) => {
+              <div className="mt-2 max-h-48 overflow-y-auto rounded-xl border border-[#2B2B30] bg-[#17171A]">
 
-                  setForm(
-                    (current) => ({
-                      ...current,
-                      product_id:
-                        event.target
-                          .value,
-                    })
-                  );
+                {filteredProducts.length ===
+                0 ? (
+                  <div className="px-4 py-8 text-center text-xs text-zinc-600">
+                    No products found.
+                  </div>
+                ) : (
+                  filteredProducts.map(
+                    (product) => {
+                      const selected =
+                        selectedProductIds.has(
+                          product.id
+                        );
 
-                  setOptionalProductIds(
-                    []
-                  );
+                      return (
+                        <button
+                          key={
+                            product.id
+                          }
+                          type="button"
+                          onClick={() =>
+                            addProduct(
+                              product
+                            )
+                          }
+                          className="flex w-full items-center justify-between border-b border-[#2B2B30] px-4 py-3 text-left last:border-0 hover:bg-[#1B1B1E]"
+                        >
 
-                }}
-                className="
-                  mt-2
-                  h-10
-                  w-full
-                  rounded-lg
-                  border
-                  border-[#2B2B30]
-                  bg-[#17171A]
-                  px-3
-                  text-sm
-                  text-white
-                  outline-none
-                  focus:border-[#C8F065]/50
-                "
-              >
+                          <div className="min-w-0">
 
-                <option value="">
-                  Select rental product / service
-                </option>
+                            <div className="truncate text-sm text-white">
+                              {
+                                product.name
+                              }
+                            </div>
 
-                {filteredProducts.map(
-                  (product) => (
-                    <option
-                      key={
-                        product.id
-                      }
-                      value={
-                        product.id
-                      }
-                    >
-                      {product.name}
-                      {" — "}
-                      {product.list_price.toLocaleString()}
-                      {" TND"}
-                    </option>
+                            <div className="mt-0.5 text-[11px] text-zinc-600">
+                              {product.list_price.toLocaleString()}{" "}
+                              TND
+                            </div>
+
+                          </div>
+
+                          {selected ? (
+                            <span className="flex shrink-0 items-center gap-1 text-[10px] font-medium text-[#C8F065]">
+                              <Check
+                                size={
+                                  13
+                                }
+                              />
+                              Added
+                            </span>
+                          ) : (
+                            <span className="flex shrink-0 items-center gap-1 rounded-md border border-[#2B2B30] px-2 py-1 text-[10px] text-zinc-400">
+                              <Plus
+                                size={
+                                  12
+                                }
+                              />
+                              Add
+                            </span>
+                          )}
+
+                        </button>
+                      );
+                    }
                   )
                 )}
 
-              </select>
+              </div>
 
-
-              {/* SUGGESTED PRODUCTS */}
+              {/* =================================================
+                  SUGGESTED PRODUCTS
+              ================================================= */}
 
               {suggestedProducts.length >
                 0 && (
+                <div className="mt-4">
 
-                <div
-                  className="
-                    mt-3
-                    rounded-xl
-                    border
-                    border-[#C8F065]/10
-                    bg-[#C8F065]/[0.025]
-                    p-3
-                  "
-                >
+                  <div className="mb-2 flex items-center gap-2">
 
-                  <div
-                    className="
-                      mb-2
-                      text-[10px]
-                      font-semibold
-                      uppercase
-                      tracking-wider
-                      text-[#C8F065]
-                    "
-                  >
-                    Suggested by Odoo
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#C8F065]" />
+
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[#C8F065]">
+                      Suggested for this rental
+                    </span>
+
                   </div>
 
-                  <div
-                    className="
-                      grid
-                      gap-2
-                      sm:grid-cols-2
-                    "
-                  >
+                  <div className="grid gap-2 sm:grid-cols-3">
 
                     {suggestedProducts.map(
-                      (product) => {
-
-                        const selected =
-                          optionalProductIds.includes(
+                      (product) => (
+                        <button
+                          key={
                             product.id
-                          );
+                          }
+                          type="button"
+                          onClick={() =>
+                            addProduct(
+                              product
+                            )
+                          }
+                          className="flex items-center justify-between rounded-xl border border-[#C8F065]/20 bg-[#C8F065]/[0.04] px-3 py-3 text-left transition hover:border-[#C8F065]/40 hover:bg-[#C8F065]/[0.08]"
+                        >
 
-                        return (
-                          <button
-                            key={
-                              product.id
-                            }
-                            type="button"
-                            onClick={() =>
-                              toggleOptionalProduct(
-                                product.id
-                              )
-                            }
-                            className={`
-                              flex
-                              items-center
-                              justify-between
-                              gap-3
-                              rounded-lg
-                              border
-                              px-3
-                              py-2.5
-                              text-left
-                              transition
-                              ${
-                                selected
-                                  ? "border-[#C8F065]/40 bg-[#C8F065]/10"
-                                  : "border-[#2B2B30] bg-[#17171A] hover:border-[#3A3A40]"
+                          <div className="min-w-0">
+
+                            <div className="truncate text-xs font-medium text-white">
+                              {
+                                product.name
                               }
-                            `}
-                          >
-
-                            <div>
-
-                              <div
-                                className="
-                                  text-xs
-                                  font-medium
-                                  text-white
-                                "
-                              >
-                                {product.name}
-                              </div>
-
-                              <div
-                                className="
-                                  mt-0.5
-                                  text-[10px]
-                                  text-zinc-600
-                                "
-                              >
-                                {product.list_price.toLocaleString()}
-                                {" TND"}
-                              </div>
-
                             </div>
 
-                            {selected && (
-                              <Check
-                                size={14}
-                                className="
-                                  text-[#C8F065]
-                                "
-                              />
-                            )}
+                            <div className="mt-1 text-[10px] text-zinc-500">
+                              {product.list_price.toLocaleString()}{" "}
+                              TND
+                            </div>
 
-                          </button>
-                        );
+                          </div>
 
-                      }
+                          <Plus
+                            size={
+                              14
+                            }
+                            className="shrink-0 text-[#C8F065]"
+                          />
+
+                        </button>
+                      )
                     )}
 
                   </div>
 
                 </div>
-
               )}
 
-            </section>
+              {/* =================================================
+                  SELECTED PRODUCTS
+              ================================================= */}
 
+              {selectedProductObjects.length >
+                0 && (
+                <div className="mt-5">
 
-            {/* =================================================
-                DATES
-            ================================================= */}
+                  <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.15em] text-zinc-600">
+                    Selected products
+                  </div>
 
-            <section>
+                  <div className="overflow-hidden rounded-xl border border-[#2B2B30]">
 
-              <div className="mb-3">
+                    {selectedProductObjects.map(
+                      (item) => (
+                        <div
+                          key={
+                            item.product_id
+                          }
+                          className="flex items-center gap-3 border-b border-[#2B2B30] bg-[#17171A] px-4 py-3 last:border-0"
+                        >
 
-                <div
-                  className="
-                    flex
-                    items-center
-                    gap-2
-                    text-xs
-                    font-medium
-                    text-white
-                  "
-                >
-                  <CalendarDays
-                    size={14}
-                    className="text-[#C8F065]"
-                  />
+                          <div className="min-w-0 flex-1">
 
-                  Rental period
+                            <div className="truncate text-sm text-white">
+                              {
+                                item.product
+                                  .name
+                              }
+                            </div>
+
+                            <div className="mt-0.5 text-[10px] text-zinc-600">
+                              {item.product.list_price.toLocaleString()}{" "}
+                              TND / unit
+                            </div>
+
+                          </div>
+
+                          <input
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            value={
+                              item.quantity
+                            }
+                            onChange={(
+                              event
+                            ) =>
+                              updateQuantity(
+                                item.product_id,
+                                Number(
+                                  event
+                                    .target
+                                    .value
+                                )
+                              )
+                            }
+                            className="h-8 w-20 rounded-md border border-[#2B2B30] bg-[#111113] px-2 text-center text-xs text-white outline-none focus:border-[#C8F065]/50"
+                          />
+
+                          <div className="w-24 text-right text-xs font-medium text-white">
+
+                            {(
+                              item.product
+                                .list_price *
+                              item.quantity
+                            ).toLocaleString()}{" "}
+                            TND
+
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              removeProduct(
+                                item.product_id
+                              )
+                            }
+                            className="rounded-md p-1.5 text-zinc-600 hover:bg-red-500/10 hover:text-red-400"
+                          >
+                            <Trash2
+                              size={
+                                14
+                              }
+                            />
+                          </button>
+
+                        </div>
+                      )
+                    )}
+
+                  </div>
 
                 </div>
+              )}
 
-                <p
-                  className="
-                    mt-1
-                    text-[11px]
-                    text-zinc-600
-                  "
-                >
-                  These dates become the rental
-                  period used by the calendar.
-                </p>
+            </div>
 
-              </div>
-
-
-              <div
-                className="
-                  grid
-                  gap-4
-                  sm:grid-cols-2
-                "
-              >
-
-                <label
-                  className="
-                    space-y-1.5
-                    text-xs
-                    text-zinc-400
-                  "
-                >
-
-                  Start date
-
-                  <input
-                    required
-                    type="date"
-                    value={
-                      form.start_date
-                    }
-                    onChange={(event) =>
-                      setForm(
-                        (current) => ({
-                          ...current,
-                          start_date:
-                            event.target
-                              .value,
-                        })
-                      )
-                    }
-                    className="
-                      h-10
-                      w-full
-                      rounded-lg
-                      border
-                      border-[#2B2B30]
-                      bg-[#17171A]
-                      px-3
-                      text-sm
-                      text-white
-                      outline-none
-                      focus:border-[#C8F065]/50
-                    "
-                  />
-
-                </label>
-
-
-                <label
-                  className="
-                    space-y-1.5
-                    text-xs
-                    text-zinc-400
-                  "
-                >
-
-                  Return date
-
-                  <input
-                    required
-                    type="date"
-                    value={
-                      form.end_date
-                    }
-                    min={
-                      form.start_date ||
-                      undefined
-                    }
-                    onChange={(event) =>
-                      setForm(
-                        (current) => ({
-                          ...current,
-                          end_date:
-                            event.target
-                              .value,
-                        })
-                      )
-                    }
-                    className="
-                      h-10
-                      w-full
-                      rounded-lg
-                      border
-                      border-[#2B2B30]
-                      bg-[#17171A]
-                      px-3
-                      text-sm
-                      text-white
-                      outline-none
-                      focus:border-[#C8F065]/50
-                    "
-                  />
-
-                </label>
-
-              </div>
-
-            </section>
-
-
-            {/* =================================================
-                PRICING
-            ================================================= */}
-
-            <section
-              className="
-                grid
-                gap-4
-                sm:grid-cols-2
-              "
-            >
-
-              <label
-                className="
-                  space-y-1.5
-                  text-xs
-                  text-zinc-400
-                "
-              >
-
-                Quantity
-
-                <input
-                  required
-                  min="0.01"
-                  step="0.01"
-                  type="number"
-                  value={
-                    form.quantity
-                  }
-                  onChange={(event) =>
-                    setForm(
-                      (current) => ({
-                        ...current,
-                        quantity:
-                          event.target
-                            .value,
-                      })
-                    )
-                  }
-                  className="
-                    h-10
-                    w-full
-                    rounded-lg
-                    border
-                    border-[#2B2B30]
-                    bg-[#17171A]
-                    px-3
-                    text-sm
-                    text-white
-                    outline-none
-                    focus:border-[#C8F065]/50
-                  "
-                />
-
-              </label>
-
-
-              <label
-                className="
-                  space-y-1.5
-                  text-xs
-                  text-zinc-400
-                "
-              >
-
-                Unit price
-                <span className="text-zinc-600">
-                  {" "}optional
-                </span>
-
-                <input
-                  min="0"
-                  step="0.001"
-                  type="number"
-                  value={
-                    form.unit_price
-                  }
-                  onChange={(event) =>
-                    setForm(
-                      (current) => ({
-                        ...current,
-                        unit_price:
-                          event.target
-                            .value,
-                      })
-                    )
-                  }
-                  placeholder="Use Odoo price"
-                  className="
-                    h-10
-                    w-full
-                    rounded-lg
-                    border
-                    border-[#2B2B30]
-                    bg-[#17171A]
-                    px-3
-                    text-sm
-                    text-white
-                    outline-none
-                    placeholder:text-zinc-600
-                    focus:border-[#C8F065]/50
-                  "
-                />
-
-              </label>
-
-            </section>
-
-
-            {/* =================================================
+            {/* ==================================================
                 ERROR
-            ================================================= */}
+            ================================================== */}
 
             {error && (
-
-              <div
-                className="
-                  rounded-xl
-                  border
-                  border-red-900/40
-                  bg-red-950/20
-                  px-3
-                  py-3
-                  text-sm
-                  text-red-300
-                "
-              >
+              <div className="mt-5 rounded-xl border border-red-900/40 bg-red-950/20 px-4 py-3 text-sm text-red-300">
                 {error}
               </div>
-
             )}
 
-
-            {/* =================================================
+            {/* ==================================================
                 FOOTER
-            ================================================= */}
+            ================================================== */}
 
-            <div
-              className="
-                flex
-                items-center
-                justify-between
-                gap-3
-                border-t
-                border-[#2B2B30]
-                pt-5
-              "
-            >
+            <div className="mt-6 flex items-center justify-between gap-3 border-t border-[#2B2B30] pt-5">
 
-              <div
-                className="
-                  hidden
-                  text-[10px]
-                  text-zinc-600
-                  sm:block
-                "
-              >
-                Odoo Sales + Fleet + CRM
+              <div className="text-[11px] text-zinc-600">
+                {selectedProducts.length}{" "}
+                {selectedProducts.length ===
+                1
+                  ? "product"
+                  : "products"}{" "}
+                selected
               </div>
 
-
-              <div
-                className="
-                  ml-auto
-                  flex
-                  gap-3
-                "
-              >
+              <div className="flex gap-3">
 
                 <button
                   type="button"
-                  onClick={
-                    onClose
-                  }
-                  className="
-                    h-9
-                    rounded-lg
-                    px-4
-                    text-xs
-                    font-medium
-                    text-zinc-400
-                    transition
-                    hover:bg-[#1B1B1E]
-                    hover:text-white
-                  "
+                  onClick={onClose}
+                  className="h-9 rounded-lg px-4 text-xs font-medium text-zinc-400 transition hover:bg-[#1B1B1E] hover:text-white"
                 >
                   Cancel
                 </button>
-
 
                 <button
                   type="submit"
                   disabled={
                     submitting ||
-                    !options
+                    selectedProducts.length ===
+                      0
                   }
-                  className="
-                    flex
-                    h-9
-                    items-center
-                    gap-2
-                    rounded-lg
-                    bg-[#C8F065]
-                    px-4
-                    text-xs
-                    font-semibold
-                    text-black
-                    transition
-                    hover:bg-[#d7ff80]
-                    disabled:cursor-not-allowed
-                    disabled:opacity-50
-                  "
+                  className="flex h-9 items-center gap-2 rounded-lg bg-[#C8F065] px-4 text-xs font-semibold text-black transition hover:bg-[#d7ff80] disabled:cursor-not-allowed disabled:opacity-50"
                 >
 
                   {submitting && (
                     <LoaderCircle
-                      size={14}
+                      size={
+                        14
+                      }
                       className="animate-spin"
                     />
                   )}
@@ -2073,7 +1188,6 @@ export default function CreateRentalModal({
             </div>
 
           </form>
-
         )}
 
       </div>

@@ -12,12 +12,25 @@ router = APIRouter(
 )
 
 
-class RentalCreate(BaseModel):
-    partner_id: int
-    vehicle_id: int
+# ============================================================
+# TYPES
+# ============================================================
+
+class RentalProductLine(BaseModel):
+    """
+    One product added to a rental.
+
+    A rental can contain multiple product lines:
+    - Economy Car
+    - Chauffeur
+    - Baby Seat
+    - Deposit
+    - GPS
+    - Insurance
+    - etc.
+    """
+
     product_id: int
-    start_date: date
-    end_date: date
 
     quantity: float = Field(
         default=1,
@@ -29,11 +42,34 @@ class RentalCreate(BaseModel):
         ge=0,
     )
 
-    optional_product_ids: list[int] = []
+
+class RentalCreate(BaseModel):
+    """
+    Create a rental/order.
+
+    One customer can have unlimited rentals/orders.
+    One rental can contain multiple Odoo products.
+    """
+
+    partner_id: int
+
+    vehicle_id: int
+
+    start_date: date
+
+    end_date: date
+
+    products: list[RentalProductLine] = Field(
+        min_length=1,
+    )
 
     # Optional CRM opportunity / lead.
     opportunity_id: int | None = None
 
+
+# ============================================================
+# HELPERS
+# ============================================================
 
 def get_record(
     model: str,
@@ -43,7 +79,11 @@ def get_record(
     records = odoo.execute(
         model,
         "search_read",
-        [[[ "id", "=", record_id ]]],
+        [
+            [
+                ["id", "=", record_id],
+            ]
+        ],
         {
             "fields": fields,
             "limit": 1,
@@ -53,26 +93,48 @@ def get_record(
     if not records:
         raise HTTPException(
             status_code=404,
-            detail=f"{model} record {record_id} was not found.",
+            detail=(
+                f"{model} record "
+                f"{record_id} was not found."
+            ),
         )
 
     return records[0]
 
 
-# =========================================================
+# ============================================================
 # RENTAL OPTIONS
-# =========================================================
+# ============================================================
 
 @router.get("/options")
 def get_rental_options():
     """
-    Return Odoo-backed choices required to create a rental.
+    Return the Odoo-backed choices required by
+    the New Rental interface.
 
     Source of truth:
-    - Customers -> res.partner
-    - Vehicles  -> fleet.vehicle
-    - Products  -> product.product
+
+        Customers
+            ↓
+        res.partner
+
+        Vehicles
+            ↓
+        fleet.vehicle
+
+        Products
+            ↓
+        product.product
+
+    Product suggestions are returned as product IDs.
+
+    The suggestion relationship will ultimately be
+    driven by the Odoo product configuration.
     """
+
+    # ========================================================
+    # CUSTOMERS
+    # ========================================================
 
     customers = odoo.execute(
         "res.partner",
@@ -91,6 +153,10 @@ def get_rental_options():
             "limit": 500,
         },
     )
+
+    # ========================================================
+    # VEHICLES
+    # ========================================================
 
     vehicles = odoo.execute(
         "fleet.vehicle",
@@ -111,6 +177,10 @@ def get_rental_options():
             "limit": 500,
         },
     )
+
+    # ========================================================
+    # PRODUCTS
+    # ========================================================
 
     products = odoo.execute(
         "product.product",
@@ -134,9 +204,15 @@ def get_rental_options():
         },
     )
 
-    # =====================================================
-    # OPTIONAL / SUGGESTED PRODUCTS
-    # =====================================================
+    # ========================================================
+    # OPTIONAL PRODUCT RELATIONSHIPS
+    #
+    # Keep this compatible with the existing Odoo
+    # optional_product_ids configuration for now.
+    #
+    # Later we can replace/extend this with the exact
+    # product-tag relationship used in your Odoo setup.
+    # ========================================================
 
     template_ids = [
         product["product_tmpl_id"][0]
@@ -166,30 +242,39 @@ def get_rental_options():
 
     optional_templates = {
         template["id"]:
-            template.get("optional_product_ids") or []
+            template.get(
+                "optional_product_ids"
+            ) or []
         for template in templates
     }
+
+    # ========================================================
+    # PRODUCT VARIANTS BY TEMPLATE
+    # ========================================================
 
     variants_by_template: dict[int, list[int]] = {}
 
     for product in products:
+
         product_template = product.get(
             "product_tmpl_id"
         )
 
-        if product_template:
-            template_id = product_template[0]
+        if not product_template:
+            continue
 
-            variants_by_template.setdefault(
-                template_id,
-                [],
-            ).append(
-                product["id"]
-            )
+        template_id = product_template[0]
 
-    # =====================================================
+        variants_by_template.setdefault(
+            template_id,
+            [],
+        ).append(
+            product["id"]
+        )
+
+    # ========================================================
     # RESPONSE
-    # =====================================================
+    # ========================================================
 
     return {
         "customers": [
@@ -220,27 +305,29 @@ def get_rental_options():
             {
                 "id": product["id"],
 
-                "name":
+                "name": (
                     product.get("display_name")
-                    or product["name"],
+                    or product["name"]
+                ),
 
-                "list_price":
+                "list_price": (
                     product.get("lst_price")
-                    or 0,
+                    or 0
+                ),
 
                 "suggested_product_ids": [
                     variant_id
 
-                    for template_id in
-                    optional_templates.get(
+                    for template_id
+                    in optional_templates.get(
                         product[
                             "product_tmpl_id"
                         ][0],
                         [],
                     )
 
-                    for variant_id in
-                    variants_by_template.get(
+                    for variant_id
+                    in variants_by_template.get(
                         template_id,
                         [],
                     )
@@ -258,9 +345,9 @@ def get_rental_options():
     }
 
 
-# =========================================================
+# ============================================================
 # CREATE RENTAL
-# =========================================================
+# ============================================================
 
 @router.post("")
 def create_rental(
@@ -269,7 +356,7 @@ def create_rental(
     """
     Create a rental as an Odoo sale.order.
 
-    Relationships:
+    Structure:
 
         CRM opportunity
               ↓
@@ -281,14 +368,16 @@ def create_rental(
               ↓
         Fleet vehicle
               ↓
+        Multiple Odoo products
+              ↓
         Calendar
 
-    Odoo remains the source of truth.
+    Odoo remains the commercial source of truth.
     """
 
-    # =====================================================
+    # ========================================================
     # DATE VALIDATION
-    # =====================================================
+    # ========================================================
 
     if rental.end_date < rental.start_date:
         raise HTTPException(
@@ -299,9 +388,22 @@ def create_rental(
             ),
         )
 
-    # =====================================================
+    # ========================================================
+    # PRODUCT VALIDATION
+    # ========================================================
+
+    if not rental.products:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "At least one product must be "
+                "added to the rental."
+            ),
+        )
+
+    # ========================================================
     # CUSTOMER
-    # =====================================================
+    # ========================================================
 
     customer = get_record(
         "res.partner",
@@ -312,9 +414,9 @@ def create_rental(
         ],
     )
 
-    # =====================================================
+    # ========================================================
     # VEHICLE
-    # =====================================================
+    # ========================================================
 
     vehicle = get_record(
         "fleet.vehicle",
@@ -331,39 +433,15 @@ def create_rental(
     if not vehicle.get("active"):
         raise HTTPException(
             status_code=422,
-            detail="The selected vehicle is inactive.",
-        )
-
-    # =====================================================
-    # PRODUCT
-    # =====================================================
-
-    product = get_record(
-        "product.product",
-        rental.product_id,
-        [
-            "id",
-            "name",
-            "sale_ok",
-            "active",
-        ],
-    )
-
-    if (
-        not product.get("active")
-        or not product.get("sale_ok")
-    ):
-        raise HTTPException(
-            status_code=422,
             detail=(
-                "The selected product is not "
-                "available for sale."
+                "The selected vehicle "
+                "is inactive."
             ),
         )
 
-    # =====================================================
+    # ========================================================
     # CRM OPPORTUNITY
-    # =====================================================
+    # ========================================================
 
     opportunity = None
 
@@ -381,9 +459,6 @@ def create_rental(
             ],
         )
 
-        # Make sure the CRM opportunity belongs
-        # to the same customer selected in the rental.
-
         opportunity_partner_id = None
 
         if opportunity.get("partner_id"):
@@ -400,13 +475,14 @@ def create_rental(
                 status_code=422,
                 detail=(
                     "The selected CRM opportunity "
-                    "does not belong to the selected customer."
+                    "does not belong to the "
+                    "selected customer."
                 ),
             )
 
-    # =====================================================
+    # ========================================================
     # VEHICLE LABEL
-    # =====================================================
+    # ========================================================
 
     vehicle_label = vehicle["name"]
 
@@ -416,114 +492,130 @@ def create_rental(
             f"({vehicle['license_plate']})"
         )
 
-    # =====================================================
-    # MAIN RENTAL PRODUCT
-    # =====================================================
+    # ========================================================
+    # PRODUCT LINES
+    # ========================================================
 
-    rental_line = {
-        "product_id": product["id"],
-        "product_uom_qty": rental.quantity,
-    }
+    order_lines = []
 
-    if rental.unit_price is not None:
-        rental_line["price_unit"] = (
-            rental.unit_price
-        )
+    validated_products = []
 
-    # =====================================================
-    # OPTIONAL PRODUCTS
-    # =====================================================
+    for product_line in rental.products:
 
-    optional_products = []
-
-    for optional_product_id in set(
-        rental.optional_product_ids
-    ):
-
-        # Don't duplicate main product.
-        if (
-            optional_product_id
-            == product["id"]
-        ):
-            continue
-
-        optional_product = get_record(
+        product = get_record(
             "product.product",
-            optional_product_id,
+            product_line.product_id,
             [
                 "id",
                 "name",
+                "display_name",
                 "sale_ok",
                 "active",
+                "lst_price",
             ],
         )
 
-        if (
-            optional_product.get("active")
-            and optional_product.get("sale_ok")
-        ):
-            optional_products.append(
-                optional_product
+        if not product.get("active"):
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"Product "
+                    f"{product_line.product_id} "
+                    "is inactive."
+                ),
             )
 
-    # =====================================================
+        if not product.get("sale_ok"):
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"Product "
+                    f"{product_line.product_id} "
+                    "is not available for sale."
+                ),
+            )
+
+        line_values = {
+            "product_id": product["id"],
+            "product_uom_qty": (
+                product_line.quantity
+            ),
+        }
+
+        if product_line.unit_price is not None:
+            line_values["price_unit"] = (
+                product_line.unit_price
+            )
+
+        order_lines.append(
+            (
+                0,
+                0,
+                line_values,
+            )
+        )
+
+        validated_products.append(
+            {
+                "id": product["id"],
+                "name": (
+                    product.get("display_name")
+                    or product["name"]
+                ),
+                "quantity": (
+                    product_line.quantity
+                ),
+                "unit_price": (
+                    product_line.unit_price
+                    if product_line.unit_price
+                    is not None
+                    else product.get(
+                        "lst_price"
+                    ) or 0
+                ),
+            }
+        )
+
+    # ========================================================
     # SALE ORDER VALUES
-    # =====================================================
+    # ========================================================
 
     sale_values = {
         "partner_id": customer["id"],
 
-        "date_order":
+        "date_order": (
             f"{rental.start_date.isoformat()}"
-            " 00:00:00",
-
-        "commitment_date":
-            f"{rental.end_date.isoformat()}"
-            " 00:00:00",
-
-        "note": (
-            f"[Rental OS fleet.vehicle:{vehicle['id']}]"
-            "\n"
-            f"Rental vehicle: {vehicle_label}"
+            " 00:00:00"
         ),
 
-        "order_line": [
-            (
-                0,
-                0,
-                rental_line,
-            ),
+        "commitment_date": (
+            f"{rental.end_date.isoformat()}"
+            " 00:00:00"
+        ),
 
-            *[
-                (
-                    0,
-                    0,
-                    {
-                        "product_id":
-                            optional_product["id"],
+        "note": (
+            f"[Rental OS "
+            f"fleet.vehicle:{vehicle['id']}]"
+            "\n"
+            f"Rental vehicle: "
+            f"{vehicle_label}"
+        ),
 
-                        "product_uom_qty": 1,
-                    },
-                )
-
-                for optional_product
-                in optional_products
-            ],
-        ],
+        "order_line": order_lines,
     }
 
-    # =====================================================
+    # ========================================================
     # LINK CRM OPPORTUNITY
-    # =====================================================
+    # ========================================================
 
     if opportunity is not None:
         sale_values[
             "opportunity_id"
         ] = opportunity["id"]
 
-    # =====================================================
-    # CREATE ODOO SALE
-    # =====================================================
+    # ========================================================
+    # CREATE ODOO SALE ORDER
+    # ========================================================
 
     sale_id = odoo.execute(
         "sale.order",
@@ -531,9 +623,9 @@ def create_rental(
         [sale_values],
     )
 
-    # =====================================================
+    # ========================================================
     # READ CREATED SALE
-    # =====================================================
+    # ========================================================
 
     sale = get_record(
         "sale.order",
@@ -553,9 +645,9 @@ def create_rental(
         ],
     )
 
-    # =====================================================
+    # ========================================================
     # RESPONSE
-    # =====================================================
+    # ========================================================
 
     return {
         "success": True,
@@ -567,45 +659,53 @@ def create_rental(
 
             "customer": (
                 {
-                    "id":
-                        sale["partner_id"][0],
+                    "id": sale[
+                        "partner_id"
+                    ][0],
 
-                    "name":
-                        sale["partner_id"][1],
+                    "name": sale[
+                        "partner_id"
+                    ][1],
                 }
 
-                if sale.get("partner_id")
+                if sale.get(
+                    "partner_id"
+                )
 
                 else None
             ),
 
-            "state":
-                sale["state"],
+            "state": sale["state"],
 
-            "date_order":
-                sale.get("date_order"),
+            "date_order": sale.get(
+                "date_order"
+            ),
 
-            "commitment_date":
-                sale.get("commitment_date"),
+            "commitment_date": sale.get(
+                "commitment_date"
+            ),
 
-            "amount_total":
-                sale.get("amount_total")
-                or 0,
+            "amount_total": (
+                sale.get(
+                    "amount_total"
+                ) or 0
+            ),
 
-            "invoice_status":
-                sale.get("invoice_status"),
+            "invoice_status": (
+                sale.get(
+                    "invoice_status"
+                )
+            ),
 
             "opportunity": (
                 {
-                    "id":
-                        sale[
-                            "opportunity_id"
-                        ][0],
+                    "id": sale[
+                        "opportunity_id"
+                    ][0],
 
-                    "name":
-                        sale[
-                            "opportunity_id"
-                        ][1],
+                    "name": sale[
+                        "opportunity_id"
+                    ][1],
                 }
 
                 if sale.get(
@@ -615,25 +715,30 @@ def create_rental(
                 else None
             ),
 
-            "order_line_ids":
+            "order_line_ids": (
                 sale.get(
                     "order_line"
+                ) or []
+            ),
+
+            "vehicle_id": vehicle[
+                "id"
+            ],
+
+            "vehicle_name": vehicle_label,
+
+            "vehicle_status": (
+                vehicle[
+                    "state_id"
+                ][1]
+
+                if vehicle.get(
+                    "state_id"
                 )
-                or [],
 
-            "vehicle_id":
-                vehicle["id"],
+                else None
+            ),
 
-            "vehicle_name":
-                vehicle_label,
-
-            "vehicle_status":
-                (
-                    vehicle["state_id"][1]
-                    if vehicle.get(
-                        "state_id"
-                    )
-                    else None
-                ),
+            "products": validated_products,
         },
     }
