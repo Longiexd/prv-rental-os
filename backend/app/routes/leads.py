@@ -23,6 +23,10 @@ class LeadCreate(BaseModel):
     expected_revenue: float | None = 0
 
 
+class StageUpdate(BaseModel):
+    stage_id: int
+
+
 # =========================================================
 # GET LEADS
 # =========================================================
@@ -56,48 +60,74 @@ def get_leads():
 
     for lead in leads:
 
+        stage_id = None
+        stage_name = None
+
+        if lead.get("stage_id"):
+            stage_id = lead["stage_id"][0]
+            stage_name = lead["stage_id"][1]
+
+        salesperson_id = None
+        salesperson_name = None
+
+        if lead.get("user_id"):
+            salesperson_id = lead["user_id"][0]
+            salesperson_name = lead["user_id"][1]
+
+        customer = None
+
+        if lead.get("partner_id"):
+            customer = {
+                "id": lead["partner_id"][0],
+                "name": lead["partner_id"][1],
+            }
+
         result.append(
             {
                 "id": lead["id"],
-
                 "name": lead["name"],
 
-                "customer": (
-                    {
-                        "id": lead["partner_id"][0],
-                        "name": lead["partner_id"][1],
-                    }
-                    if lead.get("partner_id")
-                    else None
-                ),
+                # Customer linked to the Odoo CRM opportunity
+                "customer": customer,
 
+                # Contact information
                 "phone": (
                     lead.get("phone")
                     or lead.get("mobile")
                     or None
                 ),
-
                 "email": lead.get("email_from"),
 
-                "stage": (
-                    lead["stage_id"][1]
-                    if lead.get("stage_id")
-                    else None
-                ),
+                # =================================================
+                # IMPORTANT FOR KANBAN
+                # =================================================
+                # Return BOTH the stage ID and stage name.
+                #
+                # stage_id is what allows the frontend to place
+                # the lead in the correct Kanban column.
+                #
+                # stage is used for display / color coding.
+                # =================================================
 
+                "stage_id": stage_id,
+                "stage": stage_name,
+
+                # Salesperson
                 "salesperson": (
                     {
-                        "id": lead["user_id"][0],
-                        "name": lead["user_id"][1],
+                        "id": salesperson_id,
+                        "name": salesperson_name,
                     }
-                    if lead.get("user_id")
+                    if salesperson_id is not None
                     else None
                 ),
 
+                # Revenue
                 "expected_revenue": (
                     lead.get("expected_revenue") or 0
                 ),
 
+                # Creation date
                 "created": lead.get("create_date"),
             }
         )
@@ -131,9 +161,9 @@ def create_lead(lead: LeadCreate):
         "expected_revenue": lead.expected_revenue or 0,
     }
 
-    # -----------------------------------------------------
+    # ---------------------------------------------------------
     # LINK EXISTING CUSTOMER
-    # -----------------------------------------------------
+    # ---------------------------------------------------------
 
     if lead.partner_id:
 
@@ -166,25 +196,153 @@ def create_lead(lead: LeadCreate):
 
         values["partner_id"] = partner["id"]
 
-        # Use customer information if the opportunity
-        # itself did not explicitly provide it.
+        # Keep the existing customer's contact data
+        # when the opportunity does not provide its own.
         if not values["phone"]:
             values["phone"] = partner.get("phone")
 
         if not values["email_from"]:
             values["email_from"] = partner.get("email")
 
-    # -----------------------------------------------------
+    # ---------------------------------------------------------
     # CREATE ODOO CRM OPPORTUNITY
-    # -----------------------------------------------------
+    # ---------------------------------------------------------
+    #
+    # IMPORTANT:
+    #
+    # Odoo create() expects:
+    #
+    #     [values]
+    #
+    # and NOT:
+    #
+    #     values
+    #
+    # ---------------------------------------------------------
 
     lead_id = odoo.execute(
         "crm.lead",
         "create",
-        values,
+        [values],
     )
 
     return {
         "success": True,
         "lead_id": lead_id,
+    }
+
+
+# =========================================================
+# UPDATE LEAD STAGE
+# =========================================================
+#
+# Used by the Kanban drag & drop.
+#
+# The frontend sends:
+#
+# PATCH /crm/leads/{lead_id}/stage
+#
+# {
+#     "stage_id": 3
+# }
+#
+# This updates the REAL Odoo crm.lead record.
+# Therefore List + Kanban + Odoo remain synchronized.
+# =========================================================
+
+@router.patch("/{lead_id}/stage")
+def update_lead_stage(
+    lead_id: int,
+    stage: StageUpdate,
+):
+
+    # ---------------------------------------------------------
+    # Make sure the lead exists
+    # ---------------------------------------------------------
+
+    existing = odoo.execute(
+        "crm.lead",
+        "search_read",
+        [
+            [
+                ["id", "=", lead_id],
+            ]
+        ],
+        {
+            "fields": [
+                "id",
+                "name",
+                "stage_id",
+            ],
+            "limit": 1,
+        },
+    )
+
+    if not existing:
+        raise HTTPException(
+            status_code=404,
+            detail="Lead not found.",
+        )
+
+    # ---------------------------------------------------------
+    # Make sure the Odoo CRM stage exists
+    # ---------------------------------------------------------
+
+    stages = odoo.execute(
+        "crm.stage",
+        "search_read",
+        [
+            [
+                ["id", "=", stage.stage_id],
+            ]
+        ],
+        {
+            "fields": [
+                "id",
+                "name",
+                "sequence",
+            ],
+            "limit": 1,
+        },
+    )
+
+    if not stages:
+        raise HTTPException(
+            status_code=404,
+            detail="CRM stage not found.",
+        )
+
+    # ---------------------------------------------------------
+    # Update the actual Odoo CRM opportunity
+    # ---------------------------------------------------------
+
+    updated = odoo.execute(
+        "crm.lead",
+        "write",
+        [
+            [lead_id],
+            {
+                "stage_id": stage.stage_id,
+            },
+        ],
+    )
+
+    if not updated:
+        raise HTTPException(
+            status_code=500,
+            detail="Odoo could not update the lead stage.",
+        )
+
+    # ---------------------------------------------------------
+    # Return the updated stage
+    # ---------------------------------------------------------
+
+    return {
+        "success": True,
+        "lead_id": lead_id,
+        "stage": {
+            "id": stages[0]["id"],
+            "name": stages[0]["name"],
+            "sequence": stages[0]["sequence"],
+        },
     }
