@@ -17,13 +17,14 @@ import {
 } from "lucide-react";
 import React, { useState } from "react";
 
+import AddCustomerModal from "@/components/customers/AddCustomerModal";
 import AddLeadModal from "@/components/crm/AddLeadModal";
 import CreateRentalModal from "@/components/rentals/CreateRentalModal";
-import AddCustomerModal from "@/components/customers/AddCustomerModal";
 import { QuickAddMenu } from "@/components/ui/QuickAddMenu";
 
 const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "https://api.rental-os.klynx.net";
+  process.env.NEXT_PUBLIC_API_URL ||
+  "https://api.rental-os.klynx.net";
 
 type NavItem = {
   label: string;
@@ -33,17 +34,40 @@ type NavItem = {
 };
 
 const navigation: NavItem[] = [
-  { label: "Overview", icon: LayoutDashboard, href: "/dashboard" },
-  { label: "Fleet", icon: Car, href: "/dashboard/fleet" },
-  { label: "Rentals", icon: ClipboardList, href: "/dashboard/rentals" },
-  { label: "Customers", icon: Users, href: "/dashboard/customers" },
-  { label: "CRM — Leads", icon: Users, href: "/crm/leads" },
-  { label: "Calendar", icon: CalendarDays, href: "/dashboard/calendar" },
+  {
+    label: "Overview",
+    icon: LayoutDashboard,
+    href: "/dashboard",
+  },
+  {
+    label: "Fleet",
+    icon: Car,
+    href: "/dashboard/fleet",
+  },
+  {
+    label: "Rentals",
+    icon: ClipboardList,
+    href: "/dashboard/rentals",
+  },
+  {
+    label: "Customers",
+    icon: Users,
+    href: "/dashboard/customers",
+  },
+  {
+    label: "CRM — Leads",
+    icon: Users,
+    href: "/crm/leads",
+  },
+  {
+    label: "Calendar",
+    icon: CalendarDays,
+    href: "/dashboard/calendar",
+  },
   {
     label: "Analytics",
     icon: BarChart3,
     href: "/dashboard/analytics",
-    comingSoon: true,
   },
 ];
 
@@ -52,33 +76,37 @@ export default function OSLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const [addLeadOpen, setAddLeadOpen] = useState(false);
-  const [addRentalOpen, setAddRentalOpen] = useState(false);
-  const [addCustomerOpen, setAddCustomerOpen] = useState(false);
+  const [addLeadOpen, setAddLeadOpen] =
+    useState(false);
+
+  const [addRentalOpen, setAddRentalOpen] =
+    useState(false);
+
+  const [addCustomerOpen, setAddCustomerOpen] =
+    useState(false);
 
   return (
     <div className="min-h-screen bg-background text-text">
-      {/* Ambient OS lighting */}
       <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
         <div className="absolute -left-40 -top-40 h-[500px] w-[500px] rounded-full bg-lime/[0.035] blur-[140px]" />
         <div className="absolute right-[-180px] top-[15%] h-[500px] w-[500px] rounded-full bg-pink/[0.025] blur-[150px]" />
       </div>
 
       <div className="relative flex min-h-screen">
-        {/* SIDEBAR */}
         <aside className="hidden w-[230px] shrink-0 border-r border-border bg-background/90 lg:flex lg:flex-col">
-          {/* BRAND */}
           <div className="flex h-[68px] items-center border-b border-border px-5">
             <Link
               href="/dashboard"
               className="font-syne text-[19px] font-semibold tracking-[-0.04em]"
             >
               Klyn<span className="text-lime">x</span>
-              <span className="text-pink"> OS</span>
+              <span className="text-pink">
+                {" "}
+                OS
+              </span>
             </Link>
           </div>
 
-          {/* NAVIGATION */}
           <div className="px-3 py-5">
             <div className="mb-3 px-2 text-[10px] font-medium uppercase tracking-[0.16em] text-muted">
               Workspace
@@ -95,8 +123,15 @@ export default function OSLayout({
                       title="Coming soon"
                       className="flex cursor-not-allowed items-center gap-3 rounded-lg px-3 py-2 text-[13px] text-muted/60"
                     >
-                      <Icon size={16} strokeWidth={1.7} />
-                      <span>{item.label}</span>
+                      <Icon
+                        size={16}
+                        strokeWidth={1.7}
+                      />
+
+                      <span>
+                        {item.label}
+                      </span>
+
                       <span className="ml-auto rounded-md bg-surface-secondary px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-muted">
                         Soon
                       </span>
@@ -110,15 +145,20 @@ export default function OSLayout({
                     href={item.href}
                     className="group flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] text-text-secondary transition hover:bg-surface hover:text-text"
                   >
-                    <Icon size={16} strokeWidth={1.7} />
-                    <span>{item.label}</span>
+                    <Icon
+                      size={16}
+                      strokeWidth={1.7}
+                    />
+
+                    <span>
+                      {item.label}
+                    </span>
                   </Link>
                 );
               })}
             </nav>
           </div>
 
-          {/* INTELLIGENCE */}
           <div className="px-3">
             <div className="mb-3 px-2 text-[10px] font-medium uppercase tracking-[0.16em] text-muted">
               Intelligence
@@ -130,14 +170,15 @@ export default function OSLayout({
               className="flex w-full cursor-not-allowed items-center gap-3 rounded-lg border border-pink-dark/50 bg-pink-dark/10 px-3 py-2.5 text-[13px] text-pink transition hover:bg-pink-dark/20"
             >
               <Zap size={16} />
+
               <span>Klynx AI</span>
+
               <span className="ml-auto rounded-md bg-pink/10 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-pink">
                 Soon
               </span>
             </button>
           </div>
 
-          {/* BOTTOM */}
           <div className="mt-auto border-t border-border p-3">
             <button
               type="button"
@@ -158,40 +199,45 @@ export default function OSLayout({
           </div>
         </aside>
 
-        {/* APPLICATION */}
         <div className="min-w-0 flex-1">
-          {/* TOP BAR */}
           <header className="flex h-[68px] items-center justify-between gap-3 border-b border-border px-5 sm:px-8">
-            {/* SEARCH */}
             <div
               title="Search — coming soon"
               className="flex h-9 w-full max-w-[340px] cursor-not-allowed items-center gap-2 rounded-lg border border-border bg-surface/70 px-3 text-muted"
             >
               <Search size={15} />
-              <span className="text-xs">Search anything...</span>
+
+              <span className="text-xs">
+                Search anything...
+              </span>
             </div>
 
-            {/* RIGHT */}
             <div className="ml-4 flex items-center gap-2">
               <QuickAddMenu
                 actions={[
                   {
                     label: "New lead",
-                    description: "Add a prospect to the CRM pipeline",
+                    description:
+                      "Add a prospect to the CRM pipeline",
                     icon: <UserPlus size={15} />,
-                    onClick: () => setAddLeadOpen(true),
+                    onClick: () =>
+                      setAddLeadOpen(true),
                   },
                   {
                     label: "New rental",
-                    description: "Book a vehicle for a customer",
+                    description:
+                      "Book a vehicle for a customer",
                     icon: <Car size={15} />,
-                    onClick: () => setAddRentalOpen(true),
+                    onClick: () =>
+                      setAddRentalOpen(true),
                   },
                   {
                     label: "New customer",
-                    description: "Create a customer record",
+                    description:
+                      "Create a customer record",
                     icon: <Users size={15} />,
-                    onClick: () => setAddCustomerOpen(true),
+                    onClick: () =>
+                      setAddCustomerOpen(true),
                   },
                 ]}
               />
@@ -204,45 +250,56 @@ export default function OSLayout({
                 </div>
 
                 <div className="hidden text-left sm:block">
-                  <div className="text-xs font-medium">Klynx Admin</div>
-                  <div className="text-[10px] text-muted">Administrator</div>
+                  <div className="text-xs font-medium">
+                    Klynx Admin
+                  </div>
+
+                  <div className="text-[10px] text-muted">
+                    Administrator
+                  </div>
                 </div>
 
-                <ChevronDown size={13} className="hidden text-muted sm:block" />
+                <ChevronDown
+                  size={13}
+                  className="hidden text-muted sm:block"
+                />
               </button>
             </div>
           </header>
 
-          {/* PAGE CONTENT */}
-          <main className="flex-1">{children}</main>
+          <main className="flex-1">
+            {children}
+          </main>
         </div>
       </div>
 
-      {/*
-        GLOBAL QUICK-ADD MODALS — the single "start something new" entry
-        point for the whole app, reachable from any page via the topbar.
-        A full reload after creation is a deliberate simplicity trade-off:
-        it guarantees whatever page you're on shows the new record
-        immediately, without every page needing its own refetch wiring
-        for a global action it didn't trigger locally.
-      */}
       <AddLeadModal
         open={addLeadOpen}
         onClose={() => setAddLeadOpen(false)}
-        onCreated={() => window.location.reload()}
+        onCreated={() =>
+          window.location.reload()
+        }
       />
 
       <CreateRentalModal
         open={addRentalOpen}
-        onClose={() => setAddRentalOpen(false)}
-        onCreated={() => window.location.reload()}
+        onClose={() =>
+          setAddRentalOpen(false)
+        }
+        onCreated={() =>
+          window.location.reload()
+        }
       />
 
       {addCustomerOpen && (
         <AddCustomerModal
           apiUrl={API_URL}
-          onClose={() => setAddCustomerOpen(false)}
-          onSuccess={() => window.location.reload()}
+          onClose={() =>
+            setAddCustomerOpen(false)
+          }
+          onSuccess={() =>
+            window.location.reload()
+          }
         />
       )}
     </div>
