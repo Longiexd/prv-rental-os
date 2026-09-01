@@ -21,6 +21,17 @@ import {
   X,
 } from "lucide-react";
 
+import {
+  getFleetStatus as classifyFleetStatus,
+  fleetStatusMeta,
+  toneClasses,
+  type FleetStatus,
+} from "@/lib/status";
+import {
+  parseDate as sharedParseDate,
+  formatDate as sharedFormatDate,
+} from "@/lib/format";
+
 // ============================================================
 // TYPES
 // ============================================================
@@ -107,186 +118,56 @@ function normalize(
 
 // ============================================================
 // ODOO FLEET STATE
+//
+// Classification and colors now live once in lib/status.ts —
+// these are thin wrappers that keep this file's existing call
+// signature (positional args, icon-augmented meta) so nothing
+// below has to change, while the actual duplicated logic that
+// used to live here is gone.
 // ============================================================
-
-type FleetStatus =
-  | "available"
-  | "rented"
-  | "cleaning"
-  | "maintenance"
-  | "unavailable"
-  | "inactive"
-  | "unknown";
 
 function getFleetStatus(
   status: string | null,
   active?: boolean
 ): FleetStatus {
-  const value = normalize(status);
-
-  if (active === false) {
-    return "inactive";
-  }
-
-  if (
-    value === "loué" ||
-    value === "loue" ||
-    value.includes("loué") ||
-    value.includes("loue") ||
-    value.includes("rented")
-  ) {
-    return "rented";
-  }
-
-  if (
-    value === "disponible" ||
-    value.includes("disponible") ||
-    value.includes("available") ||
-    value.includes("ready")
-  ) {
-    return "available";
-  }
-
-  if (
-    value === "nettoyage" ||
-    value.includes("nettoyage") ||
-    value.includes("nettoy") ||
-    value.includes("cleaning") ||
-    value === "clean"
-  ) {
-    return "cleaning";
-  }
-
-  if (
-    value === "maintenance" ||
-    value.includes("maintenance") ||
-    value.includes("entretien") ||
-    value.includes("repair") ||
-    value.includes("réparation") ||
-    value.includes("reparation")
-  ) {
-    return "maintenance";
-  }
-
-  if (
-    value.includes("indispon") ||
-    value.includes("unavailable")
-  ) {
-    return "unavailable";
-  }
-
-  return "unknown";
+  return classifyFleetStatus({ status, active });
 }
 
-// ============================================================
-// STATUS META
-// ============================================================
+const STATUS_ICON: Record<FleetStatus, typeof Car> = {
+  available: CheckCircle2,
+  rented: UserRound,
+  cleaning: Car,
+  maintenance: Wrench,
+  unavailable: Clock3,
+  inactive: Clock3,
+  unknown: Car,
+};
 
 function getStatusMeta(
   fleetStatus: FleetStatus,
   originalStatus: string | null
 ) {
-  switch (fleetStatus) {
-    case "available":
-      return {
-        label: "Disponible",
-        className:
-          "border-[#C8F065]/20 bg-[#C8F065]/10 text-[#C8F065]",
-        dot: "bg-[#C8F065]",
-        icon: CheckCircle2,
-      };
+  const meta = fleetStatusMeta(fleetStatus);
+  const classes = toneClasses(meta.tone);
 
-    case "rented":
-      return {
-        label: "Loué",
-        className:
-          "border-[#F06AAA]/20 bg-[#F06AAA]/10 text-[#F06AAA]",
-        dot: "bg-[#F06AAA]",
-        icon: UserRound,
-      };
-
-    case "cleaning":
-      return {
-        label: "Nettoyage",
-        className:
-          "border-blue-400/20 bg-blue-500/10 text-blue-400",
-        dot: "bg-blue-400",
-        icon: Car,
-      };
-
-    case "maintenance":
-      return {
-        label: "Maintenance",
-        className:
-          "border-violet-400/20 bg-violet-500/10 text-violet-400",
-        dot: "bg-violet-400",
-        icon: Wrench,
-      };
-
-    case "unavailable":
-      return {
-        label: "Indisponible",
-        className:
-          "border-red-400/20 bg-red-500/10 text-red-400",
-        dot: "bg-red-400",
-        icon: Clock3,
-      };
-
-    case "inactive":
-      return {
-        label: "Inactive",
-        className:
-          "border-zinc-600/30 bg-zinc-700/20 text-zinc-500",
-        dot: "bg-zinc-600",
-        icon: Clock3,
-      };
-
-    default:
-      return {
-        label:
-          originalStatus ||
-          "Non défini",
-        className:
-          "border-[#2B2B30] bg-[#17171A] text-[#A1A1AA]",
-        dot: "bg-[#71717A]",
-        icon: Car,
-      };
-  }
+  return {
+    label: fleetStatus === "unknown" ? originalStatus || "Unknown" : meta.label,
+    className: `${classes.border} ${classes.bg} ${classes.text}`,
+    dot: classes.dot,
+    icon: STATUS_ICON[fleetStatus],
+  };
 }
 
 // ============================================================
 // DATES
 // ============================================================
 
-function parseDate(
-  value: string | null
-) {
-  if (!value) return null;
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-
-  return date;
+function parseDate(value: string | null) {
+  return sharedParseDate(value);
 }
 
-function formatDate(
-  value: string | null
-) {
-  const date = parseDate(value);
-
-  if (!date) return "—";
-
-  return date.toLocaleDateString(
-    "en-GB",
-    {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    }
-  );
+function formatDate(value: string | null) {
+  return sharedFormatDate(value);
 }
 
 // ============================================================

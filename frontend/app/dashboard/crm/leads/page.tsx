@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import AddLeadModal from "@/components/crm/AddLeadModal";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 // =========================================================
 // TYPES
@@ -410,37 +411,21 @@ export default function LeadsPage() {
           HEADER
       ===================================================== */}
 
-      <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-
-        <div>
-          <div className="mb-2 flex items-center gap-2 text-[11px] text-[#71717A]">
-            <span>CRM</span>
-            <span>/</span>
-            <span className="text-[#A1A1AA]">
-              Leads
-            </span>
-          </div>
-
-          <h1 className="font-[Syne] text-3xl font-semibold tracking-tight text-white">
-            Leads
-          </h1>
-
-          <p className="mt-1 text-sm text-[#71717A]">
-            Manage potential customers and rental opportunities.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={() =>
-            setAddLeadOpen(true)
-          }
-          className="flex h-10 items-center justify-center gap-2 rounded-xl bg-[#C8F065] px-4 text-sm font-semibold text-black transition hover:bg-[#d7ff80]"
-        >
-          <Plus size={17} />
-          New Lead
-        </button>
-      </div>
+      <PageHeader
+        breadcrumb="Leads"
+        title="Leads"
+        subtitle="Manage potential customers and rental opportunities."
+        action={
+          <button
+            type="button"
+            onClick={() => setAddLeadOpen(true)}
+            className="flex h-9 items-center justify-center gap-2 rounded-lg bg-lime px-4 text-xs font-medium text-background shadow-glow-lime transition hover:bg-lime-dark"
+          >
+            <Plus size={14} />
+            New lead
+          </button>
+        }
+      />
 
       {/* =====================================================
           STATS

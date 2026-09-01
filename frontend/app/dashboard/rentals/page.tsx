@@ -18,6 +18,14 @@ import {
 } from "lucide-react";
 
 import CreateRentalModal from "@/components/rentals/CreateRentalModal";
+import { PageHeader } from "@/components/ui/PageHeader";
+
+import {
+  getRentalState as classifyRentalState,
+  rentalStateMeta,
+  toneClasses,
+} from "@/lib/status";
+import { formatDate as sharedFormatDate } from "@/lib/format";
 
 
 type Customer = {
@@ -96,88 +104,24 @@ const API_URL =
   "https://api.rental-os.klynx.net";
 
 
-function formatDate(
-  value: string | null | false
-) {
-
-  if (!value) {
-    return "—";
-  }
-
-  const date =
-    new Date(value);
-
-  if (
-    Number.isNaN(
-      date.getTime()
-    )
-  ) {
-    return value.toString();
-  }
-
-  return date.toLocaleDateString(
-    "en-GB",
-    {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    }
-  );
+function formatDate(value: string | null | false) {
+  return sharedFormatDate(value || null);
 }
 
-
-function getInvoiceForSale(
-  sale: Sale,
-  invoices: Invoice[]
-) {
-
-  return invoices.find(
-    (invoice) =>
-      invoice.origin ===
-      sale.name
-  );
+function getInvoiceForSale(sale: Sale, invoices: Invoice[]) {
+  return invoices.find((invoice) => invoice.origin === sale.name);
 }
 
-
-function getRentalState(
-  sale: Sale
-) {
-
-  if (
-    sale.state ===
-    "cancel"
-  ) {
-
-    return {
-      label: "Cancelled",
-
-      className:
-        "border-red-400/20 bg-red-400/10 text-red-300",
-    };
-
-  }
-
-
-  if (
-    sale.state ===
-    "sale"
-  ) {
-
-    return {
-      label: "Confirmed",
-
-      className:
-        "border-[#C8F065]/20 bg-[#C8F065]/10 text-[#C8F065]",
-    };
-
-  }
-
+// Thin wrapper: classification/colors now live once in lib/status.ts.
+// Kept as a local function so the ~15 call sites below didn't need
+// touching.
+function getRentalState(sale: Sale) {
+  const meta = rentalStateMeta(classifyRentalState(sale));
+  const classes = toneClasses(meta.tone);
 
   return {
-    label: "Quotation",
-
-    className:
-      "border-blue-400/20 bg-blue-400/10 text-blue-300",
+    label: meta.label,
+    className: `${classes.border} ${classes.bg} ${classes.text}`,
   };
 }
 
@@ -457,25 +401,14 @@ export default function RentalsPage() {
   // RENTAL CREATED
   // =========================================================
 
-  function handleRentalCreated(
-    result: CreateRentalResult
-  ) {
+  function handleRentalCreated(payload: unknown) {
+    const result = payload as CreateRentalResult;
 
-    if (
-      result?.sale
-    ) {
-
-      setSales(
-        (current) => [
-          result.sale,
-          ...current.filter(
-            (sale) =>
-              sale.id !==
-              result.sale.id
-          ),
-        ]
-      );
-
+    if (result?.sale) {
+      setSales((current) => [
+        result.sale,
+        ...current.filter((sale) => sale.id !== result.sale.id),
+      ]);
     }
 
     /*
@@ -589,109 +522,21 @@ export default function RentalsPage() {
       "
     >
 
-      {/* =====================================================
-          HEADER
-      ===================================================== */}
-
-      <section
-        className="
-          flex
-          flex-col
-          justify-between
-          gap-5
-          sm:flex-row
-          sm:items-end
-        "
-      >
-
-        <div>
-
-          <div
-            className="
-              mb-2
-              flex
-              items-center
-              gap-2
-              text-[11px]
-              text-[#71717A]
-            "
+      <PageHeader
+        breadcrumb="Rentals"
+        title="Rentals"
+        subtitle="Rental operations, sales and invoicing."
+        action={
+          <button
+            type="button"
+            onClick={() => openCreateForm()}
+            className="flex h-9 items-center justify-center gap-2 rounded-lg bg-lime px-4 text-xs font-medium text-background shadow-glow-lime transition hover:bg-lime-dark"
           >
-            <span>
-              Workspace
-            </span>
-
-            <span>
-              /
-            </span>
-
-            <span
-              className="text-[#A1A1AA]"
-            >
-              Rentals
-            </span>
-
-          </div>
-
-
-          <h1
-            className="
-              font-[Syne]
-              text-[28px]
-              font-semibold
-              tracking-[-0.035em]
-              text-white
-              sm:text-[32px]
-            "
-          >
-            Rentals
-          </h1>
-
-
-          <p
-            className="
-              mt-1
-              text-sm
-              text-[#71717A]
-            "
-          >
-            Rental operations, sales and
-            invoicing.
-          </p>
-
-        </div>
-
-
-        <button
-          type="button"
-          onClick={() =>
-            openCreateForm()
-          }
-          className="
-            flex
-            h-9
-            items-center
-            justify-center
-            gap-2
-            rounded-lg
-            bg-[#C8F065]
-            px-4
-            text-xs
-            font-medium
-            text-black
-            transition
-            hover:bg-[#d7ff80]
-          "
-        >
-
-          <CalendarDays
-            size={14}
-          />
-
-          New rental
-
-        </button>
-
-      </section>
+            <CalendarDays size={14} />
+            New rental
+          </button>
+        }
+      />
 
 
       {/* =====================================================
@@ -1494,17 +1339,9 @@ export default function RentalsPage() {
           )
         }
 
-        initialCustomerId={
-          initialCustomerId
-        }
-
-        initialOpportunityId={
-          initialOpportunityId
-        }
-
-        onCreated={
-          handleRentalCreated
-        }
+        customerId={initialCustomerId}
+        opportunityId={initialOpportunityId}
+        onCreated={handleRentalCreated}
       />
 
     </main>

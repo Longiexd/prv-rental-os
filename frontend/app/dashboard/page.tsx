@@ -2,25 +2,36 @@
 
 import {
   Activity,
+  AlertTriangle,
+  ArrowDownLeft,
   ArrowUpRight,
-  CalendarDays,
   Car,
-  MoreHorizontal,
-  Plus,
+  Clock3,
   TrendingUp,
   Users,
 } from "lucide-react";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
-import AddLeadModal from "@/components/crm/AddLeadModal";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { StatCard } from "@/components/ui/StatCard";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Card, CardHeader } from "@/components/ui/Card";
+
+import { formatCurrency, formatDateShort, isSameDay, parseDate } from "@/lib/format";
+import { getFleetStatus, fleetStatusMeta, getRentalState, rentalStateMeta } from "@/lib/status";
+
+// ============================================================
+// TYPES
+// (kept local — these mirror raw Odoo fields returned by /cars,
+// /customers, /sales, /invoices, distinct from the shapes in
+// lib/api.ts used by other flows)
+// ============================================================
 
 type RelationalValue =
   | string
   | number
-  | {
-      id?: number;
-      name?: string;
-    }
+  | { id?: number; name?: string }
   | null
   | false
   | undefined;
@@ -31,235 +42,90 @@ type CarData = {
   license_plate: string | null;
   model: string | null;
   status: RelationalValue;
+  active?: boolean;
 };
 
 type CustomerData = {
   id: number;
   name: string;
-  phone: string | null;
-  email: string | null;
-  mobile: string | null;
-};
-
-type LeadData = {
-  id: number;
-  name: string;
-  customer: RelationalValue;
-  phone: string | null;
-  email: string | null;
-  stage: RelationalValue;
-  created: string | null;
 };
 
 type SaleData = {
   id: number;
   name: string;
   customer: RelationalValue;
-  state: RelationalValue;
+  state: string;
   date_order: string | null;
   commitment_date: string | null;
   amount_total: number;
-  invoice_status: RelationalValue;
-  opportunity: RelationalValue;
-  order_line_ids: number[];
+  vehicle_id?: number | null;
 };
 
 type InvoiceData = {
   id: number;
-  name: string | false;
-  customer: RelationalValue;
-  type: string;
   state: string;
-  invoice_date: string | false;
-  due_date: string | false;
-  amount_untaxed: number;
-  amount_tax: number;
-  amount_total: number;
-  amount_residual: number;
   payment_state: string;
-  origin: string | false;
-  invoice_line_ids: number[];
-};
-
-type CarsResponse = {
-  count: number;
-  cars: CarData[];
-};
-
-type CustomersResponse = {
-  count: number;
-  customers: CustomerData[];
-};
-
-type LeadsResponse = {
-  count: number;
-  leads: LeadData[];
-};
-
-type SalesResponse = {
-  count: number;
-  sales: SaleData[];
-};
-
-type InvoicesResponse = {
-  count: number;
-  invoices: InvoiceData[];
+  amount_residual: number;
 };
 
 const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://api.rental-os.klynx.net";
+  process.env.NEXT_PUBLIC_API_URL || "https://api.rental-os.klynx.net";
 
 function displayValue(value: RelationalValue): string {
-  if (
-    value === null ||
-    value === undefined ||
-    value === false
-  ) {
-    return "";
-  }
-
-  if (
-    typeof value === "string" ||
-    typeof value === "number"
-  ) {
-    return String(value);
-  }
-
+  if (value === null || value === undefined || value === false) return "";
+  if (typeof value === "string" || typeof value === "number") return String(value);
   return value.name || "";
 }
 
-function normalizeValue(value: RelationalValue): string {
-  return displayValue(value).toLowerCase().trim();
+function greeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning.";
+  if (hour < 18) return "Good afternoon.";
+  return "Good evening.";
 }
+
+// ============================================================
+// COMPONENT
+// ============================================================
 
 export default function DashboardPage() {
   const [cars, setCars] = useState<CarData[]>([]);
   const [customers, setCustomers] = useState<CustomerData[]>([]);
-  const [leads, setLeads] = useState<LeadData[]>([]);
   const [sales, setSales] = useState<SaleData[]>([]);
   const [invoices, setInvoices] = useState<InvoiceData[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [addLeadOpen, setAddLeadOpen] = useState(false);
-
   async function loadDashboard() {
     try {
       setLoading(true);
       setError(null);
 
-      const [
-        carsResponse,
-        customersResponse,
-        leadsResponse,
-        salesResponse,
-        invoicesResponse,
-      ] = await Promise.all([
-        fetch(`${API_URL}/cars`, {
-          cache: "no-store",
-        }),
-
-        fetch(`${API_URL}/customers`, {
-          cache: "no-store",
-        }),
-
-        fetch(`${API_URL}/crm/leads`, {
-          cache: "no-store",
-        }),
-
-        fetch(`${API_URL}/sales`, {
-          cache: "no-store",
-        }),
-
-        fetch(`${API_URL}/invoices`, {
-          cache: "no-store",
-        }),
+      const [carsRes, customersRes, salesRes, invoicesRes] = await Promise.all([
+        fetch(`${API_URL}/cars`, { cache: "no-store" }),
+        fetch(`${API_URL}/customers`, { cache: "no-store" }),
+        fetch(`${API_URL}/sales`, { cache: "no-store" }),
+        fetch(`${API_URL}/invoices`, { cache: "no-store" }),
       ]);
 
-      if (!carsResponse.ok) {
-        throw new Error(
-          `Cars API returned ${carsResponse.status}`
-        );
-      }
+      if (!carsRes.ok) throw new Error(`Cars API returned ${carsRes.status}`);
+      if (!customersRes.ok) throw new Error(`Customers API returned ${customersRes.status}`);
+      if (!salesRes.ok) throw new Error(`Sales API returned ${salesRes.status}`);
+      if (!invoicesRes.ok) throw new Error(`Invoices API returned ${invoicesRes.status}`);
 
-      if (!customersResponse.ok) {
-        throw new Error(
-          `Customers API returned ${customersResponse.status}`
-        );
-      }
+      const carsData = await carsRes.json();
+      const customersData = await customersRes.json();
+      const salesData = await salesRes.json();
+      const invoicesData = await invoicesRes.json();
 
-      if (!leadsResponse.ok) {
-        throw new Error(
-          `Leads API returned ${leadsResponse.status}`
-        );
-      }
-
-      if (!salesResponse.ok) {
-        throw new Error(
-          `Sales API returned ${salesResponse.status}`
-        );
-      }
-
-      if (!invoicesResponse.ok) {
-        throw new Error(
-          `Invoices API returned ${invoicesResponse.status}`
-        );
-      }
-
-      const carsData: CarsResponse =
-        await carsResponse.json();
-
-      const customersData: CustomersResponse =
-        await customersResponse.json();
-
-      const leadsData: LeadsResponse =
-        await leadsResponse.json();
-
-      const salesData: SalesResponse =
-        await salesResponse.json();
-
-      const invoicesData: InvoicesResponse =
-        await invoicesResponse.json();
-
-      setCars(
-        Array.isArray(carsData.cars)
-          ? carsData.cars
-          : []
-      );
-
-      setCustomers(
-        Array.isArray(customersData.customers)
-          ? customersData.customers
-          : []
-      );
-
-      setLeads(
-        Array.isArray(leadsData.leads)
-          ? leadsData.leads
-          : []
-      );
-
-      setSales(
-        Array.isArray(salesData.sales)
-          ? salesData.sales
-          : []
-      );
-
-      setInvoices(
-        Array.isArray(invoicesData.invoices)
-          ? invoicesData.invoices
-          : []
-      );
+      setCars(Array.isArray(carsData.cars) ? carsData.cars : []);
+      setCustomers(Array.isArray(customersData.customers) ? customersData.customers : []);
+      setSales(Array.isArray(salesData.sales) ? salesData.sales : []);
+      setInvoices(Array.isArray(invoicesData.invoices) ? invoicesData.invoices : []);
     } catch (err) {
       console.error("Dashboard API error:", err);
-
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Unable to load dashboard data."
-      );
+      setError(err instanceof Error ? err.message : "Unable to load dashboard data.");
     } finally {
       setLoading(false);
     }
@@ -269,707 +135,279 @@ export default function DashboardPage() {
     loadDashboard();
   }, []);
 
-  const availableCars = cars.filter((car) => {
-    const status = normalizeValue(car.status);
+  // --------------------------------------------------------
+  // DERIVED DATA
+  // --------------------------------------------------------
 
-    return (
-      status.includes("dispon") ||
-      status.includes("available") ||
-      status.includes("ready")
-    );
-  }).length;
+  const carsById = useMemo(() => {
+    const map = new Map<number, CarData>();
+    cars.forEach((car) => map.set(car.id, car));
+    return map;
+  }, [cars]);
 
-  const totalSales = sales.reduce(
-    (sum, sale) =>
-      sum + (Number(sale.amount_total) || 0),
+  const availableCars = useMemo(
+    () =>
+      cars.filter(
+        (car) =>
+          getFleetStatus({ status: displayValue(car.status), active: car.active }) ===
+          "available"
+      ).length,
+    [cars]
+  );
+
+  const activeSales = useMemo(
+    () => sales.filter((sale) => sale.state !== "cancel"),
+    [sales]
+  );
+
+  const totalSales = activeSales.reduce(
+    (sum, sale) => sum + (Number(sale.amount_total) || 0),
     0
   );
 
   const unpaidInvoices = invoices.filter(
-    (invoice) =>
-      invoice.payment_state !== "paid" &&
-      invoice.state === "posted"
+    (invoice) => invoice.payment_state !== "paid" && invoice.state === "posted"
   );
 
   const outstandingAmount = unpaidInvoices.reduce(
-    (sum, invoice) =>
-      sum + (Number(invoice.amount_residual) || 0),
+    (sum, invoice) => sum + (Number(invoice.amount_residual) || 0),
     0
   );
 
+  const today = new Date();
+
+  // Pickups due today: rental starts today, not yet completed/cancelled.
+  const pickupsToday = useMemo(() => {
+    return activeSales.filter((sale) => {
+      const date = parseDate(sale.date_order);
+      return date && isSameDay(date, today) && sale.state !== "done";
+    });
+  }, [activeSales]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Returns due today: commitment date is today, order still open.
+  const returnsToday = useMemo(() => {
+    return activeSales.filter((sale) => {
+      const date = parseDate(sale.commitment_date);
+      return date && isSameDay(date, today) && sale.state !== "done";
+    });
+  }, [activeSales]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Overdue: commitment date has passed and order is still open — this
+  // is what actually needs a sales agent's attention, not a generic feed.
+  const overdue = useMemo(() => {
+    return activeSales.filter((sale) => {
+      const date = parseDate(sale.commitment_date);
+      return date && date < today && !isSameDay(date, today) && sale.state !== "done";
+    });
+  }, [activeSales]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function vehicleLabel(sale: SaleData): string {
+    if (!sale.vehicle_id) return "No vehicle assigned";
+    const car = carsById.get(sale.vehicle_id);
+    return car ? car.name : `Vehicle #${sale.vehicle_id}`;
+  }
+
   return (
-    <main className="mx-auto max-w-[1500px] p-5 sm:p-8">
-      {/* HEADER */}
-      <section className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
-        <div>
-          <div className="mb-2 flex items-center gap-2 text-[11px] text-[#71717A]">
-            <span>Workspace</span>
-            <span>/</span>
-            <span className="text-[#A1A1AA]">
-              Overview
-            </span>
-          </div>
+    <main className="mx-auto max-w-[1400px] p-5 sm:p-8">
+      <PageHeader
+        breadcrumb="Overview"
+        title={greeting()}
+        subtitle="Here's what needs your attention today."
+      />
 
-          <h1 className="font-[Syne] text-[26px] font-semibold tracking-[-0.035em] sm:text-[30px]">
-            Good afternoon.
-          </h1>
-
-          <p className="mt-1 text-sm text-[#71717A]">
-            Here&apos;s what&apos;s happening with your rental
-            operation.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setAddLeadOpen(true)}
-          className="flex h-9 items-center justify-center gap-2 rounded-lg bg-[#C8F065] px-4 text-xs font-medium text-[#09090B] shadow-[0_0_24px_rgba(200,240,101,.08)] transition hover:bg-[#d7ff80]"
-        >
-          <Plus size={14} />
-          Add new lead
-        </button>
-      </section>
-
-      {/* ERROR */}
       {error && (
-        <div className="mt-4 rounded-xl border border-[#F06AAA]/30 bg-[#F06AAA]/5 px-4 py-3 text-xs text-[#F06AAA]">
+        <div className="mt-4 rounded-xl border border-danger/30 bg-danger/5 px-4 py-3 text-xs text-danger">
           Unable to load live dashboard data: {error}
         </div>
       )}
 
-      {/* KPI CARDS */}
+      {/* KPIs */}
       <section className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard
-          label="Fleet"
-          value={loading ? "—" : cars.length.toString()}
-          detail="vehicles"
-          change="Odoo"
           icon={<Car size={15} />}
-          accent="green"
+          label="Fleet"
+          value={cars.length.toString()}
+          detail="vehicles"
+          loading={loading}
         />
 
         <StatCard
-          label="Available"
-          value={
-            loading
-              ? "—"
-              : availableCars.toString()
-          }
-          detail="ready to rent"
-          change="LIVE"
           icon={<Activity size={15} />}
-          accent="green"
+          label="Available"
+          value={availableCars.toString()}
+          detail="ready to rent"
+          loading={loading}
         />
 
         <StatCard
-          label="Customers"
-          value={
-            loading
-              ? "—"
-              : customers.length.toString()
-          }
-          detail="in Odoo"
-          change="Odoo"
           icon={<Users size={15} />}
-          accent="green"
+          label="Customers"
+          value={customers.length.toString()}
+          detail="in Odoo"
+          loading={loading}
         />
 
         <StatCard
-          label="Sales"
-          value={
-            loading
-              ? "—"
-              : `${totalSales.toLocaleString()} TND`
-          }
-          detail="confirmed orders"
-          change="Odoo"
           icon={<TrendingUp size={15} />}
-          accent="green"
+          label="Sales"
+          value={formatCurrency(totalSales)}
+          detail="confirmed orders"
+          loading={loading}
         />
 
         <StatCard
-          label="Outstanding"
-          value={
-            loading
-              ? "—"
-              : `${outstandingAmount.toLocaleString()} TND`
-          }
-          detail="to collect"
-          change="Invoices"
           icon={<ArrowUpRight size={15} />}
-          accent="pink"
+          label="Outstanding"
+          value={formatCurrency(outstandingAmount)}
+          detail="to collect"
+          tone="danger"
+          loading={loading}
         />
       </section>
 
-      {/* MAIN GRID */}
-      <section className="mt-4 grid gap-4 xl:grid-cols-[1.5fr_1fr]">
-        {/* FLEET */}
-        <div className="overflow-hidden rounded-xl border border-[#2B2B30] bg-[#111113]/80">
-          <div className="flex items-center justify-between border-b border-[#2B2B30] px-5 py-4">
-            <div>
-              <h2 className="font-[Syne] text-sm font-semibold">
-                Fleet overview
-              </h2>
+      {/* TODAY */}
+      <section className="mt-4 grid gap-4 xl:grid-cols-2">
+        <Card>
+          <CardHeader
+            title="Pickups today"
+            subtitle="Rentals starting today"
+          />
 
-              <p className="mt-1 text-[11px] text-[#71717A]">
-                Live vehicle data from Odoo
-              </p>
-            </div>
-
-            <a
-              href="/dashboard/fleet"
-              className="rounded-md border border-[#2B2B30] bg-[#17171A] px-2.5 py-1.5 text-[10px] text-[#A1A1AA] transition hover:text-white"
-            >
-              View fleet
-            </a>
-          </div>
-
-          <div className="p-5">
-            <div className="flex items-end justify-between">
-              <div>
-                <div className="font-[Syne] text-3xl font-semibold">
-                  {loading ? "—" : cars.length}
-                </div>
-
-                <div className="mt-1 text-[11px] text-[#71717A]">
-                  vehicles in Odoo
-                </div>
-              </div>
-
-              <div className="flex items-center gap-1.5 text-[11px] text-[#C8F065]">
-                <Car size={13} />
-                Live
-              </div>
-            </div>
-
-            <div className="mt-7">
-              {loading ? (
-                <div className="space-y-3">
-                  {[1, 2, 3, 4].map((item) => (
-                    <div
-                      key={item}
-                      className="h-12 animate-pulse rounded-lg bg-[#17171A]"
-                    />
-                  ))}
-                </div>
-              ) : cars.length === 0 ? (
-                <div className="rounded-lg border border-[#2B2B30] bg-[#17171A]/50 px-4 py-8 text-center text-xs text-[#71717A]">
-                  No vehicles found in Odoo.
-                </div>
-              ) : (
-                <div className="divide-y divide-[#2B2B30]">
-                  {cars.slice(0, 6).map((car) => (
-                    <div
-                      key={car.id}
-                      className="flex items-center gap-3 py-3"
-                    >
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#C8F065]/10 text-[#C8F065]">
-                        <Car size={15} />
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-xs font-medium">
-                          {car.name ||
-                            "Unnamed vehicle"}
-                        </div>
-
-                        <div className="mt-0.5 truncate text-[10px] text-[#71717A]">
-                          {car.model || "No model"}
-
-                          {car.license_plate
-                            ? ` · ${car.license_plate}`
-                            : ""}
-                        </div>
-                      </div>
-
-                      <VehicleStatusBadge
-                        status={car.status}
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* CRM */}
-        <div className="rounded-xl border border-[#2B2B30] bg-[#111113]/80">
-          <div className="flex items-center justify-between border-b border-[#2B2B30] px-5 py-4">
-            <div>
-              <h2 className="font-[Syne] text-sm font-semibold">
-                CRM leads
-              </h2>
-
-              <p className="mt-1 text-[11px] text-[#71717A]">
-                Live leads from Odoo CRM
-              </p>
-            </div>
-
-            <a
-              href="/crm/leads"
-              className="text-[10px] text-[#A1A1AA] transition hover:text-white"
-            >
-              View all →
-            </a>
-          </div>
-
-          <div className="divide-y divide-[#2B2B30]">
+          <div className="p-4">
             {loading ? (
-              [1, 2, 3, 4].map((item) => (
-                <div
-                  key={item}
-                  className="mx-5 h-12 animate-pulse bg-[#17171A]"
-                />
-              ))
-            ) : leads.length === 0 ? (
-              <div className="px-5 py-10 text-center text-xs text-[#71717A]">
-                No CRM leads found.
-              </div>
+              <LoadingRows />
+            ) : pickupsToday.length === 0 ? (
+              <EmptyState
+                icon={<Clock3 />}
+                title="No pickups today"
+                description="Nothing scheduled to go out today."
+              />
             ) : (
-              leads.slice(0, 6).map((lead) => {
-                const customerName =
-                  displayValue(lead.customer);
-
-                const stageName =
-                  displayValue(lead.stage);
-
-                return (
-                  <div
-                    key={lead.id}
-                    className="flex items-center gap-3 px-5 py-3.5"
-                  >
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#F06AAA]/10 text-[10px] text-[#F06AAA]">
-                      {lead.name
-                        ?.charAt(0)
-                        ?.toUpperCase() || "L"}
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-xs font-medium">
-                        {lead.name ||
-                          "Untitled lead"}
-                      </div>
-
-                      <div className="mt-0.5 truncate text-[10px] text-[#71717A]">
-                        {customerName ||
-                          "No customer"}
-                      </div>
-                    </div>
-
-                    <span className="rounded-md bg-[#17171A] px-2 py-1 text-[9px] text-[#A1A1AA]">
-                      {stageName || "No stage"}
-                    </span>
-                  </div>
-                );
-              })
+              <div className="space-y-1">
+                {pickupsToday.map((sale) => (
+                  <ScheduleRow
+                    key={sale.id}
+                    sale={sale}
+                    vehicleLabel={vehicleLabel(sale)}
+                    icon={<ArrowUpRight size={14} />}
+                  />
+                ))}
+              </div>
             )}
           </div>
-        </div>
-      </section>
+        </Card>
 
-      {/* RECENT SALES */}
-      <section className="mt-4 overflow-hidden rounded-xl border border-[#2B2B30] bg-[#111113]/80">
-        <div className="flex items-center justify-between border-b border-[#2B2B30] px-5 py-4">
-          <div>
-            <h2 className="font-[Syne] text-sm font-semibold">
-              Recent sales
-            </h2>
+        <Card>
+          <CardHeader
+            title="Returns today"
+            subtitle="Rentals due back today"
+          />
 
-            <p className="mt-1 text-[11px] text-[#71717A]">
-              Rental orders from Odoo Sales
-            </p>
+          <div className="p-4">
+            {loading ? (
+              <LoadingRows />
+            ) : returnsToday.length === 0 ? (
+              <EmptyState
+                icon={<Clock3 />}
+                title="No returns today"
+                description="Nothing due back today."
+              />
+            ) : (
+              <div className="space-y-1">
+                {returnsToday.map((sale) => (
+                  <ScheduleRow
+                    key={sale.id}
+                    sale={sale}
+                    vehicleLabel={vehicleLabel(sale)}
+                    icon={<ArrowDownLeft size={14} />}
+                  />
+                ))}
+              </div>
+            )}
           </div>
-
-          <a
-            href="/dashboard/rentals"
-            className="text-[11px] text-[#A1A1AA] transition hover:text-[#C8F065]"
-          >
-            View all →
-          </a>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[700px] text-left">
-            <thead>
-              <tr className="border-b border-[#2B2B30] text-[10px] uppercase tracking-wider text-[#71717A]">
-                <th className="px-5 py-3 font-medium">
-                  Order
-                </th>
-
-                <th className="px-5 py-3 font-medium">
-                  Customer
-                </th>
-
-                <th className="px-5 py-3 font-medium">
-                  Opportunity
-                </th>
-
-                <th className="px-5 py-3 font-medium">
-                  Date
-                </th>
-
-                <th className="px-5 py-3 font-medium">
-                  Invoice
-                </th>
-
-                <th className="px-5 py-3 text-right font-medium">
-                  Total
-                </th>
-
-                <th className="px-5 py-3" />
-              </tr>
-            </thead>
-
-            <tbody className="divide-y divide-[#2B2B30]">
-              {loading ? (
-                [1, 2, 3, 4].map((item) => (
-                  <tr key={item}>
-                    <td
-                      colSpan={7}
-                      className="px-5 py-4"
-                    >
-                      <div className="h-8 animate-pulse rounded bg-[#17171A]" />
-                    </td>
-                  </tr>
-                ))
-              ) : sales.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={7}
-                    className="px-5 py-10 text-center text-xs text-[#71717A]"
-                  >
-                    No sales found in Odoo.
-                  </td>
-                </tr>
-              ) : (
-                sales.slice(0, 6).map((sale) => {
-                  const customerName =
-                    displayValue(sale.customer);
-
-                  const opportunityName =
-                    displayValue(
-                      sale.opportunity
-                    );
-
-                  return (
-                    <tr
-                      key={sale.id}
-                      className="text-xs transition hover:bg-[#17171A]/50"
-                    >
-                      <td className="px-5 py-3.5 font-medium text-white">
-                        {sale.name}
-                      </td>
-
-                      <td className="px-5 py-3.5 text-[#A1A1AA]">
-                        {customerName ||
-                          "Unknown"}
-                      </td>
-
-                      <td className="max-w-[220px] px-5 py-3.5 text-[#A1A1AA]">
-                        <div className="truncate">
-                          {opportunityName || "—"}
-                        </div>
-                      </td>
-
-                      <td className="px-5 py-3.5 text-[#A1A1AA]">
-                        {formatDate(
-                          sale.date_order
-                        )}
-                      </td>
-
-                      <td className="px-5 py-3.5">
-                        <InvoiceStatusBadge
-                          status={
-                            sale.invoice_status
-                          }
-                        />
-                      </td>
-
-                      <td className="px-5 py-3.5 text-right font-medium text-white">
-                        {(
-                          Number(
-                            sale.amount_total
-                          ) || 0
-                        ).toLocaleString()}{" "}
-                        TND
-                      </td>
-
-                      <td className="px-5 py-3.5 text-right">
-                        <button className="text-[#71717A] transition hover:text-white">
-                          <MoreHorizontal
-                            size={15}
-                          />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+        </Card>
       </section>
 
-      {/* QUICK MODULES */}
-      <section className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <QuickModule
-          icon={<Car size={17} />}
-          title="Fleet"
-          description="Manage vehicles, availability and maintenance."
-          href="/dashboard/fleet"
-        />
+      {/* NEEDS ATTENTION */}
+      {!loading && overdue.length > 0 && (
+        <section className="mt-4">
+          <Card className="border-danger/20">
+            <CardHeader
+              title="Needs attention"
+              subtitle={`${overdue.length} rental${overdue.length === 1 ? "" : "s"} overdue for return`}
+            />
 
-        <QuickModule
-          icon={<Users size={17} />}
-          title="Customers"
-          description="Customers, documents and rental history."
-          href="/dashboard/customers"
-        />
-
-        <QuickModule
-          icon={<CalendarDays size={17} />}
-          title="Calendar"
-          description="See pickups, returns and upcoming reservations."
-          href="/dashboard/calendar"
-        />
-      </section>
-
-      <AddLeadModal
-        open={addLeadOpen}
-        onClose={() => setAddLeadOpen(false)}
-        onCreated={loadDashboard}
-      />
+            <div className="p-4">
+              <div className="space-y-1">
+                {overdue.map((sale) => (
+                  <ScheduleRow
+                    key={sale.id}
+                    sale={sale}
+                    vehicleLabel={vehicleLabel(sale)}
+                    icon={<AlertTriangle size={14} />}
+                    urgent
+                  />
+                ))}
+              </div>
+            </div>
+          </Card>
+        </section>
+      )}
     </main>
   );
 }
 
-function StatCard({
-  label,
-  value,
-  detail,
-  change,
-  icon,
-  accent,
-}: {
-  label: string;
-  value: string;
-  detail: string;
-  change: string;
-  icon: React.ReactNode;
-  accent: "green" | "pink" | "blue";
-}) {
-  const accentClasses = {
-    green: {
-      text: "text-[#C8F065]",
-      glow: "bg-[#C8F065]/[0.05]",
-    },
-    pink: {
-      text: "text-[#F06AAA]",
-      glow: "bg-[#F06AAA]/[0.05]",
-    },
-    blue: {
-      text: "text-[#60A5FA]",
-      glow: "bg-[#60A5FA]/[0.05]",
-    },
-  };
+// ============================================================
+// SUBCOMPONENTS
+// ============================================================
 
-  const colors = accentClasses[accent];
+function ScheduleRow({
+  sale,
+  vehicleLabel,
+  icon,
+  urgent = false,
+}: {
+  sale: SaleData;
+  vehicleLabel: string;
+  icon: React.ReactNode;
+  urgent?: boolean;
+}) {
+  const customerName = displayValue(sale.customer) || "Unknown customer";
+  const rentalMeta = rentalStateMeta(getRentalState(sale));
+  const dateLabel = urgent
+    ? `Due ${formatDateShort(sale.commitment_date)}`
+    : sale.name;
 
   return (
-    <div className="group relative overflow-hidden rounded-xl border border-[#2B2B30] bg-[#111113]/80 p-5 transition hover:border-[#3b3b42]">
+    <div className="flex items-center gap-3 rounded-lg px-2 py-2.5 transition hover:bg-surface-secondary/50">
       <div
-        className={`pointer-events-none absolute -right-10 -top-10 h-24 w-24 rounded-full blur-3xl ${colors.glow}`}
-      />
+        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+          urgent ? "bg-danger/10 text-danger" : "bg-lime/10 text-lime"
+        }`}
+      >
+        {icon}
+      </div>
 
-      <div className="relative">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-[11px] text-[#71717A]">
-            <span className={colors.text}>
-              {icon}
-            </span>
-
-            {label}
-          </div>
-
-          <span
-            className={`text-[10px] ${colors.text}`}
-          >
-            {change}
-          </span>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-xs font-medium text-text">
+          {customerName}
         </div>
-
-        <div className="mt-5 flex items-baseline gap-2">
-          <span className="font-[Syne] text-[26px] font-semibold tracking-[-0.03em]">
-            {value}
-          </span>
-
-          <span className="text-[10px] text-[#71717A]">
-            {detail}
-          </span>
+        <div className="mt-0.5 truncate text-[10px] text-muted">
+          {vehicleLabel} · {dateLabel}
         </div>
       </div>
+
+      <StatusBadge meta={rentalMeta} withDot={false} />
     </div>
   );
 }
 
-function VehicleStatusBadge({
-  status,
-}: {
-  status: RelationalValue;
-}) {
-  const normalized = normalizeValue(status);
-
-  let label = displayValue(status) || "Unknown";
-
-  let classes =
-    "border-[#2B2B30] bg-[#17171A] text-[#A1A1AA]";
-
-  if (
-    normalized.includes("dispon") ||
-    normalized.includes("available") ||
-    normalized.includes("ready")
-  ) {
-    label = "Disponible";
-
-    classes =
-      "border-[#C8F065]/20 bg-[#C8F065]/10 text-[#C8F065]";
-  } else if (
-    normalized.includes("indispon") ||
-    normalized.includes("unavailable") ||
-    normalized.includes("inactive")
-  ) {
-    label = "Indisponible";
-
-    classes =
-      "border-red-400/20 bg-red-500/10 text-red-400";
-  } else if (
-    normalized.includes("lou") ||
-    normalized.includes("rent") ||
-    normalized.includes("rented")
-  ) {
-    label = "Loué";
-
-    classes =
-      "border-[#F06AAA]/20 bg-[#F06AAA]/10 text-[#F06AAA]";
-  } else if (
-    normalized.includes("nettoyage") ||
-    normalized.includes("clean") ||
-    normalized.includes("cleaning")
-  ) {
-    label = "Nettoyage";
-
-    classes =
-      "border-blue-400/20 bg-blue-500/10 text-blue-400";
-  } else if (
-    normalized.includes("maintenance") ||
-    normalized.includes("repair")
-  ) {
-    label = "Maintenance";
-
-    classes =
-      "border-violet-400/20 bg-violet-500/10 text-violet-400";
-  }
-
+function LoadingRows() {
   return (
-    <span
-      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium ${classes}`}
-    >
-      <span className="h-1.5 w-1.5 rounded-full bg-current" />
-      {label}
-    </span>
-  );
-}
-
-function InvoiceStatusBadge({
-  status,
-}: {
-  status: RelationalValue;
-}) {
-  const normalized = normalizeValue(status);
-
-  let label = displayValue(status) || "Unknown";
-
-  let classes =
-    "border-[#2B2B30] bg-[#17171A] text-[#A1A1AA]";
-
-  if (normalized === "invoiced") {
-    label = "Invoiced";
-
-    classes =
-      "border-[#C8F065]/20 bg-[#C8F065]/10 text-[#C8F065]";
-  } else if (
-    normalized.includes("to invoice")
-  ) {
-    label = "To invoice";
-
-    classes =
-      "border-orange-400/20 bg-orange-500/10 text-orange-400";
-  }
-
-  return (
-    <span
-      className={`inline-flex rounded-full border px-2.5 py-1 text-[9px] font-medium ${classes}`}
-    >
-      {label}
-    </span>
-  );
-}
-
-function formatDate(value: string | null) {
-  if (!value) {
-    return "—";
-  }
-
-  const date = new Date(
-    value.replace(" ", "T")
-  );
-
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return date.toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-}
-
-function QuickModule({
-  icon,
-  title,
-  description,
-  href,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  href: string;
-}) {
-  return (
-    <a
-      href={href}
-      className="group rounded-xl border border-[#2B2B30] bg-[#111113]/60 p-4 transition hover:border-[#C8F065]/20 hover:bg-[#17171A]"
-    >
-      <div className="flex items-start justify-between">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#C8F065]/10 text-[#C8F065]">
-          {icon}
-        </div>
-
-        <ArrowUpRight
-          size={15}
-          className="text-[#71717A] transition group-hover:text-[#C8F065]"
-        />
-      </div>
-
-      <h3 className="mt-4 font-[Syne] text-sm font-semibold">
-        {title}
-      </h3>
-
-      <p className="mt-1 text-[11px] leading-relaxed text-[#71717A]">
-        {description}
-      </p>
-    </a>
+    <div className="space-y-2">
+      {[1, 2, 3].map((item) => (
+        <div key={item} className="h-12 animate-pulse rounded-lg bg-surface-secondary" />
+      ))}
+    </div>
   );
 }

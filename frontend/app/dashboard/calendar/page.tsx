@@ -1315,7 +1315,7 @@ function TimelineView({
 
               const status =
                 getFleetStatus(
-                  vehicle.status,
+                  vehicle.status ?? null,
                   vehicle.active
                 );
 
