@@ -134,6 +134,117 @@ def percent_share(
     )
 
 
+def classify_vehicle_state(state_label: str | None) -> str:
+    """
+    Same rented/available/other classification used by the fleet
+    page and lib/status.ts on the frontend, kept in sync manually
+    since this is the only place on the backend that needs it.
+    Handles both the French Odoo status labels ('Loué',
+    'Disponible') and English equivalents.
+    """
+
+    raw = (state_label or "").lower().strip()
+
+    if "loué" in raw or "loue" in raw or "rented" in raw:
+        return "rented"
+
+    if "disponible" in raw or "available" in raw or "ready" in raw:
+        return "available"
+
+    return "other"
+
+
+def get_fleet_utilization() -> dict:
+    vehicles = odoo.execute(
+        "fleet.vehicle",
+        "search_read",
+        [
+            [
+                ["active", "=", True],
+            ]
+        ],
+        {
+            "fields": [
+                "id",
+                "state_id",
+            ],
+        },
+    )
+
+    total = len(vehicles)
+    rented = 0
+    available = 0
+
+    for vehicle in vehicles:
+        state = classify_vehicle_state(
+            many2one_name(vehicle.get("state_id"))
+        )
+
+        if state == "rented":
+            rented += 1
+        elif state == "available":
+            available += 1
+
+    utilization = (
+        round((rented / total) * 100, 1) if total else 0.0
+    )
+
+    return {
+        "total_vehicles": total,
+        "rented": rented,
+        "available": available,
+        "utilization_rate": utilization,
+    }
+
+
+def get_period_totals(start_dt: str, end_dt: str) -> dict:
+    """
+    Lightweight revenue/order totals for a date range — used for
+    period-over-period comparison. Deliberately fetches only
+    amount_total (not lines, products, invoices) since this is
+    just for a % change indicator, not a full breakdown.
+    """
+
+    orders = odoo.execute(
+        "sale.order",
+        "search_read",
+        [
+            [
+                ["date_order", ">=", start_dt],
+                ["date_order", "<", end_dt],
+                ["state", "in", ["sale", "done"]],
+            ]
+        ],
+        {
+            "fields": ["amount_total"],
+            "limit": 3000,
+        },
+    )
+
+    revenue = sum(
+        clean_number(order.get("amount_total"))
+        for order in orders
+    )
+
+    return {
+        "revenue": round(revenue, 2),
+        "orders": len(orders),
+    }
+
+
+def percent_change(current: float, previous: float) -> float | None:
+    """
+    None means 'no baseline to compare against' (previous period
+    had zero) rather than a misleading +/-infinity or 0% change —
+    the frontend shows 'New' instead of a percentage in that case.
+    """
+
+    if previous <= 0:
+        return None
+
+    return round(((current - previous) / previous) * 100, 1)
+
+
 @router.get("")
 def get_analytics(
     year: int = Query(
@@ -176,6 +287,31 @@ def get_analytics(
 
     end_dt = (
         f"{end_exclusive.isoformat()} 00:00:00"
+    )
+
+    # ------------------------------------------------------------
+    # PREVIOUS PERIOD (same length, immediately preceding —
+    # e.g. calendar year 2026 compares against calendar year 2025)
+    # ------------------------------------------------------------
+
+    period_length = (end_date - start_date).days + 1
+
+    previous_end = start_date - timedelta(days=1)
+    previous_start = previous_end - timedelta(
+        days=period_length - 1
+    )
+
+    previous_start_dt = (
+        f"{previous_start.isoformat()} 00:00:00"
+    )
+
+    previous_end_dt = (
+        f"{(previous_end + timedelta(days=1)).isoformat()} 00:00:00"
+    )
+
+    previous_totals = get_period_totals(
+        previous_start_dt,
+        previous_end_dt,
     )
 
     # ------------------------------------------------------------
@@ -225,6 +361,15 @@ def get_analytics(
                 "collected": 0,
                 "outstanding": 0,
             },
+            "comparison": {
+                "revenue_change": percent_change(
+                    0, previous_totals["revenue"]
+                ),
+                "orders_change": percent_change(
+                    0, previous_totals["orders"]
+                ),
+            },
+            "fleet": get_fleet_utilization(),
             "monthly": build_months(
                 start_date,
                 end_date,
@@ -674,6 +819,15 @@ def get_analytics(
                 2,
             ),
         },
+        "comparison": {
+            "revenue_change": percent_change(
+                revenue, previous_totals["revenue"]
+            ),
+            "orders_change": percent_change(
+                len(orders), previous_totals["orders"]
+            ),
+        },
+        "fleet": get_fleet_utilization(),
         "monthly": months,
         "product_categories": product_categories,
         "fleet_categories": fleet_categories,

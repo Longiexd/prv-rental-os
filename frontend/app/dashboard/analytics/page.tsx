@@ -36,6 +36,18 @@ type Analytics = {
     outstanding: number;
   };
 
+  fleet: {
+    total_vehicles: number;
+    rented: number;
+    available: number;
+    utilization_rate: number;
+  };
+
+  comparison: {
+    revenue_change: number | null;
+    orders_change: number | null;
+  };
+
   monthly: {
     key: string;
     label: string;
@@ -296,12 +308,15 @@ export default function AnalyticsPage() {
     }
 
     return Math.max(
-      ...data.monthly.map(
-        (item) => item.revenue
-      ),
+      ...data.monthly.map((item) => {
+        if (measure === "orders") return item.orders;
+        if (measure === "average")
+          return item.orders ? item.revenue / item.orders : 0;
+        return item.revenue;
+      }),
       1
     );
-  }, [data]);
+  }, [data, measure]);
 
   const pivotRows = useMemo(() => {
     if (!data) return [];
@@ -414,6 +429,64 @@ export default function AnalyticsPage() {
           </button>
         }
       />
+
+      {/* ======================================================
+          FLEET UTILIZATION — live snapshot, not tied to the
+          selected year. The single most important operational
+          number for a rental agency, shown first.
+      ====================================================== */}
+
+      {data && (
+        <section className="mt-7">
+          <div className="overflow-hidden rounded-xl border border-lime/20 bg-gradient-to-br from-lime/[0.06] to-transparent p-5">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="flex items-center gap-2 text-[11px] text-muted">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-lime" />
+                  Live · right now
+                </div>
+
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span className="font-syne text-[34px] font-semibold text-text">
+                    {data.fleet.utilization_rate}%
+                  </span>
+                  <span className="text-xs text-muted">
+                    fleet utilization
+                  </span>
+                </div>
+
+                <p className="mt-1 text-xs text-muted">
+                  {data.fleet.rented} rented ·{" "}
+                  {data.fleet.available} available ·{" "}
+                  {data.fleet.total_vehicles} active vehicles
+                </p>
+              </div>
+
+              <div className="w-full sm:w-[280px]">
+                <div className="flex h-2.5 overflow-hidden rounded-full bg-surface-2">
+                  <div
+                    className="h-full bg-lime transition-all"
+                    style={{
+                      width: `${data.fleet.utilization_rate}%`,
+                    }}
+                  />
+                </div>
+
+                <div className="mt-2 flex justify-between text-[10px] text-muted">
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-lime" />
+                    Rented
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-surface-2 ring-1 ring-border" />
+                    Available
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ======================================================
           ANALYSIS CONTROLS
@@ -681,6 +754,7 @@ export default function AnalyticsPage() {
               : "—"
           }
           detail={`${year}`}
+          trend={data?.comparison.revenue_change}
           loading={loading}
         />
 
@@ -694,6 +768,7 @@ export default function AnalyticsPage() {
           }
           detail="confirmed"
           tone="pink"
+          trend={data?.comparison.orders_change}
           loading={loading}
         />
 
@@ -758,9 +833,23 @@ export default function AnalyticsPage() {
                 <div className="flex h-[300px] items-end gap-2 sm:gap-3">
                   {data.monthly.map(
                     (month) => {
-                      const height =
-                        month.revenue /
-                        chartMax;
+                      const average = month.orders
+                        ? month.revenue / month.orders
+                        : 0;
+
+                      const value =
+                        measure === "orders"
+                          ? month.orders
+                          : measure === "average"
+                            ? average
+                            : month.revenue;
+
+                      const height = value / chartMax;
+
+                      const tooltipValue =
+                        measure === "orders"
+                          ? `${value} orders`
+                          : formatCurrency(value);
 
                       return (
                         <div
@@ -773,14 +862,10 @@ export default function AnalyticsPage() {
                               style={{
                                 height: `${Math.max(
                                   height * 250,
-                                  month.revenue
-                                    ? 4
-                                    : 0
+                                  value ? 4 : 0
                                 )}px`,
                               }}
-                              title={`${month.label}: ${formatCurrency(
-                                month.revenue
-                              )}`}
+                              title={`${month.label}: ${tooltipValue}`}
                             />
                           </div>
 
