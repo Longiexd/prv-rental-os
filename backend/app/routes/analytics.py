@@ -1,8 +1,13 @@
-from datetime import date
+from __future__ import annotations
+
+import re
+from collections import defaultdict
+from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Query
 
 from app.odoo_client import odoo
+
 
 router = APIRouter(
     prefix="/analytics",
@@ -10,39 +15,186 @@ router = APIRouter(
 )
 
 
-def many2one(value):
-    if isinstance(value, list) and len(value) >= 2:
-        return {
-            "id": value[0],
-            "name": value[1],
-        }
+VEHICLE_NOTE_RE = re.compile(
+    r"\[Rental OS fleet\.vehicle:(\d+)\]"
+)
+
+
+def clean_number(value) -> float:
+    try:
+        return float(value or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def many2one_id(value):
+    if isinstance(value, (list, tuple)) and value:
+        return value[0]
+    if isinstance(value, int):
+        return value
     return None
 
 
-def month_key(value):
-    return value[:7] if value else None
+def many2one_name(value):
+    if isinstance(value, (list, tuple)) and len(value) > 1:
+        return value[1]
+    if isinstance(value, str):
+        return value
+    return None
 
 
-def signed_amount(move_type, amount):
-    amount = amount or 0
-    return -amount if move_type == "out_refund" else amount
+def parse_vehicle_id(note: str | None) -> int | None:
+    if not note:
+        return None
+
+    match = VEHICLE_NOTE_RE.search(note)
+
+    if not match:
+        return None
+
+    return int(match.group(1))
+
+
+def month_key(value: str | None) -> str | None:
+    if not value:
+        return None
+
+    try:
+        return datetime.fromisoformat(
+            value.replace("Z", "")
+        ).strftime("%Y-%m")
+    except ValueError:
+        try:
+            return datetime.strptime(
+                value[:10],
+                "%Y-%m-%d",
+            ).strftime("%Y-%m")
+        except ValueError:
+            return None
+
+
+def month_label(key: str) -> str:
+    return datetime.strptime(
+        key,
+        "%Y-%m",
+    ).strftime("%b")
+
+
+def build_months(start: date, end: date):
+    months = []
+
+    current = date(
+        start.year,
+        start.month,
+        1,
+    )
+
+    while current <= end:
+        key = current.strftime("%Y-%m")
+
+        months.append(
+            {
+                "key": key,
+                "label": current.strftime("%b"),
+                "month": current.month,
+                "year": current.year,
+                "revenue": 0.0,
+                "orders": 0,
+                "invoiced": 0.0,
+                "collected": 0.0,
+            }
+        )
+
+        if current.month == 12:
+            current = date(
+                current.year + 1,
+                1,
+                1,
+            )
+        else:
+            current = date(
+                current.year,
+                current.month + 1,
+                1,
+            )
+
+    return months
+
+
+def percent_share(
+    value: float,
+    total: float,
+) -> float:
+    if total <= 0:
+        return 0.0
+
+    return round(
+        (value / total) * 100,
+        1,
+    )
 
 
 @router.get("")
 def get_analytics(
-    year: int = Query(..., ge=2020, le=2100),
+    year: int = Query(
+        default=None,
+        ge=2020,
+        le=2100,
+    ),
+    start_date: date | None = Query(
+        default=None
+    ),
+    end_date: date | None = Query(
+        default=None
+    ),
 ):
-    start = date(year, 1, 1)
-    end = date(year + 1, 1, 1)
+    # ------------------------------------------------------------
+    # DATE RANGE
+    # ------------------------------------------------------------
+
+    if start_date is None:
+        selected_year = year or date.today().year
+        start_date = date(
+            selected_year,
+            1,
+            1,
+        )
+
+    if end_date is None:
+        selected_year = year or start_date.year
+        end_date = date(
+            selected_year,
+            12,
+            31,
+        )
+
+    end_exclusive = end_date + timedelta(days=1)
+
+    start_dt = (
+        f"{start_date.isoformat()} 00:00:00"
+    )
+
+    end_dt = (
+        f"{end_exclusive.isoformat()} 00:00:00"
+    )
+
+    # ------------------------------------------------------------
+    # SALES ORDERS
+    #
+    # Only confirmed/completed orders represent actual revenue.
+    # Quotations remain outside the financial KPIs.
+    # ------------------------------------------------------------
 
     orders = odoo.execute(
         "sale.order",
         "search_read",
-        [[
-            ["date_order", ">=", f"{start.isoformat()} 00:00:00"],
-            ["date_order", "<", f"{end.isoformat()} 00:00:00"],
-            ["state", "in", ["sale", "done"]],
-        ]],
+        [
+            [
+                ["date_order", ">=", start_dt],
+                ["date_order", "<", end_dt],
+                ["state", "in", ["sale", "done"]],
+            ]
+        ],
         {
             "fields": [
                 "id",
@@ -50,46 +202,97 @@ def get_analytics(
                 "partner_id",
                 "state",
                 "date_order",
-                "amount_untaxed",
-                "amount_tax",
                 "amount_total",
-                "invoice_status",
                 "order_line",
+                "note",
             ],
-            "order": "date_order desc",
-            "limit": 5000,
+            "order": "date_order asc",
+            "limit": 3000,
         },
     )
 
-    order_ids = [order["id"] for order in orders]
-
-    lines = []
-
-    if order_ids:
-        lines = odoo.execute(
-            "sale.order.line",
-            "search_read",
-            [[
-                ["order_id", "in", order_ids],
-            ]],
-            {
-                "fields": [
-                    "id",
-                    "order_id",
-                    "product_id",
-                    "product_uom_qty",
-                    "price_subtotal",
-                    "price_total",
-                ],
-                "limit": 30000,
+    if not orders:
+        return {
+            "range": {
+                "start": start_date.isoformat(),
+                "end": end_date.isoformat(),
             },
-        )
+            "summary": {
+                "revenue": 0,
+                "orders": 0,
+                "average_order": 0,
+                "invoiced": 0,
+                "collected": 0,
+                "outstanding": 0,
+            },
+            "monthly": build_months(
+                start_date,
+                end_date,
+            ),
+            "product_categories": [],
+            "fleet_categories": [],
+            "customers": [],
+            "orders": [],
+        }
 
-    product_ids = {
-        line["product_id"][0]
-        for line in lines
-        if line.get("product_id")
+    # ------------------------------------------------------------
+    # MONTHS
+    # ------------------------------------------------------------
+
+    months = build_months(
+        start_date,
+        end_date,
+    )
+
+    months_by_key = {
+        item["key"]: item
+        for item in months
     }
+
+    # ------------------------------------------------------------
+    # ORDER IDS
+    # ------------------------------------------------------------
+
+    order_ids = [
+        order["id"]
+        for order in orders
+    ]
+
+    # ------------------------------------------------------------
+    # SALES LINES
+    # ------------------------------------------------------------
+
+    lines = odoo.execute(
+        "sale.order.line",
+        "search_read",
+        [
+            [
+                ["order_id", "in", order_ids],
+            ]
+        ],
+        {
+            "fields": [
+                "id",
+                "order_id",
+                "product_id",
+                "product_uom_qty",
+                "price_total",
+            ],
+            "limit": 10000,
+        },
+    )
+
+    # ------------------------------------------------------------
+    # PRODUCTS
+    # ------------------------------------------------------------
+
+    product_ids = list(
+        {
+            many2one_id(line.get("product_id"))
+            for line in lines
+            if many2one_id(line.get("product_id"))
+        }
+    )
 
     products = []
 
@@ -97,17 +300,17 @@ def get_analytics(
         products = odoo.execute(
             "product.product",
             "search_read",
-            [[
-                ["id", "in", list(product_ids)],
-            ]],
+            [
+                [
+                    ["id", "in", product_ids],
+                ]
+            ],
             {
                 "fields": [
                     "id",
-                    "name",
                     "display_name",
                     "categ_id",
                 ],
-                "limit": 30000,
             },
         )
 
@@ -116,224 +319,364 @@ def get_analytics(
         for product in products
     }
 
+    # ------------------------------------------------------------
+    # VEHICLES
+    # ------------------------------------------------------------
+
+    vehicle_ids = list(
+        {
+            parse_vehicle_id(
+                order.get("note")
+            )
+            for order in orders
+            if parse_vehicle_id(
+                order.get("note")
+            )
+        }
+    )
+
+    vehicles = []
+
+    if vehicle_ids:
+        vehicles = odoo.execute(
+            "fleet.vehicle",
+            "search_read",
+            [
+                [
+                    ["id", "in", vehicle_ids],
+                ]
+            ],
+            {
+                "fields": [
+                    "id",
+                    "name",
+                    "category_id",
+                ],
+            },
+        )
+
+    vehicle_map = {
+        vehicle["id"]: vehicle
+        for vehicle in vehicles
+    }
+
+    # ------------------------------------------------------------
+    # INVOICES
+    # ------------------------------------------------------------
+
     invoices = odoo.execute(
         "account.move",
         "search_read",
-        [[
-            ["move_type", "in", ["out_invoice", "out_refund"]],
-            ["state", "=", "posted"],
-            ["invoice_date", ">=", start.isoformat()],
-            ["invoice_date", "<", end.isoformat()],
-        ]],
+        [
+            [
+                ["move_type", "in", ["out_invoice", "out_refund"]],
+                ["invoice_date", ">=", start_date.isoformat()],
+                ["invoice_date", "<=", end_date.isoformat()],
+                ["state", "=", "posted"],
+            ]
+        ],
         {
             "fields": [
                 "id",
-                "name",
-                "partner_id",
-                "move_type",
                 "invoice_date",
                 "amount_total",
                 "amount_residual",
                 "payment_state",
-                "invoice_origin",
+                "move_type",
             ],
-            "order": "invoice_date desc",
-            "limit": 10000,
+            "limit": 5000,
         },
     )
 
-    monthly = {
-        f"{year}-{month:02d}": {
-            "revenue": 0,
-            "orders": 0,
-            "average_order": 0,
-            "invoiced": 0,
-            "collected": 0,
-            "outstanding": 0,
-        }
-        for month in range(1, 13)
-    }
+    # ------------------------------------------------------------
+    # ORDER / LINE MAPS
+    # ------------------------------------------------------------
 
-    revenue = 0
-    orders_count = 0
-    transactions = []
-
-    for order in orders:
-        amount = order.get("amount_total") or 0
-        month = month_key(order.get("date_order"))
-
-        revenue += amount
-        orders_count += 1
-
-        if month in monthly:
-            monthly[month]["revenue"] += amount
-            monthly[month]["orders"] += 1
-
-        order_products = []
-        order_categories = set()
-
-        for line in lines:
-            order_ref = line.get("order_id")
-
-            if not order_ref or order_ref[0] != order["id"]:
-                continue
-
-            product_ref = line.get("product_id")
-
-            if not product_ref:
-                continue
-
-            product = product_map.get(product_ref[0])
-
-            if not product:
-                continue
-
-            product_name = (
-                product.get("display_name")
-                or product.get("name")
-                or "Unknown product"
-            )
-
-            category = many2one(
-                product.get("categ_id")
-            )
-
-            order_products.append(product_name)
-
-            if category:
-                order_categories.add(category["name"])
-
-        transactions.append({
-            "id": order["id"],
-            "name": order["name"],
-            "date": order.get("date_order"),
-            "customer": many2one(order.get("partner_id")),
-            "amount": amount,
-            "state": order.get("state"),
-            "invoice_status": order.get("invoice_status"),
-            "products": order_products,
-            "categories": sorted(order_categories),
-        })
-
-    product_mix = {}
-    category_mix = {}
+    lines_by_order: dict[int, list] = defaultdict(list)
 
     for line in lines:
-        product_ref = line.get("product_id")
-
-        if not product_ref:
-            continue
-
-        product = product_map.get(product_ref[0])
-
-        if not product:
-            continue
-
-        product_id = product["id"]
-        product_name = (
-            product.get("display_name")
-            or product.get("name")
-            or "Unknown product"
+        order_id = many2one_id(
+            line.get("order_id")
         )
 
-        category = many2one(
-            product.get("categ_id")
-        )
-
-        category_name = (
-            category["name"]
-            if category
-            else "Uncategorized"
-        )
-
-        amount = line.get("price_total") or 0
-        quantity = line.get("product_uom_qty") or 0
-
-        if product_id not in product_mix:
-            product_mix[product_id] = {
-                "id": product_id,
-                "name": product_name,
-                "category": category_name,
-                "revenue": 0,
-                "quantity": 0,
-            }
-
-        product_mix[product_id]["revenue"] += amount
-        product_mix[product_id]["quantity"] += quantity
-
-        if category_name not in category_mix:
-            category_mix[category_name] = {
-                "name": category_name,
-                "revenue": 0,
-                "quantity": 0,
-            }
-
-        category_mix[category_name]["revenue"] += amount
-        category_mix[category_name]["quantity"] += quantity
-
-    invoiced = 0
-    collected = 0
-    outstanding = 0
-
-    for invoice in invoices:
-        total = signed_amount(
-            invoice.get("move_type"),
-            invoice.get("amount_total"),
-        )
-
-        residual = signed_amount(
-            invoice.get("move_type"),
-            invoice.get("amount_residual"),
-        )
-
-        paid = total - residual
-        month = invoice.get("invoice_date", "")[:7]
-
-        invoiced += total
-        collected += paid
-        outstanding += residual
-
-        if month in monthly:
-            monthly[month]["invoiced"] += total
-            monthly[month]["collected"] += paid
-            monthly[month]["outstanding"] += residual
-
-    for item in monthly.values():
-        if item["orders"]:
-            item["average_order"] = (
-                item["revenue"] / item["orders"]
+        if order_id:
+            lines_by_order[order_id].append(
+                line
             )
 
-    return {
-        "year": year,
-        "summary": {
-            "revenue": revenue,
-            "orders": orders_count,
-            "average_order": (
-                revenue / orders_count
-                if orders_count
-                else 0
-            ),
-            "invoiced": invoiced,
-            "collected": collected,
-            "outstanding": outstanding,
-        },
-        "monthly": [
+    # ------------------------------------------------------------
+    # AGGREGATES
+    # ------------------------------------------------------------
+
+    revenue = 0.0
+
+    product_revenue = defaultdict(float)
+    product_orders = defaultdict(set)
+
+    fleet_revenue = defaultdict(float)
+    fleet_orders = defaultdict(set)
+
+    customer_revenue = defaultdict(float)
+    customer_orders = defaultdict(int)
+
+    order_rows = []
+
+    for order in orders:
+        amount = clean_number(
+            order.get("amount_total")
+        )
+
+        revenue += amount
+
+        order_month = month_key(
+            order.get("date_order")
+        )
+
+        if order_month in months_by_key:
+            months_by_key[order_month][
+                "revenue"
+            ] += amount
+
+            months_by_key[order_month][
+                "orders"
+            ] += 1
+
+        # --------------------------------------------------------
+        # CUSTOMER
+        # --------------------------------------------------------
+
+        customer_name = (
+            many2one_name(
+                order.get("partner_id")
+            )
+            or "Unknown customer"
+        )
+
+        customer_revenue[
+            customer_name
+        ] += amount
+
+        customer_orders[
+            customer_name
+        ] += 1
+
+        # --------------------------------------------------------
+        # PRODUCT CATEGORIES
+        #
+        # Product category revenue comes from actual order lines,
+        # not from arbitrary frontend labels.
+        # --------------------------------------------------------
+
+        for line in lines_by_order.get(
+            order["id"],
+            [],
+        ):
+            line_revenue = clean_number(
+                line.get("price_total")
+            )
+
+            product = product_map.get(
+                many2one_id(
+                    line.get("product_id")
+                )
+            )
+
+            category = (
+                many2one_name(
+                    product.get("categ_id")
+                )
+                if product
+                else None
+            ) or "Other"
+
+            product_revenue[
+                category
+            ] += line_revenue
+
+            product_orders[
+                category
+            ].add(order["id"])
+
+        # --------------------------------------------------------
+        # FLEET CATEGORY
+        #
+        # Each rental belongs to the category of its vehicle.
+        # The order's total revenue is assigned to that fleet
+        # category because the rental order represents one vehicle.
+        # --------------------------------------------------------
+
+        vehicle_id = parse_vehicle_id(
+            order.get("note")
+        )
+
+        vehicle = (
+            vehicle_map.get(vehicle_id)
+            if vehicle_id
+            else None
+        )
+
+        fleet_category = (
+            many2one_name(
+                vehicle.get("category_id")
+            )
+            if vehicle
+            else None
+        ) or "Other"
+
+        fleet_revenue[
+            fleet_category
+        ] += amount
+
+        fleet_orders[
+            fleet_category
+        ].add(order["id"])
+
+        order_rows.append(
             {
-                "month": key,
-                **value,
+                "id": order["id"],
+                "name": order["name"],
+                "customer": customer_name,
+                "date": order.get("date_order"),
+                "amount": amount,
+                "state": order.get("state"),
+                "vehicle": (
+                    vehicle.get("name")
+                    if vehicle
+                    else None
+                ),
+                "fleet_category": fleet_category,
             }
-            for key, value in monthly.items()
-        ],
-        "categories": sorted(
-            category_mix.values(),
-            key=lambda item: item["revenue"],
-            reverse=True,
-        ),
-        "products": sorted(
-            product_mix.values(),
-            key=lambda item: item["revenue"],
-            reverse=True,
-        ),
-        "transactions": transactions,
+        )
+
+    # ------------------------------------------------------------
+    # INVOICE METRICS
+    # ------------------------------------------------------------
+
+    invoiced = 0.0
+    collected = 0.0
+    outstanding = 0.0
+
+    for invoice in invoices:
+        amount_total = clean_number(
+            invoice.get("amount_total")
+        )
+
+        residual = clean_number(
+            invoice.get("amount_residual")
+        )
+
+        # Credit notes reduce billed revenue.
+        sign = (
+            -1
+            if invoice.get("move_type")
+            == "out_refund"
+            else 1
+        )
+
+        invoiced += (
+            amount_total * sign
+        )
+
+        outstanding += (
+            residual * sign
+        )
+
+        collected += (
+            (amount_total - residual)
+            * sign
+        )
+
+    # ------------------------------------------------------------
+    # BREAKDOWNS
+    # ------------------------------------------------------------
+
+    product_categories = [
+        {
+            "name": name,
+            "revenue": round(value, 2),
+            "orders": len(
+                product_orders[name]
+            ),
+            "share": percent_share(
+                value,
+                revenue,
+            ),
+        }
+        for name, value in product_revenue.items()
+        if value > 0
+    ]
+
+    fleet_categories = [
+        {
+            "name": name,
+            "revenue": round(value, 2),
+            "orders": len(
+                fleet_orders[name]
+            ),
+            "share": percent_share(
+                value,
+                revenue,
+            ),
+        }
+        for name, value in fleet_revenue.items()
+        if value > 0
+    ]
+
+    customers = [
+        {
+            "name": name,
+            "revenue": round(value, 2),
+            "orders": customer_orders[name],
+        }
+        for name, value in customer_revenue.items()
+        if value > 0
+    ]
+
+    product_categories.sort(
+        key=lambda item: item["revenue"],
+        reverse=True,
+    )
+
+    fleet_categories.sort(
+        key=lambda item: item["revenue"],
+        reverse=True,
+    )
+
+    customers.sort(
+        key=lambda item: item["revenue"],
+        reverse=True,
+    )
+
+    return {
+        "range": {
+            "start": start_date.isoformat(),
+            "end": end_date.isoformat(),
+        },
+        "summary": {
+            "revenue": round(revenue, 2),
+            "orders": len(orders),
+            "average_order": round(
+                revenue / len(orders),
+                2,
+            )
+            if orders
+            else 0,
+            "invoiced": round(
+                invoiced,
+                2,
+            ),
+            "collected": round(
+                collected,
+                2,
+            ),
+            "outstanding": round(
+                outstanding,
+                2,
+            ),
+        },
+        "monthly": months,
+        "product_categories": product_categories,
+        "fleet_categories": fleet_categories,
+        "customers": customers[:20],
+        "orders": order_rows,
     }

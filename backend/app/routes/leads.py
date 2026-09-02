@@ -10,26 +10,131 @@ router = APIRouter(
 )
 
 
-# =========================================================
+# ============================================================
 # SCHEMAS
-# =========================================================
+# ============================================================
 
 class LeadCreate(BaseModel):
     name: str
+
     partner_id: int | None = None
+
     phone: str | None = None
+
     email: str | None = None
+
     description: str | None = None
+
     expected_revenue: float | None = 0
+
+    reservation_start: str | None = None
+
+    reservation_end: str | None = None
+
+    vehicle_type_id: int | None = None
+
+    vehicle_brand_id: int | None = None
 
 
 class StageUpdate(BaseModel):
     stage_id: int
 
 
-# =========================================================
+# ============================================================
+# HELPERS
+# ============================================================
+
+def many2one_id(value):
+    if isinstance(value, (list, tuple)) and value:
+        return value[0]
+
+    if isinstance(value, int):
+        return value
+
+    return None
+
+
+def many2one_name(value):
+    if isinstance(value, (list, tuple)) and len(value) > 1:
+        return value[1]
+
+    if isinstance(value, str):
+        return value
+
+    return None
+
+
+def get_vehicle_options():
+    """
+    Return Odoo Fleet model categories and brands.
+
+    Fleet model categories are used as the vehicle type.
+    """
+
+    categories = odoo.execute(
+        "fleet.vehicle.model.category",
+        "search_read",
+        [],
+        {
+            "fields": [
+                "id",
+                "name",
+            ],
+            "order": "name asc",
+            "limit": 200,
+        },
+    )
+
+    brands = odoo.execute(
+        "fleet.vehicle.model.brand",
+        "search_read",
+        [],
+        {
+            "fields": [
+                "id",
+                "name",
+            ],
+            "order": "name asc",
+            "limit": 200,
+        },
+    )
+
+    return {
+        "vehicle_types": [
+            {
+                "id": item["id"],
+                "name": item["name"],
+            }
+            for item in categories
+        ],
+        "vehicle_brands": [
+            {
+                "id": item["id"],
+                "name": item["name"],
+            }
+            for item in brands
+        ],
+    }
+
+
+# ============================================================
+# GET LEAD OPTIONS
+# ============================================================
+
+@router.get("/options")
+def get_lead_options():
+    """
+    Options required by Add Lead.
+
+    Source of truth remains Odoo Fleet.
+    """
+
+    return get_vehicle_options()
+
+
+# ============================================================
 # GET LEADS
-# =========================================================
+# ============================================================
 
 @router.get("")
 def get_leads():
@@ -50,6 +155,8 @@ def get_leads():
                 "user_id",
                 "expected_revenue",
                 "create_date",
+                "description",
+                "type",
             ],
             "order": "id desc",
             "limit": 500,
@@ -85,34 +192,23 @@ def get_leads():
         result.append(
             {
                 "id": lead["id"],
+
                 "name": lead["name"],
 
-                # Customer linked to the Odoo CRM opportunity
                 "customer": customer,
 
-                # Contact information
                 "phone": (
                     lead.get("phone")
                     or lead.get("mobile")
                     or None
                 ),
+
                 "email": lead.get("email_from"),
 
-                # =================================================
-                # IMPORTANT FOR KANBAN
-                # =================================================
-                # Return BOTH the stage ID and stage name.
-                #
-                # stage_id is what allows the frontend to place
-                # the lead in the correct Kanban column.
-                #
-                # stage is used for display / color coding.
-                # =================================================
-
                 "stage_id": stage_id,
+
                 "stage": stage_name,
 
-                # Salesperson
                 "salesperson": (
                     {
                         "id": salesperson_id,
@@ -122,13 +218,13 @@ def get_leads():
                     else None
                 ),
 
-                # Revenue
                 "expected_revenue": (
                     lead.get("expected_revenue") or 0
                 ),
 
-                # Creation date
                 "created": lead.get("create_date"),
+
+                "description": lead.get("description"),
             }
         )
 
@@ -138,9 +234,9 @@ def get_leads():
     }
 
 
-# =========================================================
+# ============================================================
 # CREATE LEAD / OPPORTUNITY
-# =========================================================
+# ============================================================
 
 @router.post("")
 def create_lead(lead: LeadCreate):
@@ -155,15 +251,19 @@ def create_lead(lead: LeadCreate):
 
     values = {
         "name": name,
+
         "phone": lead.phone,
+
         "email_from": lead.email,
+
         "description": lead.description,
+
         "expected_revenue": lead.expected_revenue or 0,
     }
 
-    # ---------------------------------------------------------
+    # ========================================================
     # LINK EXISTING CUSTOMER
-    # ---------------------------------------------------------
+    # ========================================================
 
     if lead.partner_id:
 
@@ -196,35 +296,57 @@ def create_lead(lead: LeadCreate):
 
         values["partner_id"] = partner["id"]
 
-        # Keep the existing customer's contact data
-        # when the opportunity does not provide its own.
         if not values["phone"]:
             values["phone"] = partner.get("phone")
 
         if not values["email_from"]:
             values["email_from"] = partner.get("email")
 
-    # ---------------------------------------------------------
-    # CREATE ODOO CRM OPPORTUNITY
-    # ---------------------------------------------------------
+    # ========================================================
+    # RENTAL REQUIREMENTS
+    # ========================================================
+
+    if lead.reservation_start:
+        values["x_rental_start"] = lead.reservation_start
+
+    if lead.reservation_end:
+        values["x_rental_end"] = lead.reservation_end
+
+    # ========================================================
+    # VEHICLE TYPE / BRAND
     #
     # IMPORTANT:
     #
-    # Odoo create() expects:
+    # These assume your Odoo crm.lead fields are literally:
     #
-    #     [values]
+    #   vehicle_type_id
+    #   vehicle_brand_id
     #
-    # and NOT:
-    #
-    #     values
-    #
-    # ---------------------------------------------------------
+    # If your Studio fields are x_studio_*,
+    # change the keys here.
+    # ========================================================
 
-    lead_id = odoo.execute(
-        "crm.lead",
-        "create",
-        [values],
-    )
+    if lead.vehicle_type_id is not None:
+        values["vehicle_type_id"] = lead.vehicle_type_id
+
+    if lead.vehicle_brand_id is not None:
+        values["vehicle_brand_id"] = lead.vehicle_brand_id
+
+    # ========================================================
+    # CREATE ODOO CRM OPPORTUNITY
+    # ========================================================
+
+    try:
+        lead_id = odoo.execute(
+            "crm.lead",
+            "create",
+            [values],
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unable to create opportunity: {exc}",
+        ) from exc
 
     return {
         "success": True,
@@ -232,33 +354,15 @@ def create_lead(lead: LeadCreate):
     }
 
 
-# =========================================================
+# ============================================================
 # UPDATE LEAD STAGE
-# =========================================================
-#
-# Used by the Kanban drag & drop.
-#
-# The frontend sends:
-#
-# PATCH /crm/leads/{lead_id}/stage
-#
-# {
-#     "stage_id": 3
-# }
-#
-# This updates the REAL Odoo crm.lead record.
-# Therefore List + Kanban + Odoo remain synchronized.
-# =========================================================
+# ============================================================
 
 @router.patch("/{lead_id}/stage")
 def update_lead_stage(
     lead_id: int,
     stage: StageUpdate,
 ):
-
-    # ---------------------------------------------------------
-    # Make sure the lead exists
-    # ---------------------------------------------------------
 
     existing = odoo.execute(
         "crm.lead",
@@ -284,10 +388,6 @@ def update_lead_stage(
             detail="Lead not found.",
         )
 
-    # ---------------------------------------------------------
-    # Make sure the Odoo CRM stage exists
-    # ---------------------------------------------------------
-
     stages = odoo.execute(
         "crm.stage",
         "search_read",
@@ -312,10 +412,6 @@ def update_lead_stage(
             detail="CRM stage not found.",
         )
 
-    # ---------------------------------------------------------
-    # Update the actual Odoo CRM opportunity
-    # ---------------------------------------------------------
-
     updated = odoo.execute(
         "crm.lead",
         "write",
@@ -332,10 +428,6 @@ def update_lead_stage(
             status_code=500,
             detail="Odoo could not update the lead stage.",
         )
-
-    # ---------------------------------------------------------
-    # Return the updated stage
-    # ---------------------------------------------------------
 
     return {
         "success": True,
