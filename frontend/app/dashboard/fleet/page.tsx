@@ -31,6 +31,7 @@ import {
   parseDate as sharedParseDate,
   formatDate as sharedFormatDate,
 } from "@/lib/format";
+import { SortableHeader, type SortDirection } from "@/components/ui/SortableHeader";
 
 // ============================================================
 // TYPES
@@ -91,10 +92,6 @@ type SortKey =
   | "rental"
   | "location"
   | "odometer";
-
-type SortDirection =
-  | "asc"
-  | "desc";
 
 // ============================================================
 // CONFIG
@@ -882,86 +879,10 @@ function VehicleModal({
 // SORT ICON
 // ============================================================
 
-function SortIcon({
-  active,
-  direction,
-}: {
-  active: boolean;
-  direction: SortDirection;
-}) {
-  if (!active) {
-    return (
-      <span className="text-zinc-700">
-        ↕
-      </span>
-    );
-  }
-
-  return direction ===
-    "asc" ? (
-    <ChevronUp
-      size={12}
-      className="text-[#C8F065]"
-    />
-  ) : (
-    <ChevronDown
-      size={12}
-      className="text-[#C8F065]"
-    />
-  );
-}
-
 // ============================================================
-// SORTABLE HEADER
+// TABLE (uses the shared SortableHeader from components/ui)
 // ============================================================
 
-function SortableHeader({
-  label,
-  sortKey,
-  currentKey,
-  direction,
-  onSort,
-  align = "left",
-}: {
-  label: string;
-  sortKey: SortKey;
-  currentKey: SortKey;
-  direction: SortDirection;
-  onSort: (key: SortKey) => void;
-  align?: "left" | "right";
-}) {
-  const active =
-    currentKey === sortKey;
-
-  return (
-    <th
-      className={`px-5 py-4 font-medium ${
-        align === "right"
-          ? "text-right"
-          : "text-left"
-      }`}
-    >
-      <button
-        type="button"
-        onClick={() =>
-          onSort(sortKey)
-        }
-        className={`inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.12em] transition ${
-          active
-            ? "text-[#C8F065]"
-            : "text-zinc-600 hover:text-zinc-300"
-        }`}
-      >
-        {label}
-
-        <SortIcon
-          active={active}
-          direction={direction}
-        />
-      </button>
-    </th>
-  );
-}
 
 // ============================================================
 // PAGE

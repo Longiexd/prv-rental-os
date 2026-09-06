@@ -11,14 +11,12 @@ import {
   LayoutDashboard,
   Search,
   Settings,
-  UserPlus,
   Users,
   Zap,
 } from "lucide-react";
 import React, { useState } from "react";
 
 import AddCustomerModal from "@/components/customers/AddCustomerModal";
-import AddLeadModal from "@/components/crm/AddLeadModal";
 import CreateRentalModal from "@/components/rentals/CreateRentalModal";
 import { QuickAddMenu } from "@/components/ui/QuickAddMenu";
 
@@ -55,7 +53,7 @@ const navigation: NavItem[] = [
     href: "/dashboard/customers",
   },
   {
-    label: "CRM — Leads",
+    label: "Prospects",
     icon: Users,
     href: "/crm/leads",
   },
@@ -76,9 +74,6 @@ export default function OSLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const [addLeadOpen, setAddLeadOpen] =
-    useState(false);
-
   const [addRentalOpen, setAddRentalOpen] =
     useState(false);
 
@@ -216,17 +211,9 @@ export default function OSLayout({
               <QuickAddMenu
                 actions={[
                   {
-                    label: "New lead",
+                    label: "New booking",
                     description:
-                      "Add a prospect to the CRM pipeline",
-                    icon: <UserPlus size={15} />,
-                    onClick: () =>
-                      setAddLeadOpen(true),
-                  },
-                  {
-                    label: "New rental",
-                    description:
-                      "Book a vehicle for a customer",
+                      "Log an inquiry or confirm a rental",
                     icon: <Car size={15} />,
                     onClick: () =>
                       setAddRentalOpen(true),
@@ -273,22 +260,10 @@ export default function OSLayout({
         </div>
       </div>
 
-      <AddLeadModal
-        open={addLeadOpen}
-        onClose={() => setAddLeadOpen(false)}
-        onCreated={() =>
-          window.location.reload()
-        }
-      />
-
       <CreateRentalModal
         open={addRentalOpen}
-        onClose={() =>
-          setAddRentalOpen(false)
-        }
-        onCreated={() =>
-          window.location.reload()
-        }
+        onClose={() => setAddRentalOpen(false)}
+        onCreated={() => window.location.reload()}
       />
 
       {addCustomerOpen && (

@@ -18,7 +18,7 @@ type ModalProps = {
 //
 // This standardizes what was previously three separate, slightly
 // different implementations (different z-index, backdrop opacity,
-// and close-button placement in AddLeadModal / CreateRentalModal /
+// and close-button placement in CreateRentalModal /
 // AddCustomerModal).
 export function Modal({
   open,

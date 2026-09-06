@@ -13,8 +13,11 @@ import {
   UserRound,
 } from "lucide-react";
 
-import AddLeadModal from "@/components/crm/AddLeadModal";
+import CreateRentalModal from "@/components/rentals/CreateRentalModal";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { SortableHeader, type SortDirection } from "@/components/ui/SortableHeader";
+
+type LeadSortKey = "name" | "customer" | "stage" | "revenue";
 
 // =========================================================
 // TYPES
@@ -200,9 +203,21 @@ export default function LeadsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
+
+  const [sortKey, setSortKey] = useState<LeadSortKey>("name");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+
+  function handleSort(key: LeadSortKey) {
+    if (sortKey === key) {
+      setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDirection("asc");
+    }
+  }
   const [view, setView] = useState<View>("list");
 
-  const [addLeadOpen, setAddLeadOpen] = useState(false);
+  const [bookingOpen, setBookingOpen] = useState(false);
 
   // =========================================================
   // LOAD DATA FROM ODOO / API
@@ -368,6 +383,35 @@ export default function LeadsPage() {
     }
   );
 
+  const sortedLeads = useMemo(() => {
+    const list = [...filteredLeads];
+
+    list.sort((a, b) => {
+      let result = 0;
+
+      switch (sortKey) {
+        case "name":
+          result = (a.name || "").localeCompare(b.name || "");
+          break;
+        case "customer":
+          result = (a.customer?.name || "").localeCompare(
+            b.customer?.name || ""
+          );
+          break;
+        case "stage":
+          result = (a.stage_id ?? 0) - (b.stage_id ?? 0);
+          break;
+        case "revenue":
+          result = (a.expected_revenue || 0) - (b.expected_revenue || 0);
+          break;
+      }
+
+      return sortDirection === "asc" ? result : -result;
+    });
+
+    return list;
+  }, [filteredLeads, sortKey, sortDirection]);
+
   // =========================================================
   // STATS
   // =========================================================
@@ -412,17 +456,17 @@ export default function LeadsPage() {
       ===================================================== */}
 
       <PageHeader
-        breadcrumb="Leads"
-        title="Leads"
+        breadcrumb="Prospects"
+        title="Prospects"
         subtitle="Manage potential customers and rental opportunities."
         action={
           <button
             type="button"
-            onClick={() => setAddLeadOpen(true)}
+            onClick={() => setBookingOpen(true)}
             className="flex h-9 items-center justify-center gap-2 rounded-lg bg-lime px-4 text-xs font-medium text-background shadow-glow-lime transition hover:bg-lime-dark"
           >
             <Plus size={14} />
-            New lead
+            New booking
           </button>
         }
       />
@@ -600,8 +644,11 @@ export default function LeadsPage() {
 
       {view === "list" ? (
         <LeadsTable
-          leads={filteredLeads}
+          leads={sortedLeads}
           loading={loading}
+          sortKey={sortKey}
+          sortDirection={sortDirection}
+          onSort={handleSort}
         />
       ) : (
         <LeadsKanban
@@ -615,13 +662,13 @@ export default function LeadsPage() {
       )}
 
       {/* =====================================================
-          ADD LEAD MODAL
+          NEW BOOKING MODAL
       ===================================================== */}
 
-      <AddLeadModal
-        open={addLeadOpen}
+      <CreateRentalModal
+        open={bookingOpen}
         onClose={() =>
-          setAddLeadOpen(false)
+          setBookingOpen(false)
         }
         onCreated={loadData}
       />
@@ -637,9 +684,15 @@ export default function LeadsPage() {
 function LeadsTable({
   leads,
   loading,
+  sortKey,
+  sortDirection,
+  onSort,
 }: {
   leads: Lead[];
   loading: boolean;
+  sortKey: LeadSortKey;
+  sortDirection: SortDirection;
+  onSort: (key: LeadSortKey) => void;
 }) {
   return (
     <div className="overflow-hidden rounded-2xl border border-[#2B2B30] bg-[#111113]">
@@ -652,25 +705,42 @@ function LeadsTable({
 
             <tr className="border-b border-[#2B2B30] text-left text-xs uppercase tracking-wider text-[#52525B]">
 
-              <th className="px-5 py-4 font-medium">
-                Lead
-              </th>
+              <SortableHeader
+                label="Lead"
+                sortKey="name"
+                currentKey={sortKey}
+                direction={sortDirection}
+                onSort={onSort}
+              />
 
-              <th className="px-5 py-4 font-medium">
-                Customer
-              </th>
+              <SortableHeader
+                label="Customer"
+                sortKey="customer"
+                currentKey={sortKey}
+                direction={sortDirection}
+                onSort={onSort}
+              />
 
-              <th className="px-5 py-4 font-medium">
+              <th className="px-5 py-3 font-medium">
                 Contact
               </th>
 
-              <th className="px-5 py-4 font-medium">
-                Stage
-              </th>
+              <SortableHeader
+                label="Stage"
+                sortKey="stage"
+                currentKey={sortKey}
+                direction={sortDirection}
+                onSort={onSort}
+              />
 
-              <th className="px-5 py-4 text-right font-medium">
-                Expected Revenue
-              </th>
+              <SortableHeader
+                label="Expected Revenue"
+                sortKey="revenue"
+                currentKey={sortKey}
+                direction={sortDirection}
+                onSort={onSort}
+                align="right"
+              />
 
             </tr>
 

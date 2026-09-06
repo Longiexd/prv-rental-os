@@ -1,15 +1,29 @@
-from datetime import date
+from datetime import date, timedelta
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.odoo_client import odoo
+from app.routes.calendar import rental_vehicle_id
 
 
 router = APIRouter(
     prefix="/rentals",
     tags=["Rentals"],
 )
+
+
+def is_vehicle_available(state_label: str | None) -> bool:
+    """
+    Same rented/available classification used by lib/status.ts
+    on the frontend, kept in sync manually. Handles both the
+    French Odoo status labels ('Disponible', 'Loué') and English
+    equivalents.
+    """
+
+    raw = (state_label or "").lower().strip()
+
+    return "disponible" in raw or "available" in raw
 
 
 # ============================================================
@@ -107,7 +121,10 @@ def get_record(
 # ============================================================
 
 @router.get("/options")
-def get_rental_options():
+def get_rental_options(
+    start_date: date | None = Query(None),
+    end_date: date | None = Query(None),
+):
     """
     Return the Odoo-backed choices required by
     the New Rental interface.
@@ -130,6 +147,14 @@ def get_rental_options():
 
     The suggestion relationship will ultimately be
     driven by the Odoo product configuration.
+
+    When start_date/end_date are both provided, each
+    vehicle also gets an `available` flag: its fleet
+    status must be "available" (reusing the same
+    classifier as Analytics) AND it must not already be
+    booked over that date range (reusing the same
+    note-parsing convention as the Calendar endpoint,
+    since that's where vehicle<->rental linkage lives).
     """
 
     # ========================================================
@@ -172,11 +197,84 @@ def get_rental_options():
                 "name",
                 "license_plate",
                 "state_id",
+                "category_id",
+                "brand_id",
             ],
             "order": "name",
             "limit": 500,
         },
     )
+
+    # ------------------------------------------------------
+    # BOOKED VEHICLES FOR THE REQUESTED DATE RANGE
+    #
+    # Reuses the exact overlap query and note-parsing
+    # convention already established in calendar.py, rather
+    # than inventing a second way to find "which vehicle is
+    # this order for."
+    # ------------------------------------------------------
+
+    booked_vehicle_ids: set[int] = set()
+
+    if start_date and end_date and end_date >= start_date:
+        end_exclusive = end_date + timedelta(days=1)
+
+        overlapping_orders = odoo.execute(
+            "sale.order",
+            "search_read",
+            [
+                [
+                    [
+                        "date_order",
+                        "<",
+                        f"{end_exclusive.isoformat()} 00:00:00",
+                    ],
+                    [
+                        "commitment_date",
+                        ">=",
+                        f"{start_date.isoformat()} 00:00:00",
+                    ],
+                    ["state", "in", ["sale", "done"]],
+                ]
+            ],
+            {"fields": ["note"]},
+        )
+
+        for order in overlapping_orders:
+            vehicle_id = rental_vehicle_id(order.get("note"))
+
+            if vehicle_id:
+                booked_vehicle_ids.add(vehicle_id)
+
+    for vehicle in vehicles:
+        state_id = vehicle.get("state_id")
+        state_label = state_id[1] if isinstance(state_id, list) else None
+
+        category_id = vehicle.get("category_id")
+        brand_id = vehicle.get("brand_id")
+
+        vehicle["category"] = (
+            {"id": category_id[0], "name": category_id[1]}
+            if isinstance(category_id, list)
+            else None
+        )
+
+        vehicle["brand"] = (
+            {"id": brand_id[0], "name": brand_id[1]}
+            if isinstance(brand_id, list)
+            else None
+        )
+
+        is_fleet_available = is_vehicle_available(state_label)
+
+        vehicle["available"] = (
+            is_fleet_available
+            and vehicle["id"] not in booked_vehicle_ids
+        )
+
+        # Raw Odoo fields no longer needed once derived above.
+        del vehicle["category_id"]
+        del vehicle["brand_id"]
 
     # ========================================================
     # PRODUCTS
@@ -297,6 +395,9 @@ def get_rental_options():
                     if vehicle.get("state_id")
                     else None
                 ),
+                "category": vehicle.get("category"),
+                "brand": vehicle.get("brand"),
+                "available": vehicle.get("available", True),
             }
             for vehicle in vehicles
         ],

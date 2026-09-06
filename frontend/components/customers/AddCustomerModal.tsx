@@ -20,8 +20,14 @@ type Props = {
   onClose: () => void;
   // Called after a customer is created OR an opportunity is
   // attached to an existing contact. partnerId lets the caller
-  // navigate straight to the resulting customer if it wants to.
-  onSuccess: (partnerId: number) => void;
+  // navigate straight to the resulting customer if it wants to;
+  // name is passed back too so callers don't need a second
+  // lookup just to display it.
+  onSuccess: (partnerId: number, name: string) => void;
+  // Pre-fills the name field — used when this modal is opened
+  // from an inline "create new customer" prompt elsewhere (e.g.
+  // typed a name in the rental form that didn't match anyone).
+  initialName?: string;
 };
 
 // ============================================================
@@ -32,8 +38,9 @@ export default function AddCustomerModal({
   apiUrl,
   onClose,
   onSuccess,
+  initialName = "",
 }: Props) {
-  const [name, setName] = useState("");
+  const [name, setName] = useState(initialName);
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [description, setDescription] = useState("");
@@ -119,7 +126,7 @@ export default function AddCustomerModal({
       }
 
       const data = await response.json();
-      onSuccess(data.partner_id);
+      onSuccess(data.partner_id, name.trim());
     } catch (err) {
       console.error("Failed to create customer:", err);
       setError("Unable to create customer. Please try again.");
@@ -153,7 +160,7 @@ export default function AddCustomerModal({
         throw new Error(`API returned ${response.status}`);
       }
 
-      onSuccess(match.id);
+      onSuccess(match.id, name.trim() || match.name);
     } catch (err) {
       console.error("Failed to attach opportunity:", err);
       setError("Unable to attach opportunity. Please try again.");

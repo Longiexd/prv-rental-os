@@ -16,6 +16,12 @@ import {
   
 } from "lucide-react";
 
+import {
+  getRentalState as classifyRentalState,
+  rentalStateMeta,
+  toneClasses,
+} from "@/lib/status";
+
 // ============================================================
 // TYPES
 // ============================================================
@@ -495,40 +501,22 @@ function getStatusMeta(
 
 // ============================================================
 // RENTAL COLOR
+//
+// Thin wrapper around the shared lib/status.ts registry. This
+// used to pick blue for draft/quotation bookings, which visually
+// collided with the fleet 'Cleaning' status (also blue) elsewhere
+// on this same calendar — a booking and a vehicle being cleaned
+// looked identical at a glance. The shared registry uses a
+// distinct muted/gray for draft state instead.
 // ============================================================
 
-function getRentalState(
-  sale: Sale
-) {
-  if (
-    sale.state ===
-    "cancel"
-  ) {
-    return {
-      className:
-        "border-red-400/20 bg-red-400/10 text-red-300",
-      dot:
-        "bg-red-400",
-    };
-  }
-
-  if (
-    sale.state ===
-    "sale"
-  ) {
-    return {
-      className:
-        "border-[#F06AAA]/20 bg-[#F06AAA]/10 text-[#F06AAA]",
-      dot:
-        "bg-[#F06AAA]",
-    };
-  }
+function getRentalState(sale: Sale) {
+  const meta = rentalStateMeta(classifyRentalState(sale));
+  const classes = toneClasses(meta.tone);
 
   return {
-    className:
-      "border-blue-400/20 bg-blue-400/10 text-blue-300",
-    dot:
-      "bg-blue-400",
+    className: `${classes.border} ${classes.bg} ${classes.text}`,
+    dot: classes.dot,
   };
 }
 

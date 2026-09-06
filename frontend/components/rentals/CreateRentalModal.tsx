@@ -4,6 +4,7 @@ import {
   FormEvent,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -31,11 +32,32 @@ type Customer = {
   name: string;
 };
 
+type CustomerMatch = {
+  id: number;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  is_customer: boolean;
+};
+
 type Vehicle = {
   id: number;
   name: string;
   license_plate: string | null;
   status: string | null;
+  category: { id: number; name: string } | null;
+  brand: { id: number; name: string } | null;
+  available: boolean;
+};
+
+type VehicleOption = {
+  id: number;
+  name: string;
+};
+
+type LeadOptions = {
+  vehicle_types: VehicleOption[];
+  vehicle_brands: VehicleOption[];
 };
 
 type Product = {
@@ -51,6 +73,18 @@ type RentalOptionsResponse = {
   products: Product[];
 };
 
+// Minimal shape of what the backend returns for a created sale —
+// only the fields this component actually reads (used for
+// onCreated and the lead-handoff), not a full mirror of the API.
+type CreatedSale = {
+  id?: number;
+  customer?: {
+    id: number;
+    name: string;
+  };
+  [key: string]: unknown;
+};
+
 type SelectedProduct = {
   product_id: number;
   quantity: number;
@@ -60,13 +94,17 @@ type SelectedProduct = {
 type CreateRentalModalProps = {
   open: boolean;
   onClose: () => void;
-  onCreated?: (sale: unknown) => void;
+  onCreated?: (result: unknown) => void;
 
   // Optional CRM opportunity.
   opportunityId?: number | null;
 
   // Optional pre-selected customer.
   customerId?: number | null;
+  // Seeds the customer search field when there's no customerId
+  // yet (e.g. handed off from a lead that had a typed name but
+  // no linked existing contact) — saves retyping.
+  initialCustomerName?: string;
 
   // Optional pre-filled dates.
   startDate?: string;
@@ -83,6 +121,7 @@ export default function CreateRentalModal({
   onCreated,
   opportunityId = null,
   customerId = null,
+  initialCustomerName = "",
   startDate = "",
   endDate = "",
 }: CreateRentalModalProps) {
@@ -101,11 +140,56 @@ export default function CreateRentalModal({
   const [customerSearch, setCustomerSearch] =
     useState("");
 
+  const [selectedCustomerName, setSelectedCustomerName] =
+    useState<string | null>(null);
+
+  const [customerDropdownOpen, setCustomerDropdownOpen] =
+    useState(false);
+
+  // Live customer search — same debounced match-list pattern
+  // used throughout the app.
+  const [customerMatches, setCustomerMatches] = useState<
+    CustomerMatch[]
+  >([]);
+
+  const [searchingCustomers, setSearchingCustomers] =
+    useState(false);
+
+  const [showCreateCustomer, setShowCreateCustomer] =
+    useState(false);
+
+  const [newCustomerPhone, setNewCustomerPhone] = useState("");
+  const [newCustomerEmail, setNewCustomerEmail] = useState("");
+  const [creatingCustomer, setCreatingCustomer] = useState(false);
+  const [createCustomerError, setCreateCustomerError] = useState<
+    string | null
+  >(null);
+
+  const customerSearchTimeout = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
+
   const [productSearch, setProductSearch] =
     useState("");
 
   const [selectedProducts, setSelectedProducts] =
     useState<SelectedProduct[]>([]);
+
+  // Vehicle preference — reuses the same /crm/lead-options
+  // endpoint used by the lead fallback below, since it's the
+  // same category/brand data, just used here to filter the
+  // vehicle picker instead of tagging a lead description.
+  const [leadOptions, setLeadOptions] =
+    useState<LeadOptions | null>(null);
+
+  const [vehicleTypeId, setVehicleTypeId] =
+    useState<number | null>(null);
+
+  const [vehicleBrandId, setVehicleBrandId] =
+    useState<number | null>(null);
+
+  const [showAllVehicles, setShowAllVehicles] =
+    useState(false);
 
   const [form, setForm] = useState({
     partner_id: customerId
@@ -131,23 +215,32 @@ export default function CreateRentalModal({
         setLoading(true);
         setError(null);
 
-        const response = await fetch(
-          `${API_URL}/rentals/options`,
-          {
-            cache: "no-store",
-          }
-        );
+        const [rentalOptionsResponse, leadOptionsResponse] =
+          await Promise.all([
+            fetch(`${API_URL}/rentals/options`, {
+              cache: "no-store",
+            }),
+            fetch(`${API_URL}/crm/lead-options`, {
+              cache: "no-store",
+            }),
+          ]);
 
-        if (!response.ok) {
+        if (!rentalOptionsResponse.ok) {
           throw new Error(
-            `Rental options API returned ${response.status}`
+            `Rental options API returned ${rentalOptionsResponse.status}`
           );
         }
 
         const data: RentalOptionsResponse =
-          await response.json();
+          await rentalOptionsResponse.json();
 
         setOptions(data);
+
+        // Vehicle preference lists are non-critical — don't
+        // block the whole form over them if this one call fails.
+        if (leadOptionsResponse.ok) {
+          setLeadOptions(await leadOptionsResponse.json());
+        }
 
         // Preserve customer passed by CRM.
         if (customerId) {
@@ -155,6 +248,16 @@ export default function CreateRentalModal({
             ...current,
             partner_id: String(customerId),
           }));
+
+          const preselected = data.customers.find(
+            (customer) => customer.id === customerId
+          );
+
+          if (preselected) {
+            setSelectedCustomerName(preselected.name);
+          }
+        } else if (initialCustomerName) {
+          setCustomerSearch(initialCustomerName);
         }
       } catch (err) {
         console.error(
@@ -173,7 +276,41 @@ export default function CreateRentalModal({
     }
 
     void loadOptions();
-  }, [open, customerId]);
+  }, [open, customerId, initialCustomerName]);
+
+  // ==========================================================
+  // REFRESH VEHICLE AVAILABILITY WHEN DATES CHANGE
+  // ==========================================================
+
+  useEffect(() => {
+    if (!open || !form.start_date || !form.end_date) {
+      return;
+    }
+
+    async function refreshVehicles() {
+      try {
+        const response = await fetch(
+          `${API_URL}/rentals/options?start_date=${form.start_date}&end_date=${form.end_date}`,
+          { cache: "no-store" }
+        );
+
+        if (!response.ok) return;
+
+        const data: RentalOptionsResponse = await response.json();
+
+        setOptions((current) =>
+          current ? { ...current, vehicles: data.vehicles } : data
+        );
+      } catch (err) {
+        console.error(
+          "Failed to refresh vehicle availability:",
+          err
+        );
+      }
+    }
+
+    void refreshVehicles();
+  }, [open, form.start_date, form.end_date]);
 
   // ==========================================================
   // RESET WHEN CLOSED
@@ -183,8 +320,18 @@ export default function CreateRentalModal({
     if (open) return;
 
     setCustomerSearch("");
+    setSelectedCustomerName(null);
+    setCustomerDropdownOpen(false);
+    setCustomerMatches([]);
+    setShowCreateCustomer(false);
+    setNewCustomerPhone("");
+    setNewCustomerEmail("");
+    setCreateCustomerError(null);
     setProductSearch("");
     setSelectedProducts([]);
+    setVehicleTypeId(null);
+    setVehicleBrandId(null);
+    setShowAllVehicles(false);
 
     setForm({
       partner_id: customerId
@@ -257,32 +404,149 @@ export default function CreateRentalModal({
     ]);
 
   // ==========================================================
-  // FILTER CUSTOMERS
+  // LIVE CUSTOMER SEARCH EFFECT
   // ==========================================================
 
-  const filteredCustomers =
-    useMemo(() => {
-      if (!options) return [];
+  useEffect(() => {
+    if (!open || form.partner_id) {
+      return;
+    }
 
-      const query =
-        customerSearch
-          .toLowerCase()
-          .trim();
+    const query = customerSearch.trim();
 
-      if (!query) {
-        return options.customers;
+    if (query.length < 2) {
+      setCustomerMatches([]);
+      return;
+    }
+
+    if (customerSearchTimeout.current) {
+      clearTimeout(customerSearchTimeout.current);
+    }
+
+    customerSearchTimeout.current = setTimeout(async () => {
+      try {
+        setSearchingCustomers(true);
+
+        const response = await fetch(
+          `${API_URL}/customers/search?q=${encodeURIComponent(
+            query
+          )}`,
+          { cache: "no-store" }
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            `Customer search returned ${response.status}`
+          );
+        }
+
+        const data = await response.json();
+
+        setCustomerMatches(
+          Array.isArray(data?.matches) ? data.matches : []
+        );
+      } catch (err) {
+        console.error("Failed to search customers:", err);
+        setCustomerMatches([]);
+      } finally {
+        setSearchingCustomers(false);
+      }
+    }, 300);
+
+    return () => {
+      if (customerSearchTimeout.current) {
+        clearTimeout(customerSearchTimeout.current);
+      }
+    };
+  }, [customerSearch, open, form.partner_id]);
+
+  async function handleCreateCustomer() {
+    const trimmedName = customerSearch.trim();
+
+    if (!trimmedName) {
+      setCreateCustomerError("Name is required.");
+      return;
+    }
+
+    try {
+      setCreatingCustomer(true);
+      setCreateCustomerError(null);
+
+      const response = await fetch(`${API_URL}/customers`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: trimmedName,
+          phone: newCustomerPhone.trim() || null,
+          email: newCustomerEmail.trim() || null,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`API returned ${response.status}`);
       }
 
-      return options.customers.filter(
-        (customer) =>
-          customer.name
-            .toLowerCase()
-            .includes(query)
+      const data = await response.json();
+
+      setForm((current) => ({
+        ...current,
+        partner_id: String(data.partner_id),
+      }));
+
+      setSelectedCustomerName(trimmedName);
+      setShowCreateCustomer(false);
+      setCustomerDropdownOpen(false);
+      setNewCustomerPhone("");
+      setNewCustomerEmail("");
+    } catch (err) {
+      console.error("Failed to create customer:", err);
+      setCreateCustomerError(
+        "Unable to create customer. Please try again."
       );
-    }, [
-      options,
-      customerSearch,
-    ]);
+    } finally {
+      setCreatingCustomer(false);
+    }
+  }
+
+  // ==========================================================
+  // FILTER VEHICLES
+  //
+  // Default view: only vehicles that are actually available
+  // (fleet status + no conflicting booking for the chosen
+  // dates) and matching the selected type/brand preference.
+  // "Show all vehicles" is an explicit escape hatch for the
+  // rare case an agent wants to browse the full fleet anyway.
+  // ==========================================================
+
+  const filteredVehicles = useMemo(() => {
+    if (!options) return [];
+
+    return options.vehicles.filter((vehicle) => {
+      if (!showAllVehicles && !vehicle.available) {
+        return false;
+      }
+
+      if (
+        vehicleTypeId &&
+        vehicle.category?.id !== vehicleTypeId
+      ) {
+        return false;
+      }
+
+      if (
+        vehicleBrandId &&
+        vehicle.brand?.id !== vehicleBrandId
+      ) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [options, showAllVehicles, vehicleTypeId, vehicleBrandId]);
+
+  const hiddenVehicleCount = options
+    ? options.vehicles.length - filteredVehicles.length
+    : 0;
 
   // ==========================================================
   // FILTER PRODUCTS
@@ -463,29 +727,89 @@ export default function CreateRentalModal({
     );
 
   // ==========================================================
-  // CREATE RENTAL
+  // IS THIS COMPLETE ENOUGH TO BE A RENTAL?
+  //
+  // Customer + dates + a specific vehicle + at least one
+  // priced product — the same fields the backend's /rentals
+  // endpoint actually requires. Anything less and this is still
+  // just a prospect: saved as a CRM lead instead, carrying over
+  // whatever was filled in (dates, vehicle preference) so
+  // nothing typed is lost.
   // ==========================================================
 
-  async function createRental(
+  const isRentalReady = Boolean(
+    form.partner_id &&
+      form.start_date &&
+      form.end_date &&
+      form.vehicle_id &&
+      selectedProducts.length > 0 &&
+      form.end_date >= form.start_date
+  );
+
+  async function submitRental(): Promise<CreatedSale> {
+    const response = await fetch(`${API_URL}/rentals`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        partner_id: Number(form.partner_id),
+        vehicle_id: Number(form.vehicle_id),
+        start_date: form.start_date,
+        end_date: form.end_date,
+        products: selectedProducts,
+        ...(opportunityId ? { opportunity_id: opportunityId } : {}),
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.detail || "Unable to create rental.");
+    }
+
+    return data.sale;
+  }
+
+  async function submitAsLead(): Promise<{ lead_id: number }> {
+    const response = await fetch(`${API_URL}/crm/leads`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: selectedCustomerName || customerSearch.trim(),
+        partner_id: form.partner_id
+          ? Number(form.partner_id)
+          : null,
+        reservation_start: form.start_date || null,
+        reservation_end: form.end_date || null,
+        vehicle_type_id: vehicleTypeId,
+        vehicle_brand_id: vehicleBrandId,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.detail || "Unable to save.");
+    }
+
+    return data;
+  }
+
+  async function handleSubmit(
     event: FormEvent<HTMLFormElement>
   ) {
     event.preventDefault();
 
     setError(null);
 
-    if (
-      selectedProducts.length ===
-      0
-    ) {
-      setError(
-        "Add at least one product to the rental."
-      );
+    if (!form.partner_id) {
+      setError("Select or create a customer first.");
       return;
     }
 
     if (
-      form.end_date <
-      form.start_date
+      form.start_date &&
+      form.end_date &&
+      form.end_date < form.start_date
     ) {
       setError(
         "The return date must be on or after the rental start date."
@@ -496,72 +820,17 @@ export default function CreateRentalModal({
     try {
       setSubmitting(true);
 
-      const response =
-        await fetch(
-          `${API_URL}/rentals`,
-          {
-            method: "POST",
+      const result = isRentalReady
+        ? await submitRental()
+        : await submitAsLead();
 
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-
-            body: JSON.stringify({
-              partner_id:
-                Number(
-                  form.partner_id
-                ),
-
-              vehicle_id:
-                Number(
-                  form.vehicle_id
-                ),
-
-              start_date:
-                form.start_date,
-
-              end_date:
-                form.end_date,
-
-              products:
-                selectedProducts,
-
-              ...(opportunityId
-                ? {
-                    opportunity_id:
-                      opportunityId,
-                  }
-                : {}),
-            }),
-          }
-        );
-
-      const data =
-        await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data.detail ||
-            "Unable to create rental."
-        );
-      }
-
-      onCreated?.(
-        data.sale
-      );
-
+      onCreated?.(result);
       onClose();
     } catch (err) {
-      console.error(
-        "Failed to create rental:",
-        err
-      );
+      console.error("Failed to save:", err);
 
       setError(
-        err instanceof Error
-          ? err.message
-          : "Unable to create rental."
+        err instanceof Error ? err.message : "Unable to save."
       );
     } finally {
       setSubmitting(false);
@@ -598,18 +867,20 @@ export default function CreateRentalModal({
 
           <div>
             <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-[#C8F065]">
-              Rental
+              Booking
             </div>
 
             <h2
               id="new-rental-title"
               className="mt-1 text-xl font-semibold text-white"
             >
-              New rental
+              New booking
             </h2>
 
             <p className="mt-1 text-sm text-zinc-500">
-              Build a rental with a vehicle and multiple products.
+              {isRentalReady
+                ? "This will be saved as a confirmed rental."
+                : "This will be saved as a prospect until dates, a vehicle and a price are added."}
             </p>
           </div>
 
@@ -645,135 +916,204 @@ export default function CreateRentalModal({
           </div>
         ) : (
           <form
-            onSubmit={createRental}
+            onSubmit={handleSubmit}
             className="p-5 sm:p-6"
           >
 
             {/* ==================================================
-                CUSTOMER + VEHICLE
+                CUSTOMER
             ================================================== */}
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div>
 
               {/* CUSTOMER */}
 
-              <div className="space-y-2">
-
+              <div className="relative space-y-2">
                 <label className="text-xs font-medium text-zinc-400">
                   Customer
+                  <span className="ml-1 text-[#F06AAA]">*</span>
                 </label>
 
                 <div className="relative">
-
                   <Search
                     size={14}
                     className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600"
                   />
 
                   <input
+                    required={!form.partner_id}
                     value={
-                      customerSearch
+                      selectedCustomerName || customerSearch
                     }
-                    onChange={(event) =>
-                      setCustomerSearch(
-                        event.target.value
-                      )
-                    }
+                    onChange={(event) => {
+                      setSelectedCustomerName(null);
+                      setCustomerSearch(event.target.value);
+                      setForm({ ...form, partner_id: "" });
+                      setCustomerDropdownOpen(true);
+                      setShowCreateCustomer(false);
+                    }}
+                    onFocus={() => setCustomerDropdownOpen(true)}
                     placeholder="Search customers..."
-                    className="h-10 w-full rounded-lg border border-[#2B2B30] bg-[#17171A] pl-9 pr-3 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-[#C8F065]/50"
+                    className="h-10 w-full rounded-lg border border-[#2B2B30] bg-[#17171A] pl-9 pr-9 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-[#C8F065]/50"
                   />
 
+                  {searchingCustomers && (
+                    <LoaderCircle
+                      size={14}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-zinc-500"
+                    />
+                  )}
                 </div>
 
-                <select
-                  required
-                  value={
-                    form.partner_id
-                  }
-                  onChange={(event) =>
-                    setForm({
-                      ...form,
-                      partner_id:
-                        event.target.value,
-                    })
-                  }
-                  className="h-10 w-full rounded-lg border border-[#2B2B30] bg-[#17171A] px-3 text-sm text-white outline-none focus:border-[#C8F065]/50"
-                >
+                {customerDropdownOpen &&
+                  !form.partner_id &&
+                  customerSearch.trim().length >= 2 &&
+                  !showCreateCustomer && (
+                    <div className="absolute left-0 right-0 z-10 mt-1 max-h-64 overflow-y-auto rounded-lg border border-[#2B2B30] bg-[#17171A] shadow-2xl">
+                      {customerMatches.length === 0 &&
+                        !searchingCustomers && (
+                          <div className="px-3 py-2.5 text-xs text-zinc-500">
+                            No matching customers.
+                          </div>
+                        )}
 
-                  <option value="">
-                    Select customer
-                  </option>
+                      {customerMatches.slice(0, 20).map((customer) => (
+                        <button
+                          type="button"
+                          key={customer.id}
+                          onMouseDown={(event) =>
+                            event.preventDefault()
+                          }
+                          onClick={() => {
+                            setForm({
+                              ...form,
+                              partner_id: String(customer.id),
+                            });
+                            setSelectedCustomerName(customer.name);
+                            setCustomerDropdownOpen(false);
+                          }}
+                          className="flex w-full flex-col items-start gap-0.5 border-b border-[#2B2B30] px-3 py-2.5 text-left transition last:border-0 hover:bg-[#C8F065]/10"
+                        >
+                          <span className="text-xs font-medium text-white">
+                            {customer.name}
+                          </span>
 
-                  {filteredCustomers.map(
-                    (customer) => (
-                      <option
-                        key={
-                          customer.id
-                        }
-                        value={
-                          customer.id
-                        }
-                      >
-                        {customer.name}
-                      </option>
-                    )
+                          <span className="flex flex-wrap gap-x-2 text-[10px] text-zinc-500">
+                            {customer.phone && (
+                              <span>{customer.phone}</span>
+                            )}
+                            {customer.email && (
+                              <span className="truncate">
+                                {customer.email}
+                              </span>
+                            )}
+                            <span
+                              className={
+                                customer.is_customer
+                                  ? "text-[#C8F065]"
+                                  : "text-zinc-500"
+                              }
+                            >
+                              {customer.is_customer
+                                ? "Existing CRM customer"
+                                : "Existing Odoo contact"}
+                            </span>
+                          </span>
+                        </button>
+                      ))}
+
+                      {!searchingCustomers && (
+                        <button
+                          type="button"
+                          onMouseDown={(event) =>
+                            event.preventDefault()
+                          }
+                          onClick={() =>
+                            setShowCreateCustomer(true)
+                          }
+                          className="flex w-full items-center gap-2 border-t border-[#2B2B30] bg-[#0D0D0F] px-3 py-2.5 text-left text-xs font-medium text-[#C8F065] transition hover:bg-[#C8F065]/10"
+                        >
+                          <Plus size={13} />
+                          Create new customer
+                          {customerSearch.trim()
+                            ? ` "${customerSearch.trim()}"`
+                            : ""}
+                        </button>
+                      )}
+                    </div>
                   )}
 
-                </select>
+                {/* INLINE QUICK-CREATE */}
 
+                {showCreateCustomer && (
+                  <div className="absolute left-0 right-0 z-10 mt-1 space-y-2.5 rounded-lg border border-[#C8F065]/25 bg-[#17171A] p-3 shadow-2xl">
+                    <div className="text-xs font-medium text-white">
+                      New customer: {customerSearch.trim()}
+                    </div>
+
+                    <input
+                      value={newCustomerPhone}
+                      onChange={(event) =>
+                        setNewCustomerPhone(event.target.value)
+                      }
+                      placeholder="Phone (optional)"
+                      className="h-9 w-full rounded-lg border border-[#2B2B30] bg-[#0D0D0F] px-3 text-xs text-white outline-none placeholder:text-zinc-600 focus:border-[#C8F065]/50"
+                    />
+
+                    <input
+                      value={newCustomerEmail}
+                      onChange={(event) =>
+                        setNewCustomerEmail(event.target.value)
+                      }
+                      placeholder="Email (optional)"
+                      className="h-9 w-full rounded-lg border border-[#2B2B30] bg-[#0D0D0F] px-3 text-xs text-white outline-none placeholder:text-zinc-600 focus:border-[#C8F065]/50"
+                    />
+
+                    {createCustomerError && (
+                      <div className="text-[10px] text-red-400">
+                        {createCustomerError}
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2 pt-0.5">
+                      <button
+                        type="button"
+                        onClick={handleCreateCustomer}
+                        disabled={creatingCustomer}
+                        className="flex h-8 flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#C8F065] text-[11px] font-semibold text-[#09090B] transition hover:bg-[#d7ff80] disabled:opacity-60"
+                      >
+                        {creatingCustomer ? (
+                          <LoaderCircle
+                            size={12}
+                            className="animate-spin"
+                          />
+                        ) : (
+                          <Check size={12} />
+                        )}
+                        Create & select
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowCreateCustomer(false)}
+                        className="h-8 rounded-lg border border-[#2B2B30] px-3 text-[11px] text-zinc-400 transition hover:text-white"
+                      >
+                        Back
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Keep the field required without a native <select> */}
+                <input
+                  required
+                  value={form.partner_id}
+                  onChange={() => {}}
+                  className="sr-only"
+                  tabIndex={-1}
+                  aria-hidden="true"
+                />
               </div>
-
-              {/* VEHICLE */}
-
-              <label className="space-y-2 text-xs font-medium text-zinc-400">
-
-                Fleet vehicle
-
-                <select
-                  required
-                  value={
-                    form.vehicle_id
-                  }
-                  onChange={(event) =>
-                    setForm({
-                      ...form,
-                      vehicle_id:
-                        event.target.value,
-                    })
-                  }
-                  className="h-10 w-full rounded-lg border border-[#2B2B30] bg-[#17171A] px-3 text-sm text-white outline-none focus:border-[#C8F065]/50"
-                >
-
-                  <option value="">
-                    Select vehicle
-                  </option>
-
-                  {options.vehicles.map(
-                    (vehicle) => (
-                      <option
-                        key={
-                          vehicle.id
-                        }
-                        value={
-                          vehicle.id
-                        }
-                      >
-                        {vehicle.name}
-
-                        {vehicle.license_plate
-                          ? ` — ${vehicle.license_plate}`
-                          : ""}
-
-                        {vehicle.status
-                          ? ` (${vehicle.status})`
-                          : ""}
-                      </option>
-                    )
-                  )}
-
-                </select>
-
-              </label>
 
             </div>
 
@@ -786,18 +1126,17 @@ export default function CreateRentalModal({
               <label className="space-y-2 text-xs font-medium text-zinc-400">
 
                 Rental start
+                <span className="ml-1 text-zinc-600">
+                  (required for a rental)
+                </span>
 
                 <input
-                  required
                   type="date"
-                  value={
-                    form.start_date
-                  }
+                  value={form.start_date}
                   onChange={(event) =>
                     setForm({
                       ...form,
-                      start_date:
-                        event.target.value,
+                      start_date: event.target.value,
                     })
                   }
                   className="h-10 w-full rounded-lg border border-[#2B2B30] bg-[#17171A] px-3 text-sm text-white outline-none focus:border-[#C8F065]/50"
@@ -808,18 +1147,17 @@ export default function CreateRentalModal({
               <label className="space-y-2 text-xs font-medium text-zinc-400">
 
                 Return date
+                <span className="ml-1 text-zinc-600">
+                  (required for a rental)
+                </span>
 
                 <input
-                  required
                   type="date"
-                  value={
-                    form.end_date
-                  }
+                  value={form.end_date}
                   onChange={(event) =>
                     setForm({
                       ...form,
-                      end_date:
-                        event.target.value,
+                      end_date: event.target.value,
                     })
                   }
                   className="h-10 w-full rounded-lg border border-[#2B2B30] bg-[#17171A] px-3 text-sm text-white outline-none focus:border-[#C8F065]/50"
@@ -827,6 +1165,155 @@ export default function CreateRentalModal({
 
               </label>
 
+            </div>
+
+            {/* ==================================================
+                VEHICLE PREFERENCE
+                Optional filters — narrows the picker below to
+                the kind of car being asked for.
+            ================================================== */}
+
+            {leadOptions && (
+              <div className="mt-5 grid gap-4 sm:grid-cols-2">
+
+                <label className="space-y-2 text-xs font-medium text-zinc-400">
+                  Vehicle type
+
+                  <select
+                    value={vehicleTypeId ?? ""}
+                    onChange={(event) =>
+                      setVehicleTypeId(
+                        event.target.value
+                          ? Number(event.target.value)
+                          : null
+                      )
+                    }
+                    className="h-10 w-full rounded-lg border border-[#2B2B30] bg-[#17171A] px-3 text-sm text-white outline-none focus:border-[#C8F065]/50"
+                  >
+                    <option value="">Any type</option>
+
+                    {leadOptions.vehicle_types.map((type) => (
+                      <option key={type.id} value={type.id}>
+                        {type.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="space-y-2 text-xs font-medium text-zinc-400">
+                  Brand
+
+                  <select
+                    value={vehicleBrandId ?? ""}
+                    onChange={(event) =>
+                      setVehicleBrandId(
+                        event.target.value
+                          ? Number(event.target.value)
+                          : null
+                      )
+                    }
+                    className="h-10 w-full rounded-lg border border-[#2B2B30] bg-[#17171A] px-3 text-sm text-white outline-none focus:border-[#C8F065]/50"
+                  >
+                    <option value="">Any brand</option>
+
+                    {leadOptions.vehicle_brands.map((brand) => (
+                      <option key={brand.id} value={brand.id}>
+                        {brand.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+              </div>
+            )}
+
+            {/* ==================================================
+                VEHICLE
+                Filtered to available, matching vehicles by
+                default — unavailable ones (rented, cleaning,
+                maintenance, or already booked for these dates)
+                don't clutter the list unless explicitly shown.
+            ================================================== */}
+
+            <div className="mt-5 space-y-2">
+
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-zinc-400">
+                  Fleet vehicle
+                  <span className="ml-1 text-zinc-600">
+                    (required for a rental)
+                  </span>
+                </label>
+
+                {hiddenVehicleCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setShowAllVehicles((current) => !current)
+                    }
+                    className="text-[10px] text-zinc-500 underline-offset-2 hover:text-zinc-300 hover:underline"
+                  >
+                    {showAllVehicles
+                      ? "Show only available"
+                      : `Show all vehicles (${hiddenVehicleCount} hidden)`}
+                  </button>
+                )}
+              </div>
+
+              <div className="max-h-52 overflow-y-auto rounded-lg border border-[#2B2B30] bg-[#17171A]">
+                {filteredVehicles.length === 0 && (
+                  <div className="px-3 py-3 text-xs text-zinc-500">
+                    {form.start_date && form.end_date
+                      ? "No vehicles available for these dates and preferences."
+                      : "No matching vehicles."}
+                  </div>
+                )}
+
+                {filteredVehicles.map((vehicle) => (
+                  <button
+                    type="button"
+                    key={vehicle.id}
+                    onClick={() =>
+                      setForm({
+                        ...form,
+                        vehicle_id: String(vehicle.id),
+                      })
+                    }
+                    className={`flex w-full items-center justify-between border-b border-[#2B2B30] px-3 py-2.5 text-left transition last:border-0 hover:bg-[#C8F065]/10 ${
+                      String(vehicle.id) === form.vehicle_id
+                        ? "bg-[#C8F065]/10"
+                        : ""
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate text-xs font-medium text-white">
+                        {vehicle.name}
+                        {vehicle.license_plate
+                          ? ` — ${vehicle.license_plate}`
+                          : ""}
+                      </div>
+
+                      <div className="mt-0.5 flex flex-wrap gap-x-2 text-[10px] text-zinc-500">
+                        {vehicle.category && (
+                          <span>{vehicle.category.name}</span>
+                        )}
+                        {vehicle.brand && (
+                          <span>{vehicle.brand.name}</span>
+                        )}
+                        {!vehicle.available && (
+                          <span className="text-red-400">
+                            {vehicle.status || "Unavailable"}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {String(vehicle.id) === form.vehicle_id && (
+                      <Check size={14} className="shrink-0 text-[#C8F065]" />
+                    )}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* ==================================================
@@ -1143,8 +1630,7 @@ export default function CreateRentalModal({
 
               <div className="text-[11px] text-zinc-600">
                 {selectedProducts.length}{" "}
-                {selectedProducts.length ===
-                1
+                {selectedProducts.length === 1
                   ? "product"
                   : "products"}{" "}
                 selected
@@ -1162,24 +1648,18 @@ export default function CreateRentalModal({
 
                 <button
                   type="submit"
-                  disabled={
-                    submitting ||
-                    selectedProducts.length ===
-                      0
-                  }
+                  disabled={submitting || !form.partner_id}
                   className="flex h-9 items-center gap-2 rounded-lg bg-[#C8F065] px-4 text-xs font-semibold text-black transition hover:bg-[#d7ff80] disabled:cursor-not-allowed disabled:opacity-50"
                 >
 
                   {submitting && (
                     <LoaderCircle
-                      size={
-                        14
-                      }
+                      size={14}
                       className="animate-spin"
                     />
                   )}
 
-                  Create rental
+                  {isRentalReady ? "Confirm rental" : "Save prospect"}
 
                 </button>
 
