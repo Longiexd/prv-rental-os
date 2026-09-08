@@ -78,13 +78,6 @@ function displayValue(value: RelationalValue): string {
   return value.name || "";
 }
 
-function greeting(): string {
-  const hour = new Date().getHours();
-  if (hour < 12) return "Good morning.";
-  if (hour < 18) return "Good afternoon.";
-  return "Good evening.";
-}
-
 // ============================================================
 // COMPONENT
 // ============================================================
@@ -98,6 +91,24 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [bookingOpen, setBookingOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Neutral on the server (and on the client's very first render,
+  // before this effect runs) so SSR output and the initial client
+  // render always match exactly. Filled in right after mount —
+  // computing this directly during render was the actual bug:
+  // the server renders in its own timezone while the browser
+  // hydrates in the agent's local one, so near an hour boundary
+  // they'd disagree on "Good morning" vs "Good evening" and React
+  // would flag a hydration mismatch.
+  const [greetingText, setGreetingText] = useState("Welcome back.");
+
+  useEffect(() => {
+    const hour = new Date().getHours();
+
+    if (hour < 12) setGreetingText("Good morning.");
+    else if (hour < 18) setGreetingText("Good afternoon.");
+    else setGreetingText("Good evening.");
+  }, []);
 
   async function loadDashboard() {
     try {
@@ -213,7 +224,7 @@ export default function DashboardPage() {
     <main className="mx-auto max-w-[1400px] p-5 sm:p-8">
       <PageHeader
         breadcrumb="Overview"
-        title={greeting()}
+        title={greetingText}
         subtitle="Here's what needs your attention today."
         action={
           <button
