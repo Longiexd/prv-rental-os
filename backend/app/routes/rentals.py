@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 
 from app.odoo_client import odoo
 from app.routes.calendar import rental_vehicle_id
+from app.routes.cars import sync_vehicle_state
 
 
 router = APIRouter(
@@ -295,6 +296,7 @@ def get_rental_options(
                 "name",
                 "display_name",
                 "lst_price",
+                "default_code",
                 "product_tmpl_id",
             ],
             "order": "name",
@@ -415,6 +417,12 @@ def get_rental_options(
                     product.get("lst_price")
                     or 0
                 ),
+
+                "reference": product.get("default_code"),
+
+                "is_deposit": (
+                    product.get("default_code") or ""
+                ).upper().startswith("DEP-"),
 
                 "suggested_product_ids": [
                     variant_id
@@ -723,6 +731,23 @@ def create_rental(
         "create",
         [sale_values],
     )
+
+    # ========================================================
+    # SYNC FLEET STATE
+    #
+    # A booking should reserve the vehicle the moment it
+    # exists, not only once confirmed — see cars.py for the
+    # full state logic. Non-fatal: if this fails, the rental
+    # itself still succeeded, and /cars/sync can catch up later.
+    # ========================================================
+
+    try:
+        sync_vehicle_state(rental.vehicle_id)
+    except Exception as sync_error:
+        print(
+            f"Fleet state sync failed for vehicle "
+            f"{rental.vehicle_id}: {sync_error}"
+        )
 
     # ========================================================
     # READ CREATED SALE

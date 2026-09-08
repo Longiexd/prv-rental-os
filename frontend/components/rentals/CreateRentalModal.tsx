@@ -64,6 +64,8 @@ type Product = {
   id: number;
   name: string;
   list_price: number;
+  reference: string | null;
+  is_deposit: boolean;
   suggested_product_ids: number[];
 };
 
@@ -202,6 +204,29 @@ export default function CreateRentalModal({
 
     end_date: endDate,
   });
+
+  // ==========================================================
+  // RENTAL DAYS
+  //
+  // Basis for daily product quantities below. Inclusive of
+  // both endpoints (08/07 -> 10/07 = 3 days), minimum 1 so an
+  // incomplete/same-day range never zeroes out a quantity.
+  // ==========================================================
+
+  const rentalDays = useMemo(() => {
+    if (!form.start_date || !form.end_date) return 1;
+
+    const start = new Date(form.start_date);
+    const end = new Date(form.end_date);
+
+    const days =
+      Math.round(
+        (end.getTime() - start.getTime()) /
+          (1000 * 60 * 60 * 24)
+      ) + 1;
+
+    return days > 0 ? days : 1;
+  }, [form.start_date, form.end_date]);
 
   // ==========================================================
   // LOAD OPTIONS
@@ -577,6 +602,57 @@ export default function CreateRentalModal({
     ]);
 
   // ==========================================================
+  // VEHICLE-TYPE PRODUCT SUGGESTIONS
+  //
+  // Separate from the addon suggestions above (which come from
+  // Odoo's own optional_product_ids and stay untouched). This
+  // matches the selected vehicle type/category against product
+  // references — e.g. "Economy" -> a 3-letter code "ECO" -> any
+  // product whose reference contains it (LOC-ECO, DEP-ECO).
+  // Falls back to the picked vehicle's own category if no type
+  // preference was set. Reference-based, not product names, per
+  // spec — this only works if Odoo's product references actually
+  // follow a matching convention; if they don't, nothing matches
+  // and the addon suggestions below still work independently.
+  // ==========================================================
+
+  const vehicleTypeProducts = useMemo(() => {
+    if (!options) return [];
+
+    const typeName = vehicleTypeId
+      ? leadOptions?.vehicle_types.find(
+          (type) => type.id === vehicleTypeId
+        )?.name
+      : options.vehicles.find(
+          (vehicle) => String(vehicle.id) === form.vehicle_id
+        )?.category?.name;
+
+    if (!typeName) return [];
+
+    const code = typeName
+      .toUpperCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .slice(0, 3);
+
+    if (!code) return [];
+
+    return options.products.filter(
+      (product) =>
+        !selectedProductIds.has(product.id) &&
+        (product.reference || "")
+          .toUpperCase()
+          .includes(code)
+    );
+  }, [
+    options,
+    leadOptions,
+    vehicleTypeId,
+    form.vehicle_id,
+    selectedProductIds,
+  ]);
+
+  // ==========================================================
   // SUGGESTIONS
   // ==========================================================
 
@@ -619,13 +695,45 @@ export default function CreateRentalModal({
         (product) =>
           suggestedIds.has(
             product.id
+          ) &&
+          !vehicleTypeProducts.some(
+            (typeProduct) => typeProduct.id === product.id
           )
       );
     }, [
       options,
       selectedProducts,
       selectedProductIds,
+      vehicleTypeProducts,
     ]);
+
+  // ==========================================================
+  // KEEP DAILY QUANTITIES IN SYNC WITH RENTAL LENGTH
+  //
+  // If dates change after a product was already added, its
+  // quantity should follow — the agent shouldn't have to
+  // manually redo the math. Deposits are untouched (always 1).
+  // ==========================================================
+
+  useEffect(() => {
+    if (!options) return;
+
+    setSelectedProducts((current) =>
+      current.map((item) => {
+        const product = options.products.find(
+          (candidate) => candidate.id === item.product_id
+        );
+
+        if (!product || product.is_deposit) return item;
+
+        return { ...item, quantity: rentalDays };
+      })
+    );
+    // Only rentalDays should trigger this — options/current are
+    // read, not reacted to, to avoid recomputing on every
+    // unrelated product-list refresh.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rentalDays]);
 
   // ==========================================================
   // ADD PRODUCT
@@ -662,7 +770,9 @@ export default function CreateRentalModal({
           {
             product_id:
               product.id,
-            quantity: 1,
+            quantity: product.is_deposit
+              ? 1
+              : rentalDays,
           },
         ];
       }
@@ -1446,6 +1556,49 @@ export default function CreateRentalModal({
                 )}
 
               </div>
+
+              {/* =================================================
+                  VEHICLE-TYPE PRODUCTS
+                  Shown before addon suggestions, per the vehicle
+                  type/category selected above.
+              ================================================= */}
+
+              {vehicleTypeProducts.length > 0 && (
+                <div className="mt-4">
+                  <div className="mb-2 flex items-center gap-2">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#F06AAA]" />
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[#F06AAA]">
+                      Matches this vehicle type
+                    </span>
+                  </div>
+
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {vehicleTypeProducts.map((product) => (
+                      <button
+                        key={product.id}
+                        type="button"
+                        onClick={() => addProduct(product)}
+                        className="flex items-center justify-between rounded-xl border border-[#F06AAA]/20 bg-[#F06AAA]/[0.04] px-3 py-3 text-left transition hover:border-[#F06AAA]/40 hover:bg-[#F06AAA]/[0.08]"
+                      >
+                        <div className="min-w-0">
+                          <div className="truncate text-xs font-medium text-white">
+                            {product.name}
+                          </div>
+
+                          <div className="mt-1 text-[10px] text-zinc-500">
+                            {product.list_price.toLocaleString()} TND
+                          </div>
+                        </div>
+
+                        <Plus
+                          size={14}
+                          className="shrink-0 text-[#F06AAA]"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* =================================================
                   SUGGESTED PRODUCTS

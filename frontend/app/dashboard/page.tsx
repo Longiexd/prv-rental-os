@@ -17,6 +17,7 @@ import { StatCard } from "@/components/ui/StatCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Card, CardHeader } from "@/components/ui/Card";
+import CreateRentalModal from "@/components/rentals/CreateRentalModal";
 
 import { formatCurrency, formatDateShort, isSameDay, parseDate } from "@/lib/format";
 import { getFleetStatus, fleetStatusMeta, getRentalState, rentalStateMeta } from "@/lib/status";
@@ -95,6 +96,7 @@ export default function DashboardPage() {
   const [invoices, setInvoices] = useState<InvoiceData[]>([]);
 
   const [loading, setLoading] = useState(true);
+  const [bookingOpen, setBookingOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function loadDashboard() {
@@ -213,6 +215,25 @@ export default function DashboardPage() {
         breadcrumb="Overview"
         title={greeting()}
         subtitle="Here's what needs your attention today."
+        action={
+          <button
+            type="button"
+            onClick={() => setBookingOpen(true)}
+            className="flex h-11 items-center gap-2 rounded-xl bg-lime px-5 text-sm font-semibold text-background shadow-glow-lime transition hover:bg-lime-dark"
+          >
+            <Car size={16} />
+            Create New Booking
+          </button>
+        }
+      />
+
+      <CreateRentalModal
+        open={bookingOpen}
+        onClose={() => setBookingOpen(false)}
+        onCreated={() => {
+          setBookingOpen(false);
+          loadDashboard();
+        }}
       />
 
       {error && (

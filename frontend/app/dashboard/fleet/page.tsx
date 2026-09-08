@@ -311,10 +311,15 @@ function VehicleCard({
   car,
   rental,
   onClick,
+  onAction,
 }: {
   car: CarData;
   rental: Sale | null;
   onClick: () => void;
+  onAction: (
+    vehicleId: number,
+    action: "return" | "mark-available"
+  ) => void;
 }) {
   const fleetStatus =
     getFleetStatus(
@@ -322,10 +327,19 @@ function VehicleCard({
       car.active
     );
 
+  const isOverdue =
+    fleetStatus === "rented" &&
+    !!rental?.commitment_date &&
+    rental.commitment_date < new Date().toISOString().slice(0, 10);
+
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") onClick();
+      }}
       className="group relative overflow-hidden rounded-2xl border border-[#2B2B30] bg-[#111113] text-left transition duration-200 hover:-translate-y-0.5 hover:border-[#414148] hover:bg-[#151517] hover:shadow-2xl hover:shadow-black/20"
     >
       <div
@@ -493,8 +507,41 @@ function VehicleCard({
             </div>
           )}
         </div>
+        {(isOverdue ||
+          fleetStatus === "cleaning" ||
+          fleetStatus === "maintenance") && (
+          <div className="mt-4">
+            {isOverdue && (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onAction(car.id, "return");
+                }}
+                className="w-full rounded-lg border border-red-400/30 bg-red-400/10 py-2 text-xs font-medium text-red-300 transition hover:bg-red-400/20"
+              >
+                Confirm return — overdue
+              </button>
+            )}
+
+            {!isOverdue &&
+              (fleetStatus === "cleaning" ||
+                fleetStatus === "maintenance") && (
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onAction(car.id, "mark-available");
+                  }}
+                  className="w-full rounded-lg border border-[#C8F065]/30 bg-[#C8F065]/10 py-2 text-xs font-medium text-[#C8F065] transition hover:bg-[#C8F065]/20"
+                >
+                  Mark as available
+                </button>
+              )}
+          </div>
+        )}
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -904,6 +951,9 @@ export default function FleetPage() {
   const [search, setSearch] =
     useState("");
 
+  const [statusFilter, setStatusFilter] =
+    useState<FleetStatus | null>(null);
+
   // LIST REMAINS DEFAULT
   const [view, setView] =
     useState<"list" | "cards">(
@@ -925,8 +975,7 @@ export default function FleetPage() {
   // FETCH
   // ==========================================================
 
-  useEffect(() => {
-    async function loadFleet() {
+  async function loadFleet() {
       try {
         setLoading(true);
         setError(null);
@@ -979,10 +1028,40 @@ export default function FleetPage() {
       } finally {
         setLoading(false);
       }
-    }
+  }
 
+  useEffect(() => {
     void loadFleet();
   }, []);
+
+  // ==========================================================
+  // FLEET STATE ACTIONS
+  // "Confirm return" / "Mark as available" — reachable from
+  // both vehicle cards and KPI results per the same action set.
+  // ==========================================================
+
+  async function handleVehicleAction(
+    vehicleId: number,
+    action: "return" | "mark-available"
+  ) {
+    try {
+      const response = await fetch(
+        `${API_URL}/cars/${vehicleId}/${action}`,
+        { method: "POST" }
+      );
+
+      if (!response.ok) {
+        throw new Error(`API returned ${response.status}`);
+      }
+
+      await loadFleet();
+    } catch (err) {
+      console.error(
+        `Failed to ${action} vehicle ${vehicleId}:`,
+        err
+      );
+    }
+  }
 
   // ==========================================================
   // FLEET VIEW MODEL
@@ -1011,13 +1090,18 @@ export default function FleetPage() {
       const query =
         search.toLowerCase().trim();
 
-      if (!query) {
-        return fleet;
-      }
-
       return fleet.filter(
-        ({ car, rental }) => {
-          const status =
+        ({ car, status, rental }) => {
+          if (
+            statusFilter &&
+            status !== statusFilter
+          ) {
+            return false;
+          }
+
+          if (!query) return true;
+
+          const label =
             getStatusMeta(
               getFleetStatus(
                 car.status,
@@ -1034,7 +1118,7 @@ export default function FleetPage() {
             car.category,
             car.location,
             car.status,
-            status,
+            label,
             rental?.name,
             rental?.customer?.name,
           ]
@@ -1046,7 +1130,7 @@ export default function FleetPage() {
             );
         }
       );
-    }, [fleet, search]);
+    }, [fleet, search, statusFilter]);
 
   // ==========================================================
   // SORT
@@ -1315,7 +1399,15 @@ export default function FleetPage() {
         {/* KPI */}
 
         <section className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          <div className="rounded-2xl border border-[#2B2B30] bg-[#111113] p-5">
+          <button
+            type="button"
+            onClick={() => setStatusFilter(null)}
+            className={`rounded-2xl border p-5 text-left transition ${
+              statusFilter === null
+                ? "border-[#2B2B30] bg-[#17171A]"
+                : "border-[#2B2B30] bg-[#111113] hover:bg-[#17171A]"
+            }`}
+          >
             <div className="flex items-center justify-between">
               <span className="text-xs text-zinc-500">
                 Total Fleet
@@ -1334,11 +1426,27 @@ export default function FleetPage() {
             </div>
 
             <div className="mt-1 text-xs text-zinc-600">
-              vehicles
+              {statusFilter
+                ? "clear filter"
+                : "vehicles"}
             </div>
-          </div>
+          </button>
 
-          <div className="rounded-2xl border border-[#C8F065]/20 bg-[#C8F065]/[0.04] p-5">
+          <button
+            type="button"
+            onClick={() =>
+              setStatusFilter(
+                statusFilter === "available"
+                  ? null
+                  : "available"
+              )
+            }
+            className={`rounded-2xl border p-5 text-left transition ${
+              statusFilter === "available"
+                ? "border-[#C8F065]/60 bg-[#C8F065]/10"
+                : "border-[#C8F065]/20 bg-[#C8F065]/[0.04] hover:bg-[#C8F065]/10"
+            }`}
+          >
             <span className="text-xs text-[#C8F065]">
               Disponible
             </span>
@@ -1352,9 +1460,23 @@ export default function FleetPage() {
             <div className="mt-1 text-xs text-[#C8F065]/50">
               ready to rent
             </div>
-          </div>
+          </button>
 
-          <div className="rounded-2xl border border-[#F06AAA]/20 bg-[#F06AAA]/[0.04] p-5">
+          <button
+            type="button"
+            onClick={() =>
+              setStatusFilter(
+                statusFilter === "rented"
+                  ? null
+                  : "rented"
+              )
+            }
+            className={`rounded-2xl border p-5 text-left transition ${
+              statusFilter === "rented"
+                ? "border-[#F06AAA]/60 bg-[#F06AAA]/10"
+                : "border-[#F06AAA]/20 bg-[#F06AAA]/[0.04] hover:bg-[#F06AAA]/10"
+            }`}
+          >
             <span className="text-xs text-[#F06AAA]">
               Loué
             </span>
@@ -1368,9 +1490,23 @@ export default function FleetPage() {
             <div className="mt-1 text-xs text-[#F06AAA]/50">
               currently rented
             </div>
-          </div>
+          </button>
 
-          <div className="rounded-2xl border border-blue-400/20 bg-blue-400/[0.04] p-5">
+          <button
+            type="button"
+            onClick={() =>
+              setStatusFilter(
+                statusFilter === "cleaning"
+                  ? null
+                  : "cleaning"
+              )
+            }
+            className={`rounded-2xl border p-5 text-left transition ${
+              statusFilter === "cleaning"
+                ? "border-blue-400/60 bg-blue-400/10"
+                : "border-blue-400/20 bg-blue-400/[0.04] hover:bg-blue-400/10"
+            }`}
+          >
             <span className="text-xs text-blue-400">
               Nettoyage
             </span>
@@ -1384,9 +1520,23 @@ export default function FleetPage() {
             <div className="mt-1 text-xs text-blue-400/50">
               being prepared
             </div>
-          </div>
+          </button>
 
-          <div className="rounded-2xl border border-violet-400/20 bg-violet-400/[0.04] p-5">
+          <button
+            type="button"
+            onClick={() =>
+              setStatusFilter(
+                statusFilter === "maintenance"
+                  ? null
+                  : "maintenance"
+              )
+            }
+            className={`rounded-2xl border p-5 text-left transition ${
+              statusFilter === "maintenance"
+                ? "border-violet-400/60 bg-violet-400/10"
+                : "border-violet-400/20 bg-violet-400/[0.04] hover:bg-violet-400/10"
+            }`}
+          >
             <span className="text-xs text-violet-400">
               Maintenance
             </span>
@@ -1400,7 +1550,7 @@ export default function FleetPage() {
             <div className="mt-1 text-xs text-violet-400/50">
               unavailable
             </div>
-          </div>
+          </button>
         </section>
 
         {/* SEARCH */}
@@ -1709,6 +1859,7 @@ export default function FleetPage() {
                         car
                       )
                     }
+                    onAction={handleVehicleAction}
                   />
                 )
               )}
