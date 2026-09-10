@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
+  CalendarClock,
   CalendarDays,
   Car,
   CheckCircle2,
@@ -132,7 +133,9 @@ function getFleetStatus(
 
 const STATUS_ICON: Record<FleetStatus, typeof Car> = {
   available: CheckCircle2,
+  reserved: CalendarClock,
   rented: UserRound,
+  returnDue: Clock3,
   cleaning: Car,
   maintenance: Wrench,
   unavailable: Clock3,
@@ -318,7 +321,8 @@ function VehicleCard({
   onClick: () => void;
   onAction: (
     vehicleId: number,
-    action: "return" | "mark-available"
+    action: "return" | "mark-available",
+    nextState?: "Nettoyage" | "Disponible" | "Maintenance"
   ) => void;
 }) {
   const fleetStatus =
@@ -327,10 +331,10 @@ function VehicleCard({
       car.active
     );
 
-  const isOverdue =
-    fleetStatus === "rented" &&
-    !!rental?.commitment_date &&
-    rental.commitment_date < new Date().toISOString().slice(0, 10);
+  const [showReturnChoices, setShowReturnChoices] = useState(false);
+
+  const needsReturn =
+    fleetStatus === "rented" || fleetStatus === "returnDue";
 
   return (
     <div
@@ -507,32 +511,85 @@ function VehicleCard({
             </div>
           )}
         </div>
-        {(isOverdue ||
+        {(needsReturn ||
           fleetStatus === "cleaning" ||
           fleetStatus === "maintenance") && (
-          <div className="mt-4">
-            {isOverdue && (
+          <div
+            className="mt-4"
+            onClick={(event) => event.stopPropagation()}
+          >
+            {needsReturn && !showReturnChoices && (
               <button
                 type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onAction(car.id, "return");
-                }}
-                className="w-full rounded-lg border border-red-400/30 bg-red-400/10 py-2 text-xs font-medium text-red-300 transition hover:bg-red-400/20"
+                onClick={() => setShowReturnChoices(true)}
+                className={`w-full rounded-lg border py-2 text-xs font-medium transition ${
+                  fleetStatus === "returnDue"
+                    ? "border-danger/30 bg-danger/10 text-danger hover:bg-danger/20"
+                    : "border-[#2B2B30] bg-[#17171A] text-zinc-300 hover:bg-[#1D1D20]"
+                }`}
               >
-                Confirm return — overdue
+                {fleetStatus === "returnDue"
+                  ? "Confirm return — overdue"
+                  : "Mark as returned"}
               </button>
             )}
 
-            {!isOverdue &&
+            {needsReturn && showReturnChoices && (
+              <div className="space-y-1.5">
+                <div className="mb-1 text-[10px] text-zinc-500">
+                  Send vehicle to:
+                </div>
+
+                <div className="grid grid-cols-3 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onAction(car.id, "return", "Nettoyage")
+                    }
+                    className="rounded-lg border border-blue-400/30 bg-blue-400/10 py-1.5 text-[11px] font-medium text-blue-300 transition hover:bg-blue-400/20"
+                  >
+                    Nettoyage
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onAction(car.id, "return", "Disponible")
+                    }
+                    className="rounded-lg border border-[#C8F065]/30 bg-[#C8F065]/10 py-1.5 text-[11px] font-medium text-[#C8F065] transition hover:bg-[#C8F065]/20"
+                  >
+                    Disponible
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onAction(car.id, "return", "Maintenance")
+                    }
+                    className="rounded-lg border border-violet-400/30 bg-violet-400/10 py-1.5 text-[11px] font-medium text-violet-300 transition hover:bg-violet-400/20"
+                  >
+                    Maintenance
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowReturnChoices(false)}
+                  className="w-full py-1 text-[10px] text-zinc-600 hover:text-zinc-400"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+
+            {!needsReturn &&
               (fleetStatus === "cleaning" ||
                 fleetStatus === "maintenance") && (
                 <button
                   type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onAction(car.id, "mark-available");
-                  }}
+                  onClick={() =>
+                    onAction(car.id, "mark-available")
+                  }
                   className="w-full rounded-lg border border-[#C8F065]/30 bg-[#C8F065]/10 py-2 text-xs font-medium text-[#C8F065] transition hover:bg-[#C8F065]/20"
                 >
                   Mark as available
@@ -980,6 +1037,16 @@ export default function FleetPage() {
         setLoading(true);
         setError(null);
 
+        // Recompute Reserved/Louee/Retour du against today's
+        // date before fetching — without this, a vehicle's
+        // state only ever updates at the moment a rental is
+        // created, and silently goes stale as days pass.
+        try {
+          await fetch(`${API_URL}/cars/sync`, { method: "POST" });
+        } catch (syncError) {
+          console.error("Fleet state sync failed:", syncError);
+        }
+
         const [
           carsResponse,
           salesResponse,
@@ -1042,12 +1109,22 @@ export default function FleetPage() {
 
   async function handleVehicleAction(
     vehicleId: number,
-    action: "return" | "mark-available"
+    action: "return" | "mark-available",
+    nextState?: "Nettoyage" | "Disponible" | "Maintenance"
   ) {
     try {
       const response = await fetch(
         `${API_URL}/cars/${vehicleId}/${action}`,
-        { method: "POST" }
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body:
+            action === "return"
+              ? JSON.stringify({
+                  next_state: nextState || "Nettoyage",
+                })
+              : undefined,
+        }
       );
 
       if (!response.ok) {
@@ -1291,11 +1368,21 @@ export default function FleetPage() {
             "available"
         ).length,
 
+      reserved:
+        fleet.filter(
+          (item) => item.status === "reserved"
+        ).length,
+
       rented:
         fleet.filter(
           (item) =>
             item.status ===
             "rented"
+        ).length,
+
+      returnDue:
+        fleet.filter(
+          (item) => item.status === "returnDue"
         ).length,
 
       cleaning:
@@ -1398,7 +1485,7 @@ export default function FleetPage() {
 
         {/* KPI */}
 
-        <section className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <section className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
           <button
             type="button"
             onClick={() => setStatusFilter(null)}
@@ -1459,6 +1546,36 @@ export default function FleetPage() {
 
             <div className="mt-1 text-xs text-[#C8F065]/50">
               ready to rent
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              setStatusFilter(
+                statusFilter === "reserved"
+                  ? null
+                  : "reserved"
+              )
+            }
+            className={`rounded-2xl border p-5 text-left transition ${
+              statusFilter === "reserved"
+                ? "border-amber-400/60 bg-amber-400/10"
+                : "border-amber-400/20 bg-amber-400/[0.04] hover:bg-amber-400/10"
+            }`}
+          >
+            <span className="text-xs text-amber-400">
+              Réservé
+            </span>
+
+            <div className="mt-3 text-3xl font-semibold text-white">
+              {loading
+                ? "—"
+                : counts.reserved}
+            </div>
+
+            <div className="mt-1 text-xs text-amber-400/50">
+              booked, not yet picked up
             </div>
           </button>
 

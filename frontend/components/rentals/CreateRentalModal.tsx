@@ -804,7 +804,9 @@ export default function CreateRentalModal({
     productId: number,
     quantity: number
   ) {
-    if (quantity <= 0) {
+    const wholeQuantity = Math.round(quantity);
+
+    if (wholeQuantity <= 0) {
       removeProduct(productId);
       return;
     }
@@ -816,7 +818,7 @@ export default function CreateRentalModal({
           productId
             ? {
                 ...product,
-                quantity,
+                quantity: wholeQuantity,
               }
             : product
         )
@@ -1707,8 +1709,8 @@ export default function CreateRentalModal({
 
                           <input
                             type="number"
-                            min="0.01"
-                            step="0.01"
+                            min="1"
+                            step="1"
                             value={
                               item.quantity
                             }

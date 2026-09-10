@@ -11,7 +11,7 @@
 // every badge in the app at once.
 // ============================================================
 
-export type StatusTone = "lime" | "pink" | "danger" | "muted";
+export type StatusTone = "lime" | "pink" | "danger" | "muted" | "amber" | "blue";
 
 export type StatusMeta = {
   label: string;
@@ -46,6 +46,18 @@ const TONE_CLASSES: Record<
     border: "border-border",
     dot: "bg-muted",
   },
+  amber: {
+    bg: "bg-amber-400/10",
+    text: "text-amber-400",
+    border: "border-amber-400/20",
+    dot: "bg-amber-400",
+  },
+  blue: {
+    bg: "bg-blue-400/10",
+    text: "text-blue-400",
+    border: "border-blue-400/20",
+    dot: "bg-blue-400",
+  },
 };
 
 export function toneClasses(tone: StatusTone) {
@@ -58,7 +70,9 @@ export function toneClasses(tone: StatusTone) {
 
 export type FleetStatus =
   | "available"
+  | "reserved"
   | "rented"
+  | "returnDue"
   | "cleaning"
   | "maintenance"
   | "unavailable"
@@ -76,6 +90,22 @@ export function getFleetStatus(vehicle: {
   if (vehicle.active === false) return "inactive";
 
   const raw = (vehicle.status || "").toLowerCase().trim();
+
+  // Checked before the generic "loué" match below, since "retour
+  // dû" doesn't contain "loué" but represents the same underlying
+  // rented vehicle — just one that needs an action taken on it.
+  if (
+    raw.includes("retour d") ||
+    raw.includes("return due") ||
+    raw.includes("overdue")
+  )
+    return "returnDue";
+
+  if (
+    raw.includes("réserv") ||
+    raw.includes("reserv")
+  )
+    return "reserved";
 
   if (raw.includes("loué") || raw.includes("loue") || raw.includes("rented"))
     return "rented";
@@ -111,8 +141,10 @@ export function getFleetStatus(vehicle: {
 
 const FLEET_STATUS_META: Record<FleetStatus, StatusMeta> = {
   available: { label: "Available", tone: "lime" },
+  reserved: { label: "Reserved", tone: "amber" },
+  returnDue: { label: "Return due", tone: "danger" },
   rented: { label: "Rented", tone: "pink" },
-  cleaning: { label: "Cleaning", tone: "muted" },
+  cleaning: { label: "Cleaning", tone: "blue" },
   maintenance: { label: "Maintenance", tone: "danger" },
   unavailable: { label: "Unavailable", tone: "danger" },
   inactive: { label: "Inactive", tone: "muted" },

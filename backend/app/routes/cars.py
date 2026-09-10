@@ -1,6 +1,7 @@
 from datetime import date
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 from app.odoo_client import odoo
 from app.routes.calendar import rental_vehicle_id
@@ -186,13 +187,29 @@ def sync_all_vehicles():
     return {"synced": len(vehicles), "updated": updated}
 
 
+class ReturnRequest(BaseModel):
+    # What the vehicle should become right after return — the
+    # agent's call based on the car's actual condition, not
+    # forced through cleaning if it doesn't need it.
+    next_state: str = "Nettoyage"
+
+
 @router.post("/{vehicle_id}/return")
-def confirm_return(vehicle_id: int):
+def confirm_return(vehicle_id: int, body: ReturnRequest = ReturnRequest()):
     """
     "Véhicule retourné" — marks the active booking as returned
-    and moves the vehicle to Nettoyage, matching "after return,
-    suggest cleaning" from the fleet workflow.
+    and moves the vehicle to whichever state the agent picked
+    (Nettoyage by default, matching "after return, suggest
+    cleaning" — but Disponible or Maintenance are valid too,
+    e.g. a car returned in perfect condition doesn't need to
+    sit in a cleaning queue).
     """
+
+    if body.next_state not in ("Nettoyage", "Disponible", "Maintenance"):
+        raise HTTPException(
+            status_code=400,
+            detail="next_state must be Nettoyage, Disponible, or Maintenance.",
+        )
 
     orders = get_active_orders_for_vehicle(vehicle_id)
 
@@ -217,10 +234,10 @@ def confirm_return(vehicle_id: int):
     odoo.execute(
         "fleet.vehicle",
         "write",
-        [[vehicle_id], {"state_id": find_state_id("Nettoyage")}],
+        [[vehicle_id], {"state_id": find_state_id(body.next_state)}],
     )
 
-    return {"vehicle_id": vehicle_id, "state": "Nettoyage"}
+    return {"vehicle_id": vehicle_id, "state": body.next_state}
 
 
 @router.post("/{vehicle_id}/mark-available")

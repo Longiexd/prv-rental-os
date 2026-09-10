@@ -980,16 +980,18 @@ export default function RentalsPage() {
                           "
                         >
 
-                          <span
+                          <Link
+                            href={`/dashboard/rentals/${sale.id}`}
                             className="
                               font-mono
                               text-sm
                               font-medium
                               text-white
+                              hover:text-[#C8F065]
                             "
                           >
                             {sale.name}
-                          </span>
+                          </Link>
 
 
                           <span

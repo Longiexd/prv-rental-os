@@ -115,6 +115,12 @@ export default function DashboardPage() {
       setLoading(true);
       setError(null);
 
+      try {
+        await fetch(`${API_URL}/cars/sync`, { method: "POST" });
+      } catch (syncError) {
+        console.error("Fleet state sync failed:", syncError);
+      }
+
       const [carsRes, customersRes, salesRes, invoicesRes] = await Promise.all([
         fetch(`${API_URL}/cars`, { cache: "no-store" }),
         fetch(`${API_URL}/customers`, { cache: "no-store" }),
@@ -147,6 +153,33 @@ export default function DashboardPage() {
   useEffect(() => {
     loadDashboard();
   }, []);
+
+  // Defaults to Nettoyage — this compact row doesn't have room
+  // for the full 3-way choice the Fleet page offers; pick a
+  // different next state there if needed.
+  async function handleQuickReturn(vehicleId: number) {
+    try {
+      const response = await fetch(
+        `${API_URL}/cars/${vehicleId}/return`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ next_state: "Nettoyage" }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`API returned ${response.status}`);
+      }
+
+      await loadDashboard();
+    } catch (err) {
+      console.error(
+        `Failed to confirm return for vehicle ${vehicleId}:`,
+        err
+      );
+    }
+  }
 
   // --------------------------------------------------------
   // DERIVED DATA
@@ -352,6 +385,7 @@ export default function DashboardPage() {
                     sale={sale}
                     vehicleLabel={vehicleLabel(sale)}
                     icon={<ArrowDownLeft size={14} />}
+                    onReturn={handleQuickReturn}
                   />
                 ))}
               </div>
@@ -378,6 +412,7 @@ export default function DashboardPage() {
                     vehicleLabel={vehicleLabel(sale)}
                     icon={<AlertTriangle size={14} />}
                     urgent
+                    onReturn={handleQuickReturn}
                   />
                 ))}
               </div>
@@ -398,11 +433,13 @@ function ScheduleRow({
   vehicleLabel,
   icon,
   urgent = false,
+  onReturn,
 }: {
   sale: SaleData;
   vehicleLabel: string;
   icon: React.ReactNode;
   urgent?: boolean;
+  onReturn?: (vehicleId: number) => void;
 }) {
   const customerName = displayValue(sale.customer) || "Unknown customer";
   const rentalMeta = rentalStateMeta(getRentalState(sale));
@@ -430,6 +467,16 @@ function ScheduleRow({
       </div>
 
       <StatusBadge meta={rentalMeta} withDot={false} />
+
+      {onReturn && sale.vehicle_id && (
+        <button
+          type="button"
+          onClick={() => onReturn(sale.vehicle_id!)}
+          className="shrink-0 rounded-md border border-border px-2 py-1 text-[10px] font-medium text-text-secondary transition hover:border-lime/40 hover:text-lime"
+        >
+          Confirm return
+        </button>
+      )}
     </div>
   );
 }
