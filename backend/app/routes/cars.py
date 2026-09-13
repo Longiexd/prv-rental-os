@@ -216,7 +216,10 @@ def confirm_return(vehicle_id: int, body: ReturnRequest = ReturnRequest()):
     if not orders:
         raise HTTPException(
             status_code=400,
-            detail="No active booking found for this vehicle.",
+            detail=(
+                "This vehicle has no active booking to return "
+                "— it may already have been marked returned."
+            ),
         )
 
     for order in orders:
@@ -246,13 +249,38 @@ def mark_available(vehicle_id: int):
     Explicit agent action once cleaning/checks are done.
     """
 
+    return set_vehicle_state(vehicle_id, "Disponible")
+
+
+def set_vehicle_state(vehicle_id: int, state: str) -> dict:
+    """
+    Directly sets a vehicle's Fleet stage, no active order
+    required — used for agent-driven transitions that aren't
+    tied to a specific booking (mark-available, needs-diagnosis).
+    Distinct from confirm_return, which requires and tags an
+    active booking.
+    """
+
     odoo.execute(
         "fleet.vehicle",
         "write",
-        [[vehicle_id], {"state_id": find_state_id("Disponible")}],
+        [[vehicle_id], {"state_id": find_state_id(state)}],
     )
 
-    return {"vehicle_id": vehicle_id, "state": "Disponible"}
+    return {"vehicle_id": vehicle_id, "state": state}
+
+
+@router.post("/{vehicle_id}/needs-diagnosis")
+def needs_diagnosis(vehicle_id: int):
+    """
+    From the fleet workflow: a car already in Nettoyage that
+    turns out to need a mechanical look — moves it straight to
+    Maintenance without requiring an active booking (there
+    usually isn't one left at this point, since return already
+    happened).
+    """
+
+    return set_vehicle_state(vehicle_id, "Maintenance")
 
 
 # =========================================================

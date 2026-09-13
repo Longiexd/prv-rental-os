@@ -78,6 +78,7 @@ type Sale = {
   } | null;
   order_line_ids: number[];
   vehicle_id?: number | null;
+  returned?: boolean;
 };
 
 type SalesResponse = {
@@ -182,7 +183,8 @@ function getVehicleRental(
     .filter(
       (sale) =>
         sale.vehicle_id === carId &&
-        sale.state !== "cancel"
+        sale.state !== "cancel" &&
+        !sale.returned
     )
     .sort((a, b) => {
       const aDate =
@@ -321,7 +323,7 @@ function VehicleCard({
   onClick: () => void;
   onAction: (
     vehicleId: number,
-    action: "return" | "mark-available",
+    action: "return" | "mark-available" | "needs-diagnosis",
     nextState?: "Nettoyage" | "Disponible" | "Maintenance"
   ) => void;
 }) {
@@ -610,10 +612,16 @@ function VehicleModal({
   car,
   rental,
   onClose,
+  onAction,
 }: {
   car: CarData;
   rental: Sale | null;
   onClose: () => void;
+  onAction: (
+    vehicleId: number,
+    action: "return" | "mark-available" | "needs-diagnosis",
+    nextState?: "Nettoyage" | "Disponible" | "Maintenance"
+  ) => void;
 }) {
   const fleetStatus =
     getFleetStatus(
@@ -974,6 +982,94 @@ function VehicleModal({
             </div>
           </div>
         </div>
+
+        {/* ACTIONS */}
+
+        {(fleetStatus === "rented" ||
+          fleetStatus === "returnDue" ||
+          fleetStatus === "cleaning" ||
+          fleetStatus === "maintenance") && (
+          <div className="border-t border-[#2B2B30] bg-[#0A0A0B] px-5 py-4 sm:px-6">
+            {(fleetStatus === "rented" ||
+              fleetStatus === "returnDue") && (
+              <>
+                <div className="mb-2 text-[10px] uppercase tracking-[0.14em] text-zinc-600">
+                  Confirm return — send to:
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onAction(car.id, "return", "Nettoyage")
+                    }
+                    className="flex-1 rounded-lg border border-blue-400/30 bg-blue-400/10 py-2 text-xs font-medium text-blue-300 transition hover:bg-blue-400/20"
+                  >
+                    Nettoyage
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onAction(car.id, "return", "Disponible")
+                    }
+                    className="flex-1 rounded-lg border border-[#C8F065]/30 bg-[#C8F065]/10 py-2 text-xs font-medium text-[#C8F065] transition hover:bg-[#C8F065]/20"
+                  >
+                    Disponible
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onAction(car.id, "return", "Maintenance")
+                    }
+                    className="flex-1 rounded-lg border border-violet-400/30 bg-violet-400/10 py-2 text-xs font-medium text-violet-300 transition hover:bg-violet-400/20"
+                  >
+                    Maintenance
+                  </button>
+                </div>
+              </>
+            )}
+
+            {fleetStatus === "cleaning" && (
+              <>
+                <div className="mb-2 text-[10px] uppercase tracking-[0.14em] text-zinc-600">
+                  Cleaning status
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onAction(car.id, "mark-available")
+                    }
+                    className="flex-1 rounded-lg border border-[#C8F065]/30 bg-[#C8F065]/10 py-2 text-xs font-medium text-[#C8F065] transition hover:bg-[#C8F065]/20"
+                  >
+                    Cleaning finished — Disponible
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onAction(
+                        car.id,
+                        "needs-diagnosis"
+                      )
+                    }
+                    className="flex-1 rounded-lg border border-violet-400/30 bg-violet-400/10 py-2 text-xs font-medium text-violet-300 transition hover:bg-violet-400/20"
+                  >
+                    Needs diagnosis — Maintenance
+                  </button>
+                </div>
+              </>
+            )}
+
+            {fleetStatus === "maintenance" && (
+              <button
+                type="button"
+                onClick={() => onAction(car.id, "mark-available")}
+                className="w-full rounded-lg border border-[#C8F065]/30 bg-[#C8F065]/10 py-2 text-xs font-medium text-[#C8F065] transition hover:bg-[#C8F065]/20"
+              >
+                Repairs finished — mark Disponible
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1109,7 +1205,7 @@ export default function FleetPage() {
 
   async function handleVehicleAction(
     vehicleId: number,
-    action: "return" | "mark-available",
+    action: "return" | "mark-available" | "needs-diagnosis",
     nextState?: "Nettoyage" | "Disponible" | "Maintenance"
   ) {
     try {
@@ -1128,7 +1224,10 @@ export default function FleetPage() {
       );
 
       if (!response.ok) {
-        throw new Error(`API returned ${response.status}`);
+        const data = await response.json().catch(() => null);
+        throw new Error(
+          data?.detail || `API returned ${response.status}`
+        );
       }
 
       await loadFleet();
@@ -1136,6 +1235,11 @@ export default function FleetPage() {
       console.error(
         `Failed to ${action} vehicle ${vehicleId}:`,
         err
+      );
+      setError(
+        err instanceof Error
+          ? err.message
+          : `Unable to update this vehicle.`
       );
     }
   }
@@ -1998,6 +2102,7 @@ export default function FleetPage() {
           onClose={() =>
             setSelectedCar(null)
           }
+          onAction={handleVehicleAction}
         />
       )}
     </>

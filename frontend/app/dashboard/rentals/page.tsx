@@ -8,6 +8,7 @@ import {
 } from "react";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import {
   CalendarDays,
@@ -127,6 +128,7 @@ function getRentalState(sale: Sale) {
 
 
 export default function RentalsPage() {
+  const router = useRouter();
 
   const [
     sales,
@@ -904,7 +906,11 @@ export default function RentalsPage() {
 
                 <article
                   key={sale.id}
+                  onClick={() =>
+                    router.push(`/dashboard/rentals/${sale.id}`)
+                  }
                   className="
+                    cursor-pointer
                     rounded-2xl
                     border
                     border-[#2B2B30]
@@ -1019,6 +1025,9 @@ export default function RentalsPage() {
 
                           <Link
                             href={`/dashboard/customers/${sale.customer.id}`}
+                            onClick={(event) =>
+                              event.stopPropagation()
+                            }
                             className="
                               mt-1
                               block

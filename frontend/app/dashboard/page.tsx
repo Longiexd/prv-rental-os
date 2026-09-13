@@ -11,6 +11,7 @@ import {
   Users,
 } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard } from "@/components/ui/StatCard";
@@ -60,6 +61,7 @@ type SaleData = {
   commitment_date: string | null;
   amount_total: number;
   vehicle_id?: number | null;
+  returned?: boolean;
 };
 
 type InvoiceData = {
@@ -157,19 +159,25 @@ export default function DashboardPage() {
   // Defaults to Nettoyage — this compact row doesn't have room
   // for the full 3-way choice the Fleet page offers; pick a
   // different next state there if needed.
-  async function handleQuickReturn(vehicleId: number) {
+  async function handleQuickReturn(
+    vehicleId: number,
+    nextState: "Nettoyage" | "Disponible"
+  ) {
     try {
       const response = await fetch(
         `${API_URL}/cars/${vehicleId}/return`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ next_state: "Nettoyage" }),
+          body: JSON.stringify({ next_state: nextState }),
         }
       );
 
       if (!response.ok) {
-        throw new Error(`API returned ${response.status}`);
+        const data = await response.json().catch(() => null);
+        throw new Error(
+          data?.detail || `API returned ${response.status}`
+        );
       }
 
       await loadDashboard();
@@ -177,6 +185,11 @@ export default function DashboardPage() {
       console.error(
         `Failed to confirm return for vehicle ${vehicleId}:`,
         err
+      );
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to confirm return."
       );
     }
   }
@@ -234,7 +247,12 @@ export default function DashboardPage() {
   const returnsToday = useMemo(() => {
     return activeSales.filter((sale) => {
       const date = parseDate(sale.commitment_date);
-      return date && isSameDay(date, today) && sale.state !== "done";
+      return (
+        date &&
+        isSameDay(date, today) &&
+        sale.state !== "done" &&
+        !sale.returned
+      );
     });
   }, [activeSales]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -243,7 +261,13 @@ export default function DashboardPage() {
   const overdue = useMemo(() => {
     return activeSales.filter((sale) => {
       const date = parseDate(sale.commitment_date);
-      return date && date < today && !isSameDay(date, today) && sale.state !== "done";
+      return (
+        date &&
+        date < today &&
+        !isSameDay(date, today) &&
+        sale.state !== "done" &&
+        !sale.returned
+      );
     });
   }, [activeSales]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -439,8 +463,13 @@ function ScheduleRow({
   vehicleLabel: string;
   icon: React.ReactNode;
   urgent?: boolean;
-  onReturn?: (vehicleId: number) => void;
+  onReturn?: (
+    vehicleId: number,
+    nextState: "Nettoyage" | "Disponible"
+  ) => void;
 }) {
+  const [showChoices, setShowChoices] = useState(false);
+
   const customerName = displayValue(sale.customer) || "Unknown customer";
   const rentalMeta = rentalStateMeta(getRentalState(sale));
   const dateLabel = urgent
@@ -448,34 +477,75 @@ function ScheduleRow({
     : sale.name;
 
   return (
-    <div className="flex items-center gap-3 rounded-lg px-2 py-2.5 transition hover:bg-surface-secondary/50">
-      <div
-        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-          urgent ? "bg-danger/10 text-danger" : "bg-lime/10 text-lime"
-        }`}
+    <div className="rounded-lg transition hover:bg-surface-secondary/50">
+      <Link
+        href={`/dashboard/rentals/${sale.id}`}
+        className="flex items-center gap-3 px-2 py-2.5"
       >
-        {icon}
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-xs font-medium text-text">
-          {customerName}
-        </div>
-        <div className="mt-0.5 truncate text-[10px] text-muted">
-          {vehicleLabel} · {dateLabel}
-        </div>
-      </div>
-
-      <StatusBadge meta={rentalMeta} withDot={false} />
-
-      {onReturn && sale.vehicle_id && (
-        <button
-          type="button"
-          onClick={() => onReturn(sale.vehicle_id!)}
-          className="shrink-0 rounded-md border border-border px-2 py-1 text-[10px] font-medium text-text-secondary transition hover:border-lime/40 hover:text-lime"
+        <div
+          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+            urgent ? "bg-danger/10 text-danger" : "bg-lime/10 text-lime"
+          }`}
         >
-          Confirm return
-        </button>
+          {icon}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-xs font-medium text-text">
+            {customerName}
+          </div>
+          <div className="mt-0.5 truncate text-[10px] text-muted">
+            {vehicleLabel} · {dateLabel}
+          </div>
+        </div>
+
+        <StatusBadge meta={rentalMeta} withDot={false} />
+
+        {onReturn && sale.vehicle_id && !showChoices && (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.preventDefault();
+              setShowChoices(true);
+            }}
+            className="shrink-0 rounded-md border border-border px-2 py-1 text-[10px] font-medium text-text-secondary transition hover:border-lime/40 hover:text-lime"
+          >
+            Confirm return
+          </button>
+        )}
+      </Link>
+
+      {onReturn && sale.vehicle_id && showChoices && (
+        <div
+          className="flex items-center gap-1.5 px-2 pb-2.5"
+          onClick={(event) => event.preventDefault()}
+        >
+          <span className="text-[10px] text-muted">Send to:</span>
+
+          <button
+            type="button"
+            onClick={() => onReturn(sale.vehicle_id!, "Nettoyage")}
+            className="rounded-md border border-blue-400/30 bg-blue-400/10 px-2 py-1 text-[10px] font-medium text-blue-300 transition hover:bg-blue-400/20"
+          >
+            Nettoyage
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onReturn(sale.vehicle_id!, "Disponible")}
+            className="rounded-md border border-lime/30 bg-lime/10 px-2 py-1 text-[10px] font-medium text-lime transition hover:bg-lime/20"
+          >
+            Disponible
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowChoices(false)}
+            className="text-[10px] text-muted hover:text-text-secondary"
+          >
+            Cancel
+          </button>
+        </div>
       )}
     </div>
   );

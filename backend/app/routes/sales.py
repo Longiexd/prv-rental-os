@@ -3,6 +3,7 @@ from pydantic import BaseModel
 
 from app.odoo_client import odoo
 from app.routes.calendar import rental_vehicle_id
+from app.routes.cars import RETURNED_TAG
 
 
 router = APIRouter(
@@ -76,6 +77,7 @@ def get_sales():
 
             "order_line_ids": order["order_line"],
             "vehicle_id": rental_vehicle_id(order.get("note")),
+            "returned": RETURNED_TAG in (order.get("note") or ""),
         })
 
     return {
