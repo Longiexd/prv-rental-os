@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 
   BarChart3,
@@ -77,6 +77,16 @@ type Analytics = {
     orders: number;
   }[];
 
+  vehicles: {
+    id: number;
+    name: string;
+    license_plate: string;
+    revenue: number;
+    orders: number;
+    share: number;
+  }[];
+  vehicle_options: { id: number; name: string; license_plate: string }[];
+
   orders: {
     id: number;
     name: string;
@@ -85,6 +95,7 @@ type Analytics = {
     amount: number;
     state: string;
     vehicle: string | null;
+    vehicle_id: number | null;
     fleet_category: string;
   }[];
 };
@@ -98,7 +109,17 @@ type GroupMode =
   | "month"
   | "product"
   | "fleet"
+  | "vehicle"
   | "customer";
+
+const groupLabels: Record<GroupMode, string> = {
+  month: "Month", product: "Product category", fleet: "Fleet category",
+  vehicle: "Vehicle", customer: "Customer",
+};
+
+function vehicleLabel(vehicle: { id: number; name: string; license_plate: string }) {
+  return `${vehicle.name} · ${vehicle.license_plate || `#${vehicle.id}`}`;
+}
 
 type Measure =
   | "revenue"
@@ -110,20 +131,6 @@ function getYearRange(year: number) {
     start: `${year}-01-01`,
     end: `${year}-12-31`,
   };
-}
-
-function formatCompactCurrency(value: number) {
-  const amount = Number(value) || 0;
-
-  if (amount >= 1_000_000) {
-    return `${(amount / 1_000_000).toFixed(1)}M`;
-  }
-
-  if (amount >= 1_000) {
-    return `${(amount / 1_000).toFixed(0)}K`;
-  }
-
-  return amount.toFixed(0);
 }
 
 function formatDate(value: string | null) {
@@ -232,9 +239,11 @@ export default function AnalyticsPage() {
   const currentYear =
     new Date().getFullYear();
 
-  const [year, setYear] =
+  const [year, setYearState] =
     useState(currentYear);
 
+  const [vehicleId, setVehicleIdState] = useState("");
+  const requestVersion = useRef(0);
   const [data, setData] =
     useState<Analytics | null>(null);
 
@@ -259,126 +268,61 @@ export default function AnalyticsPage() {
   const [groupOpen, setGroupOpen] =
     useState(false);
 
-  async function loadAnalytics() {
-    try {
-      setLoading(true);
-      setError("");
-
-      const range =
-        getYearRange(year);
-
-      const response = await fetch(
-        `${API_URL}/analytics?start_date=${range.start}&end_date=${range.end}`,
-        {
-          cache: "no-store",
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(
-          `API returned ${response.status}`
-        );
-      }
-
-      const result =
-        (await response.json()) as Analytics;
-
-      setData(result);
-    } catch (err) {
-      console.error(
-        "Analytics loading failed:",
-        err
-      );
-
-      setError(
-        "Unable to load analytics."
-      );
-    } finally {
-      setLoading(false);
-    }
+  function setYear(value: number) {
+    if (value === year) return;
+    setLoading(true);
+    setError("");
+    setYearState(value);
   }
+
+  function setVehicleId(value: string) {
+    if (value === vehicleId) return;
+    setLoading(true);
+    setError("");
+    setVehicleIdState(value);
+  }
+
+  const loadAnalytics = useCallback(() => {
+    const version = ++requestVersion.current;
+    const range = getYearRange(year);
+    return fetch(`${API_URL}/analytics?start_date=${range.start}&end_date=${range.end}${vehicleId ? `&vehicle_id=${vehicleId}` : ""}`, { cache: "no-store" })
+      .then(response => {
+        if (!response.ok) throw new Error(`API returned ${response.status}`);
+        return response.json() as Promise<Analytics>;
+      }).then(result => {
+      if (version === requestVersion.current) {
+        setData(result);
+        setError("");
+      }
+      }).catch(error => {
+        console.error("Analytics loading failed:", error);
+        if (version === requestVersion.current) setError("Unable to load analytics.");
+      }).finally(() => {
+        if (version === requestVersion.current) setLoading(false);
+      });
+  }, [year, vehicleId]);
 
   useEffect(() => {
     loadAnalytics();
-  }, [year]);
-
-  const chartMax = useMemo(() => {
-    if (!data?.monthly.length) {
-      return 1;
-    }
-
-    return Math.max(
-      ...data.monthly.map((item) => {
-        if (measure === "orders") return item.orders;
-        if (measure === "average")
-          return item.orders ? item.revenue / item.orders : 0;
-        return item.revenue;
-      }),
-      1
-    );
-  }, [data, measure]);
+    return () => { requestVersion.current += 1; };
+  }, [loadAnalytics]);
 
   const pivotRows = useMemo(() => {
     if (!data) return [];
 
-    if (groupBy === "month") {
-      return data.monthly.map(
-        (item) => ({
-          label: item.label,
-          revenue: item.revenue,
-          orders: item.orders,
-          average:
-            item.orders > 0
-              ? item.revenue /
-                item.orders
-              : 0,
-        })
-      );
-    }
-
-    if (groupBy === "product") {
-      return data.product_categories.map(
-        (item) => ({
-          label: item.name,
-          revenue: item.revenue,
-          orders: item.orders,
-          average:
-            item.orders > 0
-              ? item.revenue /
-                item.orders
-              : 0,
-        })
-      );
-    }
-
-    if (groupBy === "fleet") {
-      return data.fleet_categories.map(
-        (item) => ({
-          label: item.name,
-          revenue: item.revenue,
-          orders: item.orders,
-          average:
-            item.orders > 0
-              ? item.revenue /
-                item.orders
-              : 0,
-        })
-      );
-    }
-
-    return data.customers.map(
-      (item) => ({
-        label: item.name,
-        revenue: item.revenue,
-        orders: item.orders,
-        average:
-          item.orders > 0
-            ? item.revenue /
-              item.orders
-            : 0,
-      })
-    );
-  }, [data, groupBy]);
+    const items = groupBy === "month"
+      ? data.monthly.map(item => ({ ...item, id: item.key, name: item.label }))
+      : groupBy === "vehicle"
+        ? data.vehicles.map(item => ({ ...item, name: vehicleLabel(item) }))
+        : groupBy === "product" ? data.product_categories
+          : groupBy === "fleet" ? data.fleet_categories : data.customers;
+    const rows = items.map(item => ({
+      key: "id" in item ? String(item.id) : item.name,
+      label: item.name, revenue: item.revenue, orders: item.orders,
+      average: item.orders ? item.revenue / item.orders : 0,
+    }));
+    return groupBy === "month" ? rows : rows.sort((a, b) => b[measure] - a[measure]);
+  }, [data, groupBy, measure]);
 
   const measureValue = (
     row: {
@@ -404,6 +348,7 @@ export default function AnalyticsPage() {
       : measure === "average"
         ? "Average order"
         : "Revenue";
+  const chartMax = Math.max(...pivotRows.map(measureValue), 1);
 
   return (
     <main className="mx-auto max-w-[1500px] p-5 sm:p-8">
@@ -414,7 +359,7 @@ export default function AnalyticsPage() {
         action={
           <button
             type="button"
-            onClick={loadAnalytics}
+            onClick={() => { setLoading(true); setError(""); void loadAnalytics(); }}
             className="flex h-9 items-center gap-2 rounded-lg border border-border bg-surface px-3 text-xs font-medium text-text transition hover:bg-surface-2"
           >
             <RefreshCw
@@ -674,13 +619,7 @@ export default function AnalyticsPage() {
                 }
                 className="flex items-center gap-2 rounded-md border border-border bg-surface-2 px-3 py-1.5 text-[10px] text-text"
               >
-                {groupBy === "month"
-                  ? "Month"
-                  : groupBy === "product"
-                    ? "Product category"
-                    : groupBy === "fleet"
-                      ? "Fleet category"
-                      : "Customer"}
+                {groupLabels[groupBy]}
                 <ChevronDown
                   size={11}
                 />
@@ -698,6 +637,7 @@ export default function AnalyticsPage() {
                       "fleet",
                       "Fleet category",
                     ],
+                    ["vehicle", "Vehicle"],
                     [
                       "customer",
                       "Customer",
@@ -730,6 +670,22 @@ export default function AnalyticsPage() {
             </div>
           </div>
         </div>
+        <div className="flex flex-wrap items-center gap-3 border-t border-border px-4 py-3">
+          <label htmlFor="analytics-vehicle" className="text-xs font-medium text-text">Specific vehicle</label>
+          <select id="analytics-vehicle" value={vehicleId} onChange={event => setVehicleId(event.target.value)}
+            className="h-10 max-w-full rounded-lg border border-border bg-surface-2 px-3 text-sm text-text">
+            <option value="">All vehicles</option>
+            {vehicleId && !data?.vehicle_options.some(vehicle => String(vehicle.id) === vehicleId) && (
+              <option value={vehicleId}>Vehicle #{vehicleId} · no orders this period</option>
+            )}
+            {data?.vehicle_options.map(vehicle => (
+              <option key={vehicle.id} value={vehicle.id}>{vehicleLabel(vehicle)}</option>
+            ))}
+          </select>
+          <span className="text-xs text-muted">
+            {vehicleId ? "Selected vehicle: confirmed sales and their linked invoices." : "Categories and vehicles come from Odoo. Choose Orders to compare demand."}
+          </span>
+        </div>
       </section>
 
       {error && (
@@ -754,7 +710,6 @@ export default function AnalyticsPage() {
               : "—"
           }
           detail={`${year}`}
-          trend={data?.comparison.revenue_change}
           loading={loading}
         />
 
@@ -768,7 +723,6 @@ export default function AnalyticsPage() {
           }
           detail="confirmed"
           tone="pink"
-          trend={data?.comparison.orders_change}
           loading={loading}
         />
 
@@ -826,23 +780,14 @@ export default function AnalyticsPage() {
             <Card>
               <CardHeader
                 title={measureLabel}
-                subtitle={`Monthly performance · ${year}`}
+                subtitle={`${groupLabels[groupBy]} performance · ${year}`}
               />
 
               <div className="p-5">
-                <div className="flex h-[300px] items-end gap-2 sm:gap-3">
-                  {data.monthly.map(
-                    (month) => {
-                      const average = month.orders
-                        ? month.revenue / month.orders
-                        : 0;
-
-                      const value =
-                        measure === "orders"
-                          ? month.orders
-                          : measure === "average"
-                            ? average
-                            : month.revenue;
+                <div className="flex min-h-[300px] items-end gap-2 overflow-x-auto sm:gap-3">
+                  {pivotRows.map(
+                    (row) => {
+                      const value = measureValue(row);
 
                       const height = value / chartMax;
 
@@ -853,10 +798,10 @@ export default function AnalyticsPage() {
 
                       return (
                         <div
-                          key={month.key}
-                          className="group flex h-full flex-1 flex-col justify-end"
+                          key={row.key}
+                          className="group flex min-w-16 flex-1 flex-col justify-end"
                         >
-                          <div className="relative flex flex-1 items-end justify-center">
+                          <div className="relative flex h-[250px] items-end justify-center">
                             <div
                               className="w-full max-w-[42px] rounded-t-md bg-lime/70 transition hover:bg-lime"
                               style={{
@@ -865,17 +810,18 @@ export default function AnalyticsPage() {
                                   value ? 4 : 0
                                 )}px`,
                               }}
-                              title={`${month.label}: ${tooltipValue}`}
+                              title={`${row.label}: ${tooltipValue}`}
                             />
                           </div>
 
-                          <div className="mt-3 text-center text-[9px] text-muted">
-                            {month.label}
+                          <div className="mt-3 min-h-10 max-w-40 break-words text-center text-xs text-muted" title={row.label}>
+                            {row.label}
                           </div>
                         </div>
                       );
                     }
                   )}
+                  {!pivotRows.length && <SectionEmpty text="No data for this selection." />}
                 </div>
 
                 <div className="mt-5 flex items-center justify-between border-t border-border pt-4">
@@ -918,6 +864,23 @@ export default function AnalyticsPage() {
                   data.fleet_categories
                 }
               />
+            </Card>
+          </section>
+
+          <section className="mt-4">
+            <Card>
+              <CardHeader title="Vehicle demand" subtitle="Ranked by confirmed sales; select a vehicle to inspect its performance." />
+              {!data.vehicles.length ? <SectionEmpty text="No assigned vehicles for this period." /> : (
+                <div className="divide-y divide-border">
+                  {data.vehicles.map((vehicle, index) => (
+                    <button key={vehicle.id} type="button" onClick={() => { setVehicleId(String(vehicle.id)); setGroupBy("vehicle"); setMeasure("orders"); }}
+                      className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left hover:bg-surface-2">
+                      <span className="min-w-0 break-words text-sm text-text"><span className="mr-3 text-lime">#{index + 1}</span>{vehicleLabel(vehicle)}</span>
+                      <span className="shrink-0 text-right text-sm text-text">{vehicle.orders} orders <span className="block text-xs text-muted">{formatCurrency(vehicle.revenue)}</span></span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </Card>
           </section>
 
@@ -1004,15 +967,7 @@ export default function AnalyticsPage() {
         <section className="mt-4">
           <Card>
             <CardHeader
-              title={`${measureLabel} by ${
-                groupBy === "month"
-                  ? "month"
-                  : groupBy === "product"
-                    ? "product category"
-                    : groupBy === "fleet"
-                      ? "fleet category"
-                      : "customer"
-              }`}
+              title={`${measureLabel} by ${groupLabels[groupBy].toLowerCase()}`}
               subtitle="Analytical pivot"
             />
 
@@ -1021,13 +976,7 @@ export default function AnalyticsPage() {
                 <thead>
                   <tr className="border-b border-border text-[9px] uppercase tracking-[0.12em] text-muted">
                     <th className="px-5 py-3">
-                      {groupBy === "month"
-                        ? "Month"
-                        : groupBy === "product"
-                          ? "Product category"
-                          : groupBy === "fleet"
-                            ? "Fleet category"
-                            : "Customer"}
+                      {groupLabels[groupBy]}
                     </th>
 
                     <th className="px-5 py-3 text-right">
@@ -1061,7 +1010,7 @@ export default function AnalyticsPage() {
 
                       return (
                         <tr
-                          key={row.label}
+                          key={row.key}
                           className="hover:bg-surface-2/60"
                         >
                           <td className="px-5 py-3 text-xs font-medium text-text">

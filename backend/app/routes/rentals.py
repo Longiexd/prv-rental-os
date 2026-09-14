@@ -4,8 +4,8 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.odoo_client import odoo
-from app.routes.calendar import rental_vehicle_id
-from app.routes.cars import sync_vehicle_state
+from app.routes.calendar import QUOTATION_TAG, booking_status, rental_vehicle_id
+from app.routes.cars import RETURNED_TAG
 
 
 router = APIRouter(
@@ -24,7 +24,7 @@ def is_vehicle_available(state_label: str | None) -> bool:
 
     raw = (state_label or "").lower().strip()
 
-    return "disponible" in raw or "available" in raw
+    return not any(word in raw for word in ("indispon", "unavailable")) and ("disponible" in raw or "available" in raw)
 
 
 # ============================================================
@@ -46,15 +46,19 @@ class RentalProductLine(BaseModel):
     """
 
     product_id: int
+    line_id: int | None = None
+    discount_percent: float = Field(default=0, ge=0, le=100, allow_inf_nan=False)
 
     quantity: float = Field(
         default=1,
         gt=0,
+        allow_inf_nan=False,
     )
 
     unit_price: float | None = Field(
         default=None,
         ge=0,
+        allow_inf_nan=False,
     )
 
 
@@ -125,6 +129,7 @@ def get_record(
 def get_rental_options(
     start_date: date | None = Query(None),
     end_date: date | None = Query(None),
+    exclude_order_id: int | None = None,
 ):
     """
     Return the Odoo-backed choices required by
@@ -238,14 +243,20 @@ def get_rental_options(
                     ["state", "in", ["sale", "done"]],
                 ]
             ],
-            {"fields": ["note"]},
+            {"fields": ["id", "note", "state"]},
         )
 
         for order in overlapping_orders:
+            if order["id"] == exclude_order_id or booking_status(order) != "confirmed" or RETURNED_TAG in (order.get("note") or ""):
+                continue
             vehicle_id = rental_vehicle_id(order.get("note"))
 
             if vehicle_id:
                 booked_vehicle_ids.add(vehicle_id)
+
+    editing_vehicle_id = None
+    if exclude_order_id:
+        editing_vehicle_id = rental_vehicle_id(get_record("sale.order", exclude_order_id, ["note"]).get("note"))
 
     for vehicle in vehicles:
         state_id = vehicle.get("state_id")
@@ -266,7 +277,11 @@ def get_rental_options(
             else None
         )
 
-        is_fleet_available = is_vehicle_available(state_label)
+        is_fleet_available = is_vehicle_available(state_label) or any(
+            word in (state_label or "").lower() for word in ("réserv", "reserv")
+        )
+        if vehicle["id"] == editing_vehicle_id:
+            is_fleet_available = True
 
         vehicle["available"] = (
             is_fleet_available
@@ -488,12 +503,11 @@ def create_rental(
     # DATE VALIDATION
     # ========================================================
 
-    if rental.end_date < rental.start_date:
+    if rental.start_date < date.today() or rental.end_date <= rental.start_date:
         raise HTTPException(
             status_code=422,
             detail=(
-                "The return date must be on or after "
-                "the start date."
+                "Pickup cannot be in the past; return must be after pickup."
             ),
         )
 
@@ -646,6 +660,7 @@ def create_rental(
 
         line_values = {
             "product_id": product["id"],
+            "discount": product_line.discount_percent,
             "product_uom_qty": (
                 product_line.quantity
             ),
@@ -689,6 +704,13 @@ def create_rental(
     # SALE ORDER VALUES
     # ========================================================
 
+    if opportunity is None:
+        lead_id = odoo.execute("crm.lead", "create", [{
+            "name": f"{customer['name']} — {rental.start_date.isoformat()}",
+            "partner_id": customer["id"], "type": "opportunity",
+        }])
+        opportunity = {"id": lead_id}
+
     sale_values = {
         "partner_id": customer["id"],
 
@@ -703,6 +725,7 @@ def create_rental(
         ),
 
         "note": (
+            f"{QUOTATION_TAG}\n"
             f"[Rental OS "
             f"fleet.vehicle:{vehicle['id']}]"
             "\n"
@@ -741,13 +764,7 @@ def create_rental(
     # itself still succeeded, and /cars/sync can catch up later.
     # ========================================================
 
-    try:
-        sync_vehicle_state(rental.vehicle_id)
-    except Exception as sync_error:
-        print(
-            f"Fleet state sync failed for vehicle "
-            f"{rental.vehicle_id}: {sync_error}"
-        )
+    # Draft quotations do not reserve the fleet.
 
     # ========================================================
     # READ CREATED SALE

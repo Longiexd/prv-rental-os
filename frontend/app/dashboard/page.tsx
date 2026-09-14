@@ -1,5 +1,7 @@
 "use client";
 
+import ActivitiesPanel from "@/components/activities/ActivitiesPanel";
+
 import {
   Activity,
   AlertTriangle,
@@ -311,6 +313,7 @@ export default function DashboardPage() {
       )}
 
       {/* KPIs */}
+      <div className="mt-5"><ActivitiesPanel compact /></div>
       <section className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard
           icon={<Car size={15} />}

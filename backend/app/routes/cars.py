@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.odoo_client import odoo
-from app.routes.calendar import rental_vehicle_id
+from app.routes.calendar import booking_status, rental_vehicle_id
 
 
 router = APIRouter(
@@ -62,13 +62,7 @@ def find_state_id(name: str) -> int:
 
 
 def get_active_orders_for_vehicle(vehicle_id: int) -> list[dict]:
-    """
-    Non-cancelled orders for this vehicle that haven't been
-    marked returned yet — includes draft quotations, since a
-    booking should reserve the vehicle the moment it exists,
-    not only once confirmed (that distinction is handled in
-    compute_target_state, not here).
-    """
+    """Confirmed bookings for this vehicle that have not been returned."""
 
     orders = odoo.execute(
         "sale.order",
@@ -96,6 +90,7 @@ def get_active_orders_for_vehicle(vehicle_id: int) -> list[dict]:
         for order in orders
         if rental_vehicle_id(order.get("note")) == vehicle_id
         and RETURNED_TAG not in (order.get("note") or "")
+        and booking_status(order) == "confirmed"
     ]
 
 
@@ -104,10 +99,7 @@ def compute_target_state(vehicle_id: int) -> str | None:
     - Louée: a CONFIRMED (sale/done) booking whose range covers
       today.
     - Retour dû: a CONFIRMED booking whose end date has passed.
-    - Réservé: any booking exists at all (including a draft
-      quotation) that isn't fully in the past — a booking
-      reserves the vehicle the moment it's created, confirmed
-      or not.
+    - Réservé: a confirmed future booking reserves the vehicle.
     - None: no booking currently needs to drive this vehicle's
       state, so its actual state (Disponible, Nettoyage,
       Maintenance...) is left alone. This sync is corrective
@@ -211,7 +203,8 @@ def confirm_return(vehicle_id: int, body: ReturnRequest = ReturnRequest()):
             detail="next_state must be Nettoyage, Disponible, or Maintenance.",
         )
 
-    orders = get_active_orders_for_vehicle(vehicle_id)
+    orders = [order for order in get_active_orders_for_vehicle(vehicle_id)
+              if (order.get("date_order") or "9999")[:10] <= date.today().isoformat()]
 
     if not orders:
         raise HTTPException(

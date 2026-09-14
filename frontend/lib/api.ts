@@ -162,7 +162,7 @@ export interface CreateLeadData {
 // HELPER
 // ============================================================
 
-async function request<T>(
+export async function apiFetch<T>(
   endpoint: string,
   options?: RequestInit
 ): Promise<T> {
@@ -192,8 +192,10 @@ async function request<T>(
       const error =
         await response.json();
 
-      if (error?.detail) {
+      if (typeof error?.detail === "string") {
         message = error.detail;
+      } else if (Array.isArray(error?.detail)) {
+        message = error.detail.map((item: { msg?: string }) => item.msg || "Invalid input").join("; ");
       }
 
     } catch {
@@ -281,3 +283,5 @@ export async function createLead(
     }
   );
 }
+
+const request = apiFetch;

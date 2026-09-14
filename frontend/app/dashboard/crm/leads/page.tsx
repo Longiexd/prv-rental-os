@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   ArrowUpRight,
   LayoutGrid,
@@ -789,9 +790,9 @@ function LeadsTable({
 
                     <td className="px-5 py-4">
 
-                      <div className="font-medium text-white">
+                      <Link href={`/crm/leads/${lead.id}`} className="font-medium text-white hover:text-[#C8F065]">
                         {lead.name}
-                      </div>
+                      </Link>
 
                       <div className="mt-1 text-xs text-[#52525B]">
                         #{lead.id}
@@ -1128,9 +1129,9 @@ function LeadsKanban({
 
                       {/* LEAD NAME */}
 
-                      <div className="text-sm font-medium text-white">
+                      <Link href={`/crm/leads/${lead.id}`} className="text-sm font-medium text-white hover:text-[#C8F065]">
                         {lead.name}
-                      </div>
+                      </Link>
 
                       {/* CUSTOMER */}
 

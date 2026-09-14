@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { activityRequest, activityHref, noteText, type Activity } from "@/components/activities/api";
 import {
 
   ArrowRight,
@@ -46,6 +48,9 @@ type Sale = {
   } | null;
   order_line_ids: number[];
   vehicle_id?: number | null;
+  booking_status?: string;
+  returned?: boolean;
+  activity?: Activity;
 };
 
 type Vehicle = {
@@ -511,7 +516,8 @@ function getStatusMeta(
 // ============================================================
 
 function getRentalState(sale: Sale) {
-  const meta = rentalStateMeta(classifyRentalState(sale));
+  if (sale.activity) return { className: "border-purple-400/50 bg-purple-400/25 text-purple-100", dot: "bg-purple-400" };
+  const meta = sale.booking_status === "confirmed" ? { tone: "pink" as const } : rentalStateMeta(classifyRentalState(sale));
   const classes = toneClasses(meta.tone);
 
   return {
@@ -801,7 +807,7 @@ function RentalModal({
             )}
 
           <Link
-            href="/dashboard/rentals"
+            href={`/dashboard/rentals/${rental.id}`}
             onClick={onClose}
             className="flex h-11 items-center justify-between rounded-xl bg-[#C8F065] px-4 text-xs font-semibold text-black hover:bg-[#d7ff80]"
           >
@@ -918,6 +924,7 @@ function MonthRentalBar({
     <button
       type="button"
       onClick={onClick}
+      aria-label={rental.activity ? `${rental.name} · ${rental.activity.res_name}` : `${rental.name} · ${vehicle?.name || "Rental"} · ${rental.customer?.name || ""}`}
       className={`absolute z-20 flex h-9 items-center overflow-hidden rounded-lg border px-2.5 text-left shadow-sm transition hover:z-30 hover:brightness-110 ${rentalState.className}`}
       style={{
         left: `calc(${startIndex} * (100% / 7) + 4px)`,
@@ -929,7 +936,7 @@ function MonthRentalBar({
       />
 
       <span className="truncate text-[10px] font-semibold">
-        {vehicle?.model ||
+        {rental.activity?.summary || vehicle?.model ||
           vehicle?.name ||
           "Rental"}
       </span>
@@ -1808,6 +1815,17 @@ function YearView({
 // ============================================================
 
 export default function CalendarPage() {
+  const router = useRouter();
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [eventFilter, setEventFilter] = useState("all");
+  const [activityError, setActivityError] = useState("");
+  useEffect(() => {
+    let active = true;
+    activityRequest<{ activities: Activity[] }>("/activities")
+      .then(result => { if (active) setActivities(result.activities); })
+      .catch(err => { if (active) setActivityError(err instanceof Error ? err.message : "Unable to load activities."); });
+    return () => { active = false; };
+  }, []);
   const [
     sales,
     setSales,
@@ -2000,26 +2018,16 @@ export default function CalendarPage() {
       selectedVehicle,
     ]);
 
-  const visibleSales =
-    useMemo(() => {
-      if (
-        selectedVehicle ===
-        "all"
-      ) {
-        return sales;
-      }
-
-      return sales.filter(
-        (sale) =>
-          sale.vehicle_id ===
-          Number(
-            selectedVehicle
-          )
-      );
-    }, [
-      sales,
-      selectedVehicle,
-    ]);
+  const activitySales: Sale[] = activities.map(activity => ({
+    id: -activity.id, name: activity.summary || "Follow up", customer: { id: activity.res_id, name: activity.res_name },
+    state: "activity", date_order: activity.date_deadline, commitment_date: activity.date_deadline,
+    amount_total: 0, invoice_status: "", opportunity: null, order_line_ids: [], activity,
+  }));
+  const visibleSales = [
+    ...(eventFilter === "todo" ? [] : sales.filter(sale => sale.state !== "cancel" && sale.booking_status !== "cancelled" &&
+      (selectedVehicle === "all" || sale.vehicle_id === Number(selectedVehicle)))),
+    ...(eventFilter === "rentals" ? [] : activitySales),
+  ];
 
   // ==========================================================
   // STATS
@@ -2450,9 +2458,15 @@ export default function CalendarPage() {
             </button>
           </div>
 
+          <div className="flex gap-2" aria-label="Calendar event filters">
+            {[["all", "All"], ["rentals", "Bookings"], ["todo", "To do"]].map(([value, label]) => <button key={value} onClick={() => setEventFilter(value)} aria-pressed={eventFilter === value} className={`rounded-lg px-3 py-2 text-sm ${eventFilter === value ? "bg-purple-400/20 text-purple-200" : "text-text-secondary"}`}>{label}</button>)}
+          </div>
+          {activityError && <p role="alert" className="text-sm text-danger">{activityError}</p>}
           {/* LEGEND */}
 
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <span className="text-sm text-purple-300">● To do</span>
+            <span className="text-sm text-zinc-300">● Quotation</span>
 
             <div className="flex items-center gap-1.5 text-[9px] text-zinc-600">
               <span className="h-1.5 w-1.5 rounded-full bg-[#C8F065]" />
@@ -2480,6 +2494,11 @@ export default function CalendarPage() {
           </div>
         </div>
 
+        {eventFilter !== "rentals" && view === "timeline" && <section className="mt-4 space-y-2 rounded-xl border border-purple-400/25 p-4">
+          <h2 className="font-semibold text-purple-200">To do this month</h2>
+          {activities.filter(item => item.date_deadline.startsWith(`${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}`)).map(item => <Link key={item.id} href={activityHref(item)} className="block rounded-lg bg-purple-400/10 p-3 text-sm text-purple-100"><strong>{item.date_deadline} · {item.summary || "Follow up"} · {item.res_name}</strong><p className="mt-1 line-clamp-2">{noteText(item.note)}</p></Link>)}
+        </section>}
+
         {/* ====================================================
             MONTH
         ==================================================== */}
@@ -2500,9 +2519,7 @@ export default function CalendarPage() {
               onRentalClick={(
                 rental
               ) =>
-                setSelectedRental(
-                  rental
-                )
+                rental.activity ? router.push(activityHref(rental.activity)) : setSelectedRental(rental)
               }
             />
           </div>
@@ -2531,9 +2548,7 @@ export default function CalendarPage() {
               onRentalClick={(
                 rental
               ) =>
-                setSelectedRental(
-                  rental
-                )
+                rental.activity ? router.push(activityHref(rental.activity)) : setSelectedRental(rental)
               }
             />
           </div>
@@ -2569,9 +2584,7 @@ export default function CalendarPage() {
               onRentalClick={(
                 rental
               ) =>
-                setSelectedRental(
-                  rental
-                )
+                rental.activity ? router.push(activityHref(rental.activity)) : setSelectedRental(rental)
               }
             />
           </div>

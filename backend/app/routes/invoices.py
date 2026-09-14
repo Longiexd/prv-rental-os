@@ -1,7 +1,10 @@
 from datetime import date
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from urllib.parse import urljoin
+
+from app.config import ODOO_URL
 
 from app.odoo_client import odoo
 
@@ -123,9 +126,9 @@ def get_payment_journals():
 # =========================================================
 
 class PaymentCreate(BaseModel):
-    amount: float
-    journal_id: int
-    payment_date: str | None = None
+    amount: float = Field(gt=0, le=1000000000, allow_inf_nan=False)
+    journal_id: int = Field(gt=0)
+    payment_date: date | None = None
 
 
 @router.post("/{invoice_id}/payments")
@@ -144,7 +147,7 @@ def record_payment(
         "account.move",
         "search_read",
         [[["id", "=", invoice_id]]],
-        {"fields": ["state", "amount_residual"]},
+        {"fields": ["state", "amount_residual", "move_type", "company_id"]},
     )
 
     if not invoices:
@@ -154,6 +157,9 @@ def record_payment(
         )
 
     invoice = invoices[0]
+
+    if invoice["move_type"] != "out_invoice":
+        raise HTTPException(400, "Only a customer invoice can receive a payment here.")
 
     if invoice["state"] != "posted":
         raise HTTPException(
@@ -171,6 +177,14 @@ def record_payment(
             ),
         )
 
+    journals = odoo.execute("account.journal", "search_read",
+                            [[["id", "=", payment.journal_id], ["type", "in", ["bank", "cash"]],
+                              ["company_id", "=", invoice["company_id"][0]]]],
+                            {"fields": ["id"], "limit": 1})
+    if not journals:
+        raise HTTPException(400, "Choose a bank or cash account belonging to this invoice company.")
+
+    context = {"active_model": "account.move", "active_ids": [invoice_id], "active_id": invoice_id}
     wizard_id = odoo.execute(
         "account.payment.register",
         "create",
@@ -179,15 +193,13 @@ def record_payment(
                 "amount": payment.amount,
                 "journal_id": payment.journal_id,
                 "payment_date": (
-                    payment.payment_date
-                    or date.today().isoformat()
+                    (payment.payment_date or date.today()).isoformat()
                 ),
             }
         ],
         {
             "context": {
-                "active_model": "account.move",
-                "active_ids": [invoice_id],
+                **context,
             }
         },
     )
@@ -196,6 +208,7 @@ def record_payment(
         "account.payment.register",
         "action_create_payments",
         [[wizard_id]],
+        {"context": context},
     )
 
     refreshed = odoo.execute(
@@ -303,3 +316,28 @@ def get_payment_history(invoice_id: int):
     payments.sort(key=lambda item: item["date"] or "", reverse=True)
 
     return {"payments": payments}
+
+def invoice_record(invoice_id: int):
+    records = odoo.execute("account.move", "search_read", [[["id", "=", invoice_id],
+                           ["move_type", "=", "out_invoice"]]], {"fields": ["state"], "limit": 1})
+    if not records:
+        raise HTTPException(404, "Customer invoice not found.")
+    return records[0]
+
+
+@router.post("/{invoice_id}/post")
+def post_invoice(invoice_id: int):
+    invoice = invoice_record(invoice_id)
+    if invoice["state"] == "cancel":
+        raise HTTPException(400, "A cancelled invoice cannot be posted.")
+    if invoice["state"] == "draft":
+        odoo.execute("account.move", "action_post", [[invoice_id]])
+    return {"invoice_id": invoice_id, "state": "posted"}
+
+
+@router.get("/{invoice_id}/print-link")
+def invoice_print_link(invoice_id: int):
+    invoice_record(invoice_id)
+    path = odoo.execute("account.move", "get_portal_url", [[invoice_id]],
+                        {"report_type": "pdf", "download": True})
+    return {"url": urljoin(ODOO_URL or "", path)}

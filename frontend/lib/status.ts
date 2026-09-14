@@ -90,6 +90,7 @@ export function getFleetStatus(vehicle: {
   if (vehicle.active === false) return "inactive";
 
   const raw = (vehicle.status || "").toLowerCase().trim();
+  if (raw.includes("indispon") || raw.includes("unavailable")) return "unavailable";
 
   // Checked before the generic "loué" match below, since "retour
   // dû" doesn't contain "loué" but represents the same underlying
@@ -133,9 +134,6 @@ export function getFleetStatus(vehicle: {
   )
     return "maintenance";
 
-  if (raw.includes("indispon") || raw.includes("unavailable"))
-    return "unavailable";
-
   return "unknown";
 }
 
@@ -168,10 +166,14 @@ export type RentalState =
 
 export function getRentalState(sale: {
   state?: string | null;
+  booking_status?: string;
+  returned?: boolean;
 }): RentalState {
   const raw = (sale.state || "").toLowerCase();
 
-  if (raw === "cancel") return "cancelled";
+  if (raw === "cancel" || sale.booking_status === "cancelled") return "cancelled";
+  if (sale.returned) return "completed";
+  if (sale.booking_status === "quotation") return "draft";
   if (raw === "done") return "completed";
   if (raw === "sale") return "confirmed";
 

@@ -1,8 +1,11 @@
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from urllib.parse import urljoin
+
+from app.config import ODOO_URL
 
 from app.odoo_client import odoo
-from app.routes.calendar import rental_vehicle_id
+from app.routes.calendar import QUOTATION_TAG, rental_vehicle_id, booking_status
 from app.routes.cars import RETURNED_TAG
 
 
@@ -77,6 +80,7 @@ def get_sales():
 
             "order_line_ids": order["order_line"],
             "vehicle_id": rental_vehicle_id(order.get("note")),
+            "booking_status": booking_status(order),
             "returned": RETURNED_TAG in (order.get("note") or ""),
         })
 
@@ -124,9 +128,7 @@ def get_sale(order_id: int):
     )
 
     if not orders:
-        return {
-            "error": "Sale order not found"
-        }
+        raise HTTPException(status_code=404, detail="Rental not found.")
 
     order = orders[0]
 
@@ -137,7 +139,7 @@ def get_sale(order_id: int):
     lines = odoo.execute(
         "sale.order.line",
         "search_read",
-        [[["order_id", "=", order_id]]],
+        [[["order_id", "=", order_id], ["display_type", "=", False]]],
         {
             "fields": [
                 "id",
@@ -148,6 +150,7 @@ def get_sale(order_id: int):
                 "discount",
                 "price_subtotal",
                 "price_total",
+                "is_downpayment",
             ],
             "order": "sequence, id",
         },
@@ -156,6 +159,7 @@ def get_sale(order_id: int):
     order_lines = [
         {
             "id": line["id"],
+            "is_downpayment": line.get("is_downpayment", False),
             "product": (
                 {
                     "id": line["product_id"][0],
@@ -197,6 +201,7 @@ def get_sale(order_id: int):
                     "invoice_date_due",
                     "amount_total",
                     "amount_residual",
+                    "move_type",
                 ],
                 "order": "id",
             },
@@ -207,17 +212,17 @@ def get_sale(order_id: int):
                 "id": invoice["id"],
                 "name": invoice["name"],
                 "draft": invoice["state"] == "draft",
+                "state": invoice["state"],
+                "type": invoice["move_type"],
                 "payment_status": invoice["payment_state"],
                 "date": invoice["invoice_date"],
                 "due_date": invoice["invoice_date_due"],
                 "total": invoice["amount_total"],
-                "paid": (
-                    invoice["amount_total"]
-                    - invoice["amount_residual"]
-                ),
+                "paid": (invoice["amount_total"] - invoice["amount_residual"])
+                if invoice["state"] == "posted" else 0,
                 "outstanding": invoice["amount_residual"],
             }
-            for invoice in invoice_records
+            for invoice in invoice_records if invoice["state"] != "cancel"
         ]
 
     return {
@@ -242,7 +247,18 @@ def get_sale(order_id: int):
         "amount_total": order["amount_total"],
 
         "invoice_status": order["invoice_status"],
-        "amount_invoiced": order["amount_invoiced"],
+        "amount_invoiced": sum(
+            i["total"] * (-1 if i["type"] == "out_refund" else 1)
+            for i in invoices if i["state"] == "posted"
+        ),
+        "amount_paid": sum(
+            i["paid"] * (-1 if i["type"] == "out_refund" else 1)
+            for i in invoices if i["state"] == "posted"
+        ),
+        "amount_outstanding": max(0, order["amount_total"] - sum(
+            i["paid"] * (-1 if i["type"] == "out_refund" else 1)
+            for i in invoices if i["state"] == "posted"
+        )),
         "amount_to_invoice": order["amount_to_invoice"],
 
         "lines": order_lines,
@@ -257,145 +273,155 @@ def get_sale(order_id: int):
             else None
         ),
 
+        "returned": RETURNED_TAG in (order.get("note") or ""),
         "order_line_ids": order["order_line"],
         "vehicle_id": rental_vehicle_id(order.get("note")),
+            "booking_status": booking_status(order),
     }
 
 
-# =========================================================
-# GENERATE INVOICE
-#
-# Reuses Odoo's own native invoicing action rather than
-# building account.move lines ourselves — Odoo owns the
-# accounting engine, Klynx owns the UX. Only confirmed
-# (sale/done) orders can be invoiced, matching how Odoo's own
-# Sales app gates this.
-# =========================================================
-
-@router.post("/{order_id}/invoice")
-def create_invoice(order_id: int):
-
-    orders = odoo.execute(
-        "sale.order",
-        "search_read",
-        [[["id", "=", order_id]]],
-        {"fields": ["state", "invoice_ids"]},
-    )
-
-    if not orders:
-        raise HTTPException(
-            status_code=404,
-            detail="Rental not found.",
-        )
-
-    order = orders[0]
-
-    if order["state"] not in ("sale", "done"):
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "This rental needs to be confirmed before "
-                "it can be invoiced."
-            ),
-        )
-
-    before_ids = set(order.get("invoice_ids") or [])
-
-    # Odoo's method name for this action has varied by version
-    # (action_invoice_create is the long-standing one; some
-    # versions expose _create_invoices instead). Try the public
-    # action first, fall back to the internal method rather than
-    # guessing which one this Odoo instance has.
-    try:
-        odoo.execute(
-            "sale.order",
-            "action_invoice_create",
-            [[order_id]],
-        )
-    except Exception:
-        odoo.execute(
-            "sale.order",
-            "_create_invoices",
-            [[order_id]],
-        )
-
-    refreshed = odoo.execute(
-        "sale.order",
-        "search_read",
-        [[["id", "=", order_id]]],
-        {"fields": ["invoice_ids"]},
-    )[0]
-
-    new_ids = set(refreshed.get("invoice_ids") or []) - before_ids
-
-    return {
-        "order_id": order_id,
-        "invoice_ids": list(new_ids)
-        or refreshed.get("invoice_ids")
-        or [],
-    }
+def sale_record(order_id: int, fields: list[str] | None = None, editable=False):
+    records = odoo.execute("sale.order", "search_read", [[["id", "=", order_id]]],
+                           {"fields": fields or ["state"], "limit": 1})
+    if not records:
+        raise HTTPException(404, "Rental not found.")
+    if editable and records[0]["state"] not in ("draft", "sent"):
+        raise HTTPException(400, "Only a draft or sent quotation can be edited.")
+    return records[0]
 
 
-# =========================================================
-# EDIT QUOTATION LINE
-#
-# Quantity/discount only, and only while the order is still a
-# draft quotation — once confirmed, a sale order is a
-# commitment and shouldn't be silently rewritten from here.
-# =========================================================
+def owned_line(order_id: int, line_id: int):
+    sale_record(order_id, editable=True)
+    lines = odoo.execute("sale.order.line", "search_read",
+                         [[["id", "=", line_id], ["order_id", "=", order_id],
+                           ["display_type", "=", False], ["is_downpayment", "=", False]]],
+                         {"fields": ["id"], "limit": 1})
+    if not lines:
+        raise HTTPException(404, "Quotation line not found in this rental.")
+
 
 class LineUpdate(BaseModel):
-    quantity: float | None = None
-    discount_percent: float | None = None
+    quantity: float | None = Field(None, gt=0, le=1000000, allow_inf_nan=False)
+    unit_price: float | None = Field(None, ge=0, le=1000000000, allow_inf_nan=False)
+    discount_percent: float | None = Field(None, ge=0, le=100, allow_inf_nan=False)
+
+
+class LineCreate(BaseModel):
+    product_id: int = Field(gt=0)
+    quantity: float = Field(1, gt=0, le=1000000, allow_inf_nan=False)
+    unit_price: float | None = Field(None, ge=0, le=1000000000, allow_inf_nan=False)
+
+
+class OrderDiscount(BaseModel):
+    discount_percent: float = Field(ge=0, le=100, allow_inf_nan=False)
 
 
 @router.patch("/{order_id}/lines/{line_id}")
-def update_line(
-    order_id: int,
-    line_id: int,
-    update: LineUpdate,
-):
-
-    orders = odoo.execute(
-        "sale.order",
-        "search_read",
-        [[["id", "=", order_id]]],
-        {"fields": ["state"]},
-    )
-
-    if not orders:
-        raise HTTPException(
-            status_code=404,
-            detail="Rental not found.",
-        )
-
-    if orders[0]["state"] != "draft":
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "This quotation is already confirmed and "
-                "can't be edited here."
-            ),
-        )
-
-    values = {}
-
-    if update.quantity is not None:
-        values["product_uom_qty"] = update.quantity
-
-    if update.discount_percent is not None:
-        values["discount"] = update.discount_percent
-
+def update_line(order_id: int, line_id: int, update: LineUpdate):
+    owned_line(order_id, line_id)
+    mapping = {"quantity": "product_uom_qty", "unit_price": "price_unit", "discount_percent": "discount"}
+    values = {mapping[key]: value for key, value in update.model_dump().items() if value is not None}
     if not values:
-        raise HTTPException(
-            status_code=400,
-            detail="Nothing to update.",
-        )
-
-    odoo.execute(
-        "sale.order.line",
-        "write",
-        [[line_id], values],
-    )
-
+        raise HTTPException(400, "Nothing to update.")
+    odoo.execute("sale.order.line", "write", [[line_id], values])
     return {"line_id": line_id, "updated": values}
+
+
+@router.post("/{order_id}/lines")
+def add_line(order_id: int, line: LineCreate):
+    sale_record(order_id, editable=True)
+    products = odoo.execute("product.product", "search_read",
+                            [[["id", "=", line.product_id], ["sale_ok", "=", True]]],
+                            {"fields": ["id"], "limit": 1})
+    if not products:
+        raise HTTPException(404, "Choose a saleable product from Odoo.")
+    # Odoo computes description, UoM, pricelist price, taxes and fiscal-position mapping.
+    values = {"order_id": order_id, "product_id": line.product_id, "product_uom_qty": line.quantity}
+    if line.unit_price is not None:
+        values["price_unit"] = line.unit_price
+    line_id = odoo.execute("sale.order.line", "create", [values])
+    return {"line_id": line_id}
+
+
+@router.delete("/{order_id}/lines/{line_id}")
+def remove_line(order_id: int, line_id: int):
+    owned_line(order_id, line_id)
+    odoo.execute("sale.order.line", "unlink", [[line_id]])
+    return {"line_id": line_id, "removed": True}
+
+
+@router.patch("/{order_id}/discount")
+def discount_order(order_id: int, discount: OrderDiscount):
+    sale_record(order_id, editable=True)
+    lines = odoo.execute("sale.order.line", "search", [[["order_id", "=", order_id],
+                         ["display_type", "=", False], ["is_downpayment", "=", False]]])
+    if lines:
+        # Matches Odoo's "On All Order Lines" discount: replaces existing line discounts.
+        odoo.execute("sale.order.line", "write", [lines, {"discount": discount.discount_percent}])
+    return {"discount_percent": discount.discount_percent}
+
+
+@router.post("/{order_id}/confirm")
+def confirm_quotation(order_id: int):
+    order = sale_record(order_id, ["state", "date_order", "note"], editable=True)
+    note = order.get("note") or ""
+    if QUOTATION_TAG not in note:
+        odoo.execute("sale.order", "write", [[order_id], {"note": f"{note}\n{QUOTATION_TAG}"}])
+    odoo.execute("sale.order", "action_confirm", [[order_id]])
+    # This installation stores pickup in date_order; Odoo confirmation otherwise resets it.
+    if order.get("date_order"):
+        odoo.execute("sale.order", "write", [[order_id], {"date_order": order["date_order"]}])
+    return {"order_id": order_id, "state": "sale"}
+
+
+class InvoiceCreate(BaseModel):
+    deposit_amount: float | None = Field(None, gt=0, allow_inf_nan=False)
+
+
+@router.post("/{order_id}/invoice")
+def create_invoice(order_id: int, request: InvoiceCreate | None = None):
+    order = sale_record(order_id, ["state", "invoice_ids", "amount_to_invoice"])
+    if order["state"] not in ("sale", "done"):
+        raise HTTPException(400, "Confirm the quotation before generating an invoice.")
+    # Reuse a pending draft instead of creating duplicates on a repeated click.
+    drafts = odoo.execute("account.move", "search", [[["id", "in", order.get("invoice_ids") or []],
+                          ["state", "=", "draft"], ["move_type", "=", "out_invoice"]]])
+    if drafts:
+        return {"order_id": order_id, "invoice_ids": drafts}
+    context = {"active_model": "sale.order", "active_ids": [order_id], "active_id": order_id}
+    values = {"advance_payment_method": "delivered", "sale_order_ids": [[6, 0, [order_id]]]}
+    if request and request.deposit_amount is not None:
+        if request.deposit_amount > order["amount_to_invoice"]:
+            raise HTTPException(422, "The deposit cannot exceed the remaining amount to invoice.")
+        values.update(advance_payment_method="fixed", fixed_amount=request.deposit_amount)
+    wizard = odoo.execute("sale.advance.payment.inv", "create",
+                          [values],
+                          {"context": context})
+    odoo.execute("sale.advance.payment.inv", "create_invoices", [[wizard]], {"context": context})
+    refreshed = sale_record(order_id, ["invoice_ids"])
+    return {"order_id": order_id,
+            "invoice_ids": sorted(set(refreshed.get("invoice_ids") or []) - set(order.get("invoice_ids") or []))}
+
+
+@router.get("/{order_id}/print-link")
+def quotation_print_link(order_id: int):
+    sale_record(order_id)
+    path = odoo.execute("sale.order", "get_portal_url", [[order_id]], {"report_type": "pdf", "download": True})
+    return {"url": urljoin(ODOO_URL or "", path)}
+
+
+@router.post("/{order_id}/send")
+def send_quotation(order_id: int):
+    order = sale_record(order_id, ["state", "partner_id"])
+    if order["state"] == "cancel":
+        raise HTTPException(400, "A cancelled quotation cannot be sent.")
+    partners = odoo.execute("res.partner", "read", [[order["partner_id"][0]]], {"fields": ["email"]})
+    if not partners or not partners[0].get("email"):
+        raise HTTPException(400, "Add the customer's email address in Odoo before sending.")
+    action = odoo.execute("sale.order", "action_quotation_send", [[order_id]])
+    context = action.get("context") or {}
+    if not context.get("default_template_id"):
+        raise HTTPException(400, "Configure an Odoo quotation email template before sending.")
+    wizard = odoo.execute("mail.compose.message", "create", [{}], {"context": context})
+    odoo.execute("mail.compose.message", "action_send_mail", [[wizard]], {"context": context})
+    return {"order_id": order_id, "sent": True}

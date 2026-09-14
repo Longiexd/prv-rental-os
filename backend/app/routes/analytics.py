@@ -197,7 +197,7 @@ def get_fleet_utilization() -> dict:
     }
 
 
-def get_period_totals(start_dt: str, end_dt: str) -> dict:
+def get_period_totals(start_dt: str, end_dt: str, vehicle_id: int | None = None) -> dict:
     """
     Lightweight revenue/order totals for a date range — used for
     period-over-period comparison. Deliberately fetches only
@@ -216,10 +216,13 @@ def get_period_totals(start_dt: str, end_dt: str) -> dict:
             ]
         ],
         {
-            "fields": ["amount_total"],
+            "fields": ["amount_total", "note"] if vehicle_id else ["amount_total"],
             "limit": 3000,
         },
     )
+
+    if vehicle_id:
+        orders = [order for order in orders if parse_vehicle_id(order.get("note")) == vehicle_id]
 
     revenue = sum(
         clean_number(order.get("amount_total"))
@@ -258,6 +261,7 @@ def get_analytics(
     end_date: date | None = Query(
         default=None
     ),
+    vehicle_id: int | None = Query(default=None, gt=0),
 ):
     # ------------------------------------------------------------
     # DATE RANGE
@@ -312,6 +316,7 @@ def get_analytics(
     previous_totals = get_period_totals(
         previous_start_dt,
         previous_end_dt,
+        vehicle_id,
     )
 
     # ------------------------------------------------------------
@@ -347,6 +352,19 @@ def get_analytics(
         },
     )
 
+    vehicle_ids = list({parse_vehicle_id(order.get("note")) for order in orders} - {None})
+    vehicles = odoo.execute(
+        "fleet.vehicle", "search_read", [[["id", "in", vehicle_ids]]],
+        {"fields": ["id", "name", "license_plate", "category_id"]},
+    ) if vehicle_ids else []
+    vehicle_map = {vehicle["id"]: vehicle for vehicle in vehicles}
+    vehicle_options = sorted([
+        {"id": vehicle["id"], "name": vehicle["name"], "license_plate": vehicle.get("license_plate") or ""}
+        for vehicle in vehicles
+    ], key=lambda vehicle: (vehicle["name"], vehicle["id"]))
+    if vehicle_id:
+        orders = [order for order in orders if parse_vehicle_id(order.get("note")) == vehicle_id]
+
     if not orders:
         return {
             "range": {
@@ -376,6 +394,8 @@ def get_analytics(
             ),
             "product_categories": [],
             "fleet_categories": [],
+            "vehicles": [],
+            "vehicle_options": vehicle_options,
             "customers": [],
             "orders": [],
         }
@@ -465,47 +485,6 @@ def get_analytics(
     }
 
     # ------------------------------------------------------------
-    # VEHICLES
-    # ------------------------------------------------------------
-
-    vehicle_ids = list(
-        {
-            parse_vehicle_id(
-                order.get("note")
-            )
-            for order in orders
-            if parse_vehicle_id(
-                order.get("note")
-            )
-        }
-    )
-
-    vehicles = []
-
-    if vehicle_ids:
-        vehicles = odoo.execute(
-            "fleet.vehicle",
-            "search_read",
-            [
-                [
-                    ["id", "in", vehicle_ids],
-                ]
-            ],
-            {
-                "fields": [
-                    "id",
-                    "name",
-                    "category_id",
-                ],
-            },
-        )
-
-    vehicle_map = {
-        vehicle["id"]: vehicle
-        for vehicle in vehicles
-    }
-
-    # ------------------------------------------------------------
     # INVOICES
     # ------------------------------------------------------------
 
@@ -518,6 +497,7 @@ def get_analytics(
                 ["invoice_date", ">=", start_date.isoformat()],
                 ["invoice_date", "<=", end_date.isoformat()],
                 ["state", "=", "posted"],
+                *([["invoice_line_ids.sale_line_ids.order_id", "in", order_ids]] if vehicle_id else []),
             ]
         ],
         {
@@ -560,6 +540,8 @@ def get_analytics(
 
     fleet_revenue = defaultdict(float)
     fleet_orders = defaultdict(set)
+    vehicle_revenue = defaultdict(float)
+    vehicle_orders = defaultdict(set)
 
     customer_revenue = defaultdict(float)
     customer_orders = defaultdict(int)
@@ -650,15 +632,18 @@ def get_analytics(
         # category because the rental order represents one vehicle.
         # --------------------------------------------------------
 
-        vehicle_id = parse_vehicle_id(
+        order_vehicle_id = parse_vehicle_id(
             order.get("note")
         )
 
         vehicle = (
-            vehicle_map.get(vehicle_id)
-            if vehicle_id
+            vehicle_map.get(order_vehicle_id)
+            if order_vehicle_id
             else None
         )
+        if order_vehicle_id:
+            vehicle_revenue[order_vehicle_id] += amount
+            vehicle_orders[order_vehicle_id].add(order["id"])
 
         fleet_category = (
             many2one_name(
@@ -684,6 +669,7 @@ def get_analytics(
                 "date": order.get("date_order"),
                 "amount": amount,
                 "state": order.get("state"),
+                "vehicle_id": order_vehicle_id,
                 "vehicle": (
                     vehicle.get("name")
                     if vehicle
@@ -792,6 +778,18 @@ def get_analytics(
         reverse=True,
     )
 
+    vehicle_breakdown = sorted([
+        {
+            "id": identifier,
+            "name": vehicle_map.get(identifier, {}).get("name") or f"Vehicle #{identifier}",
+            "license_plate": vehicle_map.get(identifier, {}).get("license_plate") or "",
+            "revenue": round(amount, 2),
+            "orders": len(vehicle_orders[identifier]),
+            "share": percent_share(amount, revenue),
+        }
+        for identifier, amount in vehicle_revenue.items()
+    ], key=lambda vehicle: (-vehicle["orders"], -vehicle["revenue"], vehicle["id"]))
+
     return {
         "range": {
             "start": start_date.isoformat(),
@@ -831,6 +829,8 @@ def get_analytics(
         "monthly": months,
         "product_categories": product_categories,
         "fleet_categories": fleet_categories,
+        "vehicles": vehicle_breakdown,
+        "vehicle_options": vehicle_options,
         "customers": customers[:20],
         "orders": order_rows,
     }

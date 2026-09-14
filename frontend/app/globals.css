@@ -31,6 +31,16 @@
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
+html { font-size: 18px; }
+
+@layer utilities {
+  .text-\[10px\], .text-\[11px\] { font-size: 0.75rem; }
+  .text-zinc-600 { color: #a1a1aa; }
+}
+
+button, a, input, select, textarea { touch-action: manipulation; }
+:focus-visible { outline: 2px solid var(--lime); outline-offset: 3px; }
+
 body {
   background: var(--color-background);
   color: var(--color-text);

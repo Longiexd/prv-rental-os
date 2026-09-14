@@ -10,6 +10,17 @@ router = APIRouter(
     tags=["Calendar"],
 )
 
+QUOTATION_TAG = "[Rental OS booking:quotation]"
+CONFIRMED_TAG = "[Rental OS booking:confirmed]"
+
+
+def booking_status(order):
+    if order.get("state") == "cancel":
+        return "cancelled"
+    if QUOTATION_TAG in (order.get("note") or ""):
+        return "quotation"
+    return "confirmed" if order.get("state") in ("sale", "done") else "quotation"
+
 
 def many2one(value):
     if isinstance(value, list) and len(value) >= 2:
@@ -123,6 +134,7 @@ def get_calendar(
                 "name": order["name"],
                 "customer": many2one(order.get("partner_id")),
                 "state": order.get("state"),
+                "booking_status": booking_status(order),
                 "start_date": order.get("date_order"),
                 "end_date": order.get("commitment_date"),
                 "amount_total": order.get("amount_total") or 0,

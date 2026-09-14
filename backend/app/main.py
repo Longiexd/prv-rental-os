@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.odoo_client import odoo
-from app.routes import analytics, calendar, cars, crm, customers, invoices, leads, rentals, sales
+from app.routes import activities, analytics, booking_changes, calendar, cars, crm, customers, invoices, leads, rentals, sales
 
 app = FastAPI(
     title="Klynx Rental OS API",
@@ -40,3 +40,5 @@ app.include_router(invoices.router)
 app.include_router(rentals.router)
 app.include_router(calendar.router)
 app.include_router(analytics.router)
+app.include_router(activities.router)
+app.include_router(booking_changes.router)

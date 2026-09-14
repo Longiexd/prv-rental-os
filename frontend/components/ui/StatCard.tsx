@@ -55,8 +55,8 @@ export function StatCard({
           {label}
         </div>
 
-        <div className="mt-5 flex items-baseline gap-2">
-          <span className="font-syne text-[26px] font-semibold text-text">
+        <div className="mt-5 flex min-w-0 flex-wrap items-baseline gap-2">
+          <span className="min-w-0 break-words font-syne text-[26px] font-semibold text-text">
             {loading ? "—" : value}
           </span>
 

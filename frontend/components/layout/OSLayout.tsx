@@ -32,6 +32,7 @@ type NavItem = {
 };
 
 const navigation: NavItem[] = [
+  { label: "To do", icon: ClipboardList, href: "/dashboard/activities" },
   {
     label: "Overview",
     icon: LayoutDashboard,
@@ -253,6 +254,10 @@ export default function OSLayout({
               </button>
             </div>
           </header>
+
+          <nav aria-label="Mobile navigation" className="flex gap-1 overflow-x-auto border-b border-border p-2 lg:hidden">
+            {navigation.map(item => <Link key={item.href} href={item.href} className="shrink-0 rounded-lg px-3 py-2 text-sm text-text-secondary hover:bg-surface-secondary hover:text-lime">{item.label}</Link>)}
+          </nav>
 
           <main className="flex-1">
             {children}

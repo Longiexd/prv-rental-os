@@ -1,5 +1,7 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+
 import {
   FormEvent,
   useEffect,
@@ -22,6 +24,12 @@ import {
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   "https://api.rental-os.klynx.net";
+
+function formDateAfter(value: string) {
+  const day = new Date(`${value}T12:00:00`);
+  day.setDate(day.getDate() + 1);
+  return day.toLocaleDateString("en-CA");
+}
 
 // ============================================================
 // TYPES
@@ -91,12 +99,16 @@ type SelectedProduct = {
   product_id: number;
   quantity: number;
   unit_price?: number;
+  line_id?: number;
+  discount_percent?: number;
 };
 
 type CreateRentalModalProps = {
   open: boolean;
   onClose: () => void;
   onCreated?: (result: unknown) => void;
+  rentalId?: number;
+  initialRental?: { partner_id: number; vehicle_id: number; start_date: string; end_date: string; products: SelectedProduct[] };
 
   // Optional CRM opportunity.
   opportunityId?: number | null;
@@ -126,7 +138,13 @@ export default function CreateRentalModal({
   initialCustomerName = "",
   startDate = "",
   endDate = "",
+  rentalId,
+  initialRental,
 }: CreateRentalModalProps) {
+  const router = useRouter();
+  const today = new Date().toLocaleDateString("en-CA");
+  const minimumPickup = initialRental?.start_date && initialRental.start_date < today ? initialRental.start_date : today;
+  const minimumReturn = formDateAfter(initialRental?.start_date || today);
   const [options, setOptions] =
     useState<RentalOptionsResponse | null>(null);
 
@@ -160,6 +178,7 @@ export default function CreateRentalModal({
   const [showCreateCustomer, setShowCreateCustomer] =
     useState(false);
 
+  const [createdProspect, setCreatedProspect] = useState<{ partner_id: number; lead_id: number } | null>(null);
   const [newCustomerPhone, setNewCustomerPhone] = useState("");
   const [newCustomerEmail, setNewCustomerEmail] = useState("");
   const [creatingCustomer, setCreatingCustomer] = useState(false);
@@ -240,15 +259,7 @@ export default function CreateRentalModal({
         setLoading(true);
         setError(null);
 
-        const [rentalOptionsResponse, leadOptionsResponse] =
-          await Promise.all([
-            fetch(`${API_URL}/rentals/options`, {
-              cache: "no-store",
-            }),
-            fetch(`${API_URL}/crm/lead-options`, {
-              cache: "no-store",
-            }),
-          ]);
+        const rentalOptionsResponse = await fetch(`${API_URL}/rentals/options`, { cache: "no-store" });
 
         if (!rentalOptionsResponse.ok) {
           throw new Error(
@@ -263,8 +274,16 @@ export default function CreateRentalModal({
 
         // Vehicle preference lists are non-critical — don't
         // block the whole form over them if this one call fails.
-        if (leadOptionsResponse.ok) {
-          setLeadOptions(await leadOptionsResponse.json());
+        setLeadOptions({
+          vehicle_types: [...new Map(data.vehicles.flatMap(vehicle => vehicle.category ? [[vehicle.category.id, vehicle.category] as const] : [])).values()],
+          vehicle_brands: [],
+        });
+
+        if (initialRental) {
+          setForm({ partner_id: String(initialRental.partner_id), vehicle_id: String(initialRental.vehicle_id), start_date: initialRental.start_date, end_date: initialRental.end_date });
+          setSelectedProducts(initialRental.products);
+          setSelectedCustomerName(data.customers.find(customer => customer.id === initialRental.partner_id)?.name || "Current customer");
+          setShowAllVehicles(true);
         }
 
         // Preserve customer passed by CRM.
@@ -301,7 +320,7 @@ export default function CreateRentalModal({
     }
 
     void loadOptions();
-  }, [open, customerId, initialCustomerName]);
+  }, [open, customerId, initialCustomerName, initialRental]);
 
   // ==========================================================
   // REFRESH VEHICLE AVAILABILITY WHEN DATES CHANGE
@@ -315,7 +334,7 @@ export default function CreateRentalModal({
     async function refreshVehicles() {
       try {
         const response = await fetch(
-          `${API_URL}/rentals/options?start_date=${form.start_date}&end_date=${form.end_date}`,
+          `${API_URL}/rentals/options?start_date=${form.start_date}&end_date=${form.end_date}${rentalId ? `&exclude_order_id=${rentalId}` : ""}`,
           { cache: "no-store" }
         );
 
@@ -335,7 +354,7 @@ export default function CreateRentalModal({
     }
 
     void refreshVehicles();
-  }, [open, form.start_date, form.end_date]);
+  }, [open, form.start_date, form.end_date, rentalId]);
 
   // ==========================================================
   // RESET WHEN CLOSED
@@ -420,6 +439,7 @@ export default function CreateRentalModal({
             product_id: number;
             quantity: number;
             unit_price?: number;
+            discount_percent?: number;
             product: Product;
           } => Boolean(item)
         );
@@ -518,6 +538,7 @@ export default function CreateRentalModal({
         partner_id: String(data.partner_id),
       }));
 
+      setCreatedProspect({ partner_id: data.partner_id, lead_id: data.lead_id });
       setSelectedCustomerName(trimmedName);
       setShowCreateCustomer(false);
       setCustomerDropdownOpen(false);
@@ -572,6 +593,10 @@ export default function CreateRentalModal({
   const hiddenVehicleCount = options
     ? options.vehicles.length - filteredVehicles.length
     : 0;
+
+  const availableBrands = [...new Map((options?.vehicles || [])
+    .filter(vehicle => !vehicleTypeId || vehicle.category?.id === vehicleTypeId)
+    .flatMap(vehicle => vehicle.brand ? [[vehicle.brand.id, vehicle.brand] as const] : [])).values()];
 
   // ==========================================================
   // FILTER PRODUCTS
@@ -716,7 +741,7 @@ export default function CreateRentalModal({
   // ==========================================================
 
   useEffect(() => {
-    if (!options) return;
+    if (!options || rentalId) return;
 
     setSelectedProducts((current) =>
       current.map((item) => {
@@ -833,8 +858,7 @@ export default function CreateRentalModal({
     selectedProductObjects.reduce(
       (sum, item) =>
         sum +
-        item.product.list_price *
-          item.quantity,
+        (item.unit_price ?? item.product.list_price) * item.quantity * (1 - (item.discount_percent || 0) / 100),
       0
     );
 
@@ -855,12 +879,14 @@ export default function CreateRentalModal({
       form.end_date &&
       form.vehicle_id &&
       selectedProducts.length > 0 &&
-      form.end_date >= form.start_date
+      form.end_date > form.start_date
   );
 
+  const linkedOpportunity = opportunityId || (createdProspect?.partner_id === Number(form.partner_id) ? createdProspect.lead_id : undefined);
+
   async function submitRental(): Promise<CreatedSale> {
-    const response = await fetch(`${API_URL}/rentals`, {
-      method: "POST",
+    const response = await fetch(`${API_URL}/rentals${rentalId ? `/${rentalId}` : ""}`, {
+      method: rentalId ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         partner_id: Number(form.partner_id),
@@ -868,7 +894,7 @@ export default function CreateRentalModal({
         start_date: form.start_date,
         end_date: form.end_date,
         products: selectedProducts,
-        ...(opportunityId ? { opportunity_id: opportunityId } : {}),
+        ...(linkedOpportunity ? { opportunity_id: linkedOpportunity } : {}),
       }),
     });
 
@@ -887,6 +913,7 @@ export default function CreateRentalModal({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: selectedCustomerName || customerSearch.trim(),
+        ...(linkedOpportunity ? { opportunity_id: linkedOpportunity } : {}),
         partner_id: form.partner_id
           ? Number(form.partner_id)
           : null,
@@ -921,11 +948,20 @@ export default function CreateRentalModal({
     if (
       form.start_date &&
       form.end_date &&
-      form.end_date < form.start_date
+      form.end_date <= form.start_date
     ) {
       setError(
-        "The return date must be on or after the rental start date."
+        "The return date must be after the pickup date."
       );
+      return;
+    }
+
+    if (form.start_date && form.start_date < today && form.start_date !== initialRental?.start_date) {
+      setError("Pickup cannot be in the past.");
+      return;
+    }
+    if (rentalId && !isRentalReady) {
+      setError("Keep a vehicle, pickup/return dates and at least one article on this booking.");
       return;
     }
 
@@ -938,6 +974,8 @@ export default function CreateRentalModal({
 
       onCreated?.(result);
       onClose();
+      if ("id" in result && result.id && !rentalId) router.push(`/dashboard/rentals/${result.id}`);
+      else if ("lead_id" in result) router.push(`/crm/leads/${result.lead_id}`);
     } catch (err) {
       console.error("Failed to save:", err);
 
@@ -979,7 +1017,7 @@ export default function CreateRentalModal({
 
           <div>
             <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-[#C8F065]">
-              Booking
+              {rentalId ? "Edit booking" : "New booking"}
             </div>
 
             <h2
@@ -991,7 +1029,7 @@ export default function CreateRentalModal({
 
             <p className="mt-1 text-sm text-zinc-500">
               {isRentalReady
-                ? "This will be saved as a confirmed rental."
+                ? rentalId ? "Update dates, vehicle or extras. Invoiced articles stay protected." : "Save the quotation, then record a payment to confirm the booking."
                 : "This will be saved as a prospect until dates, a vehicle and a price are added."}
             </p>
           </div>
@@ -1053,6 +1091,8 @@ export default function CreateRentalModal({
                   />
 
                   <input
+                    aria-label="Customer"
+                    disabled={!!rentalId}
                     required={!form.partner_id}
                     value={
                       selectedCustomerName || customerSearch
@@ -1244,6 +1284,7 @@ export default function CreateRentalModal({
 
                 <input
                   type="date"
+                  min={minimumPickup}
                   value={form.start_date}
                   onChange={(event) =>
                     setForm({
@@ -1265,6 +1306,7 @@ export default function CreateRentalModal({
 
                 <input
                   type="date"
+                  min={form.start_date ? formDateAfter(form.start_date) : minimumReturn}
                   value={form.end_date}
                   onChange={(event) =>
                     setForm({
@@ -1292,14 +1334,17 @@ export default function CreateRentalModal({
                   Vehicle type
 
                   <select
+                    aria-label="Vehicle type"
                     value={vehicleTypeId ?? ""}
-                    onChange={(event) =>
+                    onChange={(event) => {
+                      setVehicleBrandId(null);
+                      setForm(current => ({ ...current, vehicle_id: "" }));
                       setVehicleTypeId(
                         event.target.value
                           ? Number(event.target.value)
                           : null
-                      )
-                    }
+                      );
+                    }}
                     className="h-10 w-full rounded-lg border border-[#2B2B30] bg-[#17171A] px-3 text-sm text-white outline-none focus:border-[#C8F065]/50"
                   >
                     <option value="">Any type</option>
@@ -1316,6 +1361,7 @@ export default function CreateRentalModal({
                   Brand
 
                   <select
+                    aria-label="Brand"
                     value={vehicleBrandId ?? ""}
                     onChange={(event) =>
                       setVehicleBrandId(
@@ -1328,7 +1374,7 @@ export default function CreateRentalModal({
                   >
                     <option value="">Any brand</option>
 
-                    {leadOptions.vehicle_brands.map((brand) => (
+                    {availableBrands.map((brand) => (
                       <option key={brand.id} value={brand.id}>
                         {brand.name}
                       </option>
@@ -1814,7 +1860,7 @@ export default function CreateRentalModal({
                     />
                   )}
 
-                  {isRentalReady ? "Confirm rental" : "Save prospect"}
+                  {rentalId ? "Save changes" : isRentalReady ? "Save quotation" : "Save prospect"}
 
                 </button>
 

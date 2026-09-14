@@ -46,6 +46,8 @@ type Sale = {
   name: string;
   customer: Customer | null;
   state: string;
+  booking_status?: string;
+  returned?: boolean;
   date_order: string | null;
   commitment_date: string | null;
   amount_total: number;
@@ -129,6 +131,7 @@ function getRentalState(sale: Sale) {
 
 export default function RentalsPage() {
   const router = useRouter();
+  const [bookingFilter, setBookingFilter] = useState("all");
 
   const [
     sales,
@@ -428,6 +431,8 @@ export default function RentalsPage() {
   // SEARCH
   // =========================================================
 
+  const matchingSales = sales.filter(sale => bookingFilter === "all" || (bookingFilter === "confirmed" ? ["confirmed", "completed"].includes(classifyRentalState(sale)) : classifyRentalState(sale) === bookingFilter));
+
   const filteredSales =
     useMemo(() => {
 
@@ -437,10 +442,10 @@ export default function RentalsPage() {
           .trim();
 
       if (!query) {
-        return sales;
+        return matchingSales;
       }
 
-      return sales.filter(
+      return matchingSales.filter(
         (sale) =>
           [
             sale.name,
@@ -462,7 +467,7 @@ export default function RentalsPage() {
       );
 
     }, [
-      sales,
+      matchingSales,
       search,
     ]);
 
@@ -474,8 +479,7 @@ export default function RentalsPage() {
   const confirmed =
     sales.filter(
       (sale) =>
-        sale.state ===
-        "sale"
+        ["confirmed", "completed"].includes(classifyRentalState(sale))
     ).length;
 
 
@@ -535,7 +539,7 @@ export default function RentalsPage() {
             className="flex h-9 items-center justify-center gap-2 rounded-lg bg-lime px-4 text-xs font-medium text-background shadow-glow-lime transition hover:bg-lime-dark"
           >
             <CalendarDays size={14} />
-            New rental
+            New booking
           </button>
         }
       />
@@ -544,6 +548,10 @@ export default function RentalsPage() {
       {/* =====================================================
           STATS
       ===================================================== */}
+
+      <section className="mt-5 grid gap-3 sm:grid-cols-4" aria-label="Filter bookings">
+        {[["all", "All", sales.length], ["draft", "Quotations", sales.filter(sale => classifyRentalState(sale) === "draft").length], ["confirmed", "Confirmed", confirmed], ["cancelled", "Cancelled", sales.filter(sale => classifyRentalState(sale) === "cancelled").length]].map(([value, label, count]) => <button key={value} onClick={() => setBookingFilter(String(value))} aria-pressed={bookingFilter === value} className={`rounded-xl border p-4 text-left ${bookingFilter === value ? "border-lime/50 bg-lime/5" : "border-border bg-surface"}`}><span className={value === "confirmed" ? "text-lime" : value === "cancelled" ? "text-danger" : "text-text-secondary"}>{label}</span><strong className="mt-2 block text-2xl text-text">{loading ? "—" : count}</strong></button>)}
+      </section>
 
       <section
         className="

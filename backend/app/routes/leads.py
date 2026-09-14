@@ -34,6 +34,7 @@ def find_name(model: str, record_id: int) -> str | None:
 class LeadCreate(BaseModel):
     name: str
     partner_id: int | None = None
+    opportunity_id: int | None = None
     phone: str | None = None
     email: str | None = None
     description: str | None = None
@@ -46,6 +47,20 @@ class LeadCreate(BaseModel):
 
 class StageUpdate(BaseModel):
     stage_id: int
+
+
+@router.get("/{lead_id}")
+def get_lead(lead_id: int):
+    records = odoo.execute("crm.lead", "search_read", [[["id", "=", lead_id]]],
+                           {"fields": ["id", "name", "partner_id", "phone", "mobile", "email_from",
+                                       "stage_id", "description", "expected_revenue"], "limit": 1,
+                            "context": {"active_test": False}})
+    if not records:
+        raise HTTPException(404, "Prospect not found.")
+    lead = records[0]
+    lead["rentals"] = odoo.execute("sale.order", "search_read", [[["opportunity_id", "=", lead_id]]],
+                                  {"fields": ["id", "name", "state", "amount_total"], "order": "id desc"})
+    return lead
 
 
 # =========================================================
@@ -288,11 +303,18 @@ def create_lead(lead: LeadCreate):
     #
     # ---------------------------------------------------------
 
-    lead_id = odoo.execute(
-        "crm.lead",
-        "create",
-        [values],
-    )
+    if lead.opportunity_id:
+        existing = odoo.execute("crm.lead", "search_read", [[["id", "=", lead.opportunity_id]]],
+                                {"fields": ["partner_id", "description"], "limit": 1})
+        if not existing or not lead.partner_id or (existing[0].get("partner_id") or [None])[0] != lead.partner_id:
+            raise HTTPException(409, "This prospect does not belong to the selected customer.")
+        lead_id = lead.opportunity_id
+        if description:
+            odoo.execute("crm.lead", "write", [[lead_id], {
+                "description": "<br/>".join(filter(None, [existing[0].get("description"), description])),
+            }])
+    else:
+        lead_id = odoo.execute("crm.lead", "create", [values])
 
     return {
         "success": True,
