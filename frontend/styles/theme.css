@@ -1,6 +1,6 @@
 :root {
   /* Brand — Green */
-  --lime: #C8F065;
+  --lime: #CCF56A;
   --lime-dark: #6E9501;
 
   /* Brand — Pink (accent only) */
@@ -8,13 +8,13 @@
   --pink-dark: #54273C;
 
   /* Neutrals */
-  --background: #09090B;
-  --surface: #111113;
-  --surface-secondary: #17171A;
-  --border: #2B2B30;
+  --background: #0E0E10;
+  --surface: #151517;
+  --surface-secondary: #1C1C20;
+  --border: #2C2B31;
   --text: #FFFFFF;
-  --text-secondary: #A1A1AA;
-  --muted: #71717A;
+  --text-secondary: #B1B1BC;
+  --muted: #9696A3;
 
   /* Semantic aliases (reference brand colors, not hardcoded) */
   --success: var(--lime);

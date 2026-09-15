@@ -27,7 +27,7 @@ export function PageHeader({
           </div>
         )}
 
-        <h1 className="font-syne text-[28px] font-semibold tracking-[-0.03em] text-text sm:text-[32px]">
+        <h1 className="text-[26px] font-semibold leading-tight tracking-[-0.04em] text-text sm:text-[30px]">
           {title}
         </h1>
 

@@ -63,8 +63,8 @@ def get_sales():
             ),
 
             "state": order["state"],
-            "date_order": order["date_order"],
-            "commitment_date": order["commitment_date"],
+            "date_order": order["date_order"] or None,
+            "commitment_date": order["commitment_date"] or None,
 
             "amount_total": order["amount_total"],
             "invoice_status": order["invoice_status"],
@@ -239,8 +239,8 @@ def get_sale(order_id: int):
         ),
 
         "state": order["state"],
-        "date_order": order["date_order"],
-        "commitment_date": order["commitment_date"],
+        "date_order": order["date_order"] or None,
+        "commitment_date": order["commitment_date"] or None,
 
         "amount_untaxed": order["amount_untaxed"],
         "amount_tax": order["amount_tax"],
@@ -295,9 +295,15 @@ def owned_line(order_id: int, line_id: int):
     lines = odoo.execute("sale.order.line", "search_read",
                          [[["id", "=", line_id], ["order_id", "=", order_id],
                            ["display_type", "=", False], ["is_downpayment", "=", False]]],
-                         {"fields": ["id"], "limit": 1})
+                         {"fields": ["id", "qty_invoiced", "qty_delivered"], "limit": 1})
     if not lines:
         raise HTTPException(404, "Quotation line not found in this rental.")
+    ensure_unbilled(lines)
+
+
+def ensure_unbilled(lines):
+    if any(line.get("qty_invoiced") or line.get("qty_delivered") for line in lines):
+        raise HTTPException(409, "Invoiced or delivered articles cannot be changed here. Use Odoo accounting adjustments.")
 
 
 class LineUpdate(BaseModel):
@@ -353,11 +359,13 @@ def remove_line(order_id: int, line_id: int):
 @router.patch("/{order_id}/discount")
 def discount_order(order_id: int, discount: OrderDiscount):
     sale_record(order_id, editable=True)
-    lines = odoo.execute("sale.order.line", "search", [[["order_id", "=", order_id],
-                         ["display_type", "=", False], ["is_downpayment", "=", False]]])
+    lines = odoo.execute("sale.order.line", "search_read", [[["order_id", "=", order_id],
+                         ["display_type", "=", False], ["is_downpayment", "=", False]]],
+                         {"fields": ["id", "qty_invoiced", "qty_delivered"]})
+    ensure_unbilled(lines)
     if lines:
         # Matches Odoo's "On All Order Lines" discount: replaces existing line discounts.
-        odoo.execute("sale.order.line", "write", [lines, {"discount": discount.discount_percent}])
+        odoo.execute("sale.order.line", "write", [[line["id"] for line in lines], {"discount": discount.discount_percent}])
     return {"discount_percent": discount.discount_percent}
 
 

@@ -13,7 +13,7 @@ export function Card({ children, className }: CardProps) {
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-xl border border-border bg-surface/80",
+        "os-card overflow-hidden rounded-xl border border-border bg-surface/80",
         className
       )}
     >
@@ -32,9 +32,9 @@ type CardHeaderProps = {
 // subtitle, and an optional "View all →" / action on the right.
 export function CardHeader({ title, subtitle, action }: CardHeaderProps) {
   return (
-    <div className="flex items-center justify-between border-b border-border px-5 py-4">
+    <div className="os-card-header flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
       <div>
-        <h2 className="font-syne text-sm font-semibold text-text">
+        <h2 className="text-sm font-semibold text-text">
           {title}
         </h2>
 

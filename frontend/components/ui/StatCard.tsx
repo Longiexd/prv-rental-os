@@ -12,12 +12,12 @@ type StatCardProps = {
 };
 
 const GLOW: Record<StatusTone, string> = {
-  lime: "bg-lime/[0.05]",
-  pink: "bg-pink/[0.05]",
-  danger: "bg-danger/[0.05]",
-  muted: "bg-muted/[0.05]",
-  amber: "bg-amber-400/[0.05]",
-  blue: "bg-blue-400/[0.05]",
+  lime: "bg-lime/[0.10]",
+  pink: "bg-pink/[0.10]",
+  danger: "bg-danger/[0.10]",
+  muted: "bg-muted/[0.10]",
+  amber: "bg-amber-400/[0.10]",
+  blue: "bg-blue-400/[0.10]",
 };
 
 const ICON_COLOR: Record<StatusTone, string> = {
@@ -41,29 +41,14 @@ export function StatCard({
   loading = false,
 }: StatCardProps) {
   return (
-    <div className="relative overflow-hidden rounded-xl border border-border bg-surface/80 p-5">
-      <div
-        className={cn(
-          "absolute -right-10 -top-10 h-24 w-24 rounded-full blur-3xl",
-          GLOW[tone]
-        )}
-      />
-
+    <div className="os-card relative h-full min-w-0 overflow-hidden rounded-xl border border-border bg-surface/80 p-5">
+      <div aria-hidden="true" className={cn("pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full blur-3xl", GLOW[tone])} />
       <div className="relative">
-        <div className="flex items-center gap-2 text-[11px] text-muted">
-          <span className={ICON_COLOR[tone]}>{icon}</span>
-          {label}
+        <div className="flex items-center justify-between gap-3 text-xs text-text-secondary">
+          <span>{label}</span><span className={cn("flex h-8 w-8 items-center justify-center rounded-lg", GLOW[tone], ICON_COLOR[tone])}>{icon}</span>
         </div>
-
-        <div className="mt-5 flex min-w-0 flex-wrap items-baseline gap-2">
-          <span className="min-w-0 break-words font-syne text-[26px] font-semibold text-text">
-            {loading ? "—" : value}
-          </span>
-
-          {detail && (
-            <span className="text-[10px] text-muted">{detail}</span>
-          )}
-        </div>
+        <p className="mt-3 break-words text-[30px] font-semibold leading-tight tracking-[-0.04em] text-text">{loading ? "—" : value}</p>
+        {detail && <p className="mt-2 text-xs text-muted">{detail}</p>}
       </div>
     </div>
   );

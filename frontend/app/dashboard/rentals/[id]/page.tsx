@@ -68,14 +68,20 @@ export default function RentalDetailPage() {
 
   useEffect(() => {
     let active = true;
-    Promise.all([
+    Promise.allSettled([
       apiFetch<Quotation>(`/sales/${rentalId}`),
       apiFetch<{ cars: typeof cars }>("/cars"),
       apiFetch<{ journals: typeof journals }>("/invoices/payment-journals"),
       apiFetch<{ products: Product[] }>("/rentals/options"),
     ]).then(([quote, fleet, accounts, options]) => {
       if (!active) return;
-      setQuotation(quote); setCars(fleet.cars); setJournals(accounts.journals); setProducts(options.products);
+      if (quote.status === "rejected") throw quote.reason;
+      setQuotation(quote.value);
+      if (fleet.status === "fulfilled") setCars(fleet.value.cars);
+      if (accounts.status === "fulfilled") setJournals(accounts.value.journals);
+      if (options.status === "fulfilled") setProducts(options.value.products);
+      const unavailable = [fleet.status === "rejected" && "vehicle list", accounts.status === "rejected" && "payment accounts", options.status === "rejected" && "product options"].filter(Boolean);
+      if (unavailable.length) setError(`This rental is available, but ${unavailable.join(", ")} could not load. Refresh to retry those options.`);
     }).catch((err: unknown) => {
       if (active) setError(err instanceof Error ? err.message : "Unable to load this rental.");
     }).finally(() => { if (active) setLoading(false); });
@@ -227,7 +233,7 @@ export default function RentalDetailPage() {
         </div>)}
       </Card></section>
       <div id="follow-ups" className="mt-5 scroll-mt-5"><ActivitiesPanel saleId={rentalId} /></div>
-      {quotation.customer && quotation.vehicle_id && <CreateRentalModal open={editingBooking} onClose={() => setEditingBooking(false)} rentalId={rentalId} initialRental={{ partner_id: quotation.customer.id, vehicle_id: quotation.vehicle_id, start_date: quotation.date_order?.slice(0, 10) || "", end_date: quotation.commitment_date?.slice(0, 10) || "", products: quotation.lines.filter((line) => line.product && !line.is_downpayment && line.quantity > 0).map((line) => ({ product_id: line.product!.id, quantity: line.quantity, unit_price: line.unit_price, discount_percent: line.discount_percent, line_id: line.id })) }} onCreated={() => { setEditingBooking(false); void loadQuotation().catch((err: unknown) => setError(err instanceof Error ? err.message : "Unable to refresh the booking.")); }} />}
+      {quotation.customer && quotation.vehicle_id && <CreateRentalModal open={editingBooking} onClose={() => setEditingBooking(false)} rentalId={rentalId} initialRental={{ partner_id: quotation.customer.id, vehicle_id: quotation.vehicle_id, start_date: (quotation.date_order || "").slice(0, 10) || "", end_date: (quotation.commitment_date || "").slice(0, 10) || "", products: quotation.lines.filter((line) => line.product && !line.is_downpayment && line.quantity > 0).map((line) => ({ product_id: line.product!.id, quantity: line.quantity, unit_price: line.unit_price, discount_percent: line.discount_percent, line_id: line.id })) }} onCreated={() => { setEditingBooking(false); void loadQuotation().catch((err: unknown) => setError(err instanceof Error ? err.message : "Unable to refresh the booking.")); }} />}
     </main>
   );
 }
