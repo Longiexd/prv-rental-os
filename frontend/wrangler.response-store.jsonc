@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "app-response-store",
+  "name": "prv-rental-os-response-store",
   "main": "./node_modules/@cloudflare/workers-response-store/dist/service.js",
   "compatibility_date": "2026-09-16",
   "compatibility_flags": [
@@ -32,7 +32,7 @@
   "r2_buckets": [
     {
       "binding": "CACHE_BODIES",
-      "bucket_name": "app-response-store-cache-bodies"
+      "bucket_name": "prv-rental-os-response-store-cache-bodies"
     }
   ],
   "durable_objects": {
