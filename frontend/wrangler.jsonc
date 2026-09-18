@@ -1,10 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-<<<<<<< HEAD
-  "name": "app",
-=======
   "name": "prv-rental-os",
->>>>>>> os-iteration
   "compatibility_date": "2026-09-16",
   "compatibility_flags": [
     "nodejs_compat"
@@ -23,22 +19,5 @@
 
   "cache": {
     "enabled": false
-<<<<<<< HEAD
-<<<<<<< HEAD
-  },
-  "services": [
-    {
-      "binding": "RESPONSE_STORE",
-      "service": "prv-rental-os-response-store"
-      "entrypoint": "ResponseStoreService"
-    }
-  ]
-}
-=======
   }
 }
->>>>>>> f78c3cf (Remove R2 response store from Cloudflare deployment)
-=======
-  }
-}
->>>>>>> os-iteration
