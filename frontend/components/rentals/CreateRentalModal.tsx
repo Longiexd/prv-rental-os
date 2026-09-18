@@ -741,7 +741,7 @@ export default function CreateRentalModal({
   // ==========================================================
 
   useEffect(() => {
-    if (!options || rentalId) return;
+    if (!options) return;
 
     setSelectedProducts((current) =>
       current.map((item) => {
@@ -756,7 +756,12 @@ export default function CreateRentalModal({
     );
     // Only rentalDays should trigger this — options/current are
     // read, not reacted to, to avoid recomputing on every
-    // unrelated product-list refresh.
+    // unrelated product-list refresh. Runs in edit mode too: this
+    // is what keeps per-day line quantities (and therefore the
+    // total) in sync when an agent changes the pickup/return dates
+    // on an already-saved booking — previously skipped whenever
+    // rentalId was set, which is why edits silently kept the old
+    // day count and price.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rentalDays]);
 
@@ -1054,7 +1059,7 @@ export default function CreateRentalModal({
               size={17}
               className="animate-spin"
             />
-            Loading Odoo options...
+            Loading options...
           </div>
         ) : !options ? (
           <div className="p-6">
@@ -1168,7 +1173,7 @@ export default function CreateRentalModal({
                             >
                               {customer.is_customer
                                 ? "Existing CRM customer"
-                                : "Existing Odoo contact"}
+                                : "Existing contact"}
                             </span>
                           </span>
                         </button>

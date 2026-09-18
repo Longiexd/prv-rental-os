@@ -2,7 +2,7 @@
 
 import { ArrowLeft, Calendar, Car, Check, FileText, Receipt, User } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import ActivitiesPanel from "@/components/activities/ActivitiesPanel";
 import CreateRentalModal from "@/components/rentals/CreateRentalModal";
@@ -12,7 +12,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { apiFetch } from "@/lib/api";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency, formatDate, isSameDay, parseDate } from "@/lib/format";
 import { getRentalState, rentalStateMeta } from "@/lib/status";
 
 type QuotationLine = {
@@ -30,7 +30,7 @@ type Quotation = {
   amount_untaxed: number; amount_tax: number; amount_total: number;
   amount_invoiced: number; amount_to_invoice: number; amount_paid: number; amount_outstanding: number;
   opportunity?: { id: number; name: string } | null; lines: QuotationLine[]; invoices: QuotationInvoice[]; vehicle_id: number | null;
-  booking_status: "quotation" | "confirmed" | "cancelled"; returned: boolean;
+  booking_status: "quotation" | "confirmed" | "cancelled"; returned: boolean; picked_up: boolean;
 };
 type Payment = { amount: number; date: string | null; reference: string | null };
 type Product = { id: number; name: string; list_price: number };
@@ -40,6 +40,7 @@ const primaryClass = `${buttonClass} border-lime/40 bg-lime/15 text-lime`;
 
 export default function RentalDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
   const rentalId = Number(id);
   const [quotation, setQuotation] = useState<Quotation | null>(null);
   const [cars, setCars] = useState<{ id: number; name: string; license_plate: string | null }[]>([]);
@@ -88,7 +89,11 @@ export default function RentalDetailPage() {
     return () => { active = false; };
   }, [rentalId]);
 
-  async function act(path: string, method = "POST", body?: unknown, message = "Saved in Odoo.") {
+  useEffect(() => {
+    if (searchParams.get("edit") === "1" && quotation) setEditingBooking(true);
+  }, [searchParams, quotation]);
+
+  async function act(path: string, method = "POST", body?: unknown, message = "Saved.") {
     if (busy) return;
     setBusy(path); setError(""); setNotice("");
     try {
@@ -107,7 +112,7 @@ export default function RentalDetailPage() {
     try {
       const result = await apiFetch<{ url: string }>(path);
       if (tab) tab.location.href = result.url;
-      else setError("Allow pop-ups to open the Odoo PDF, then select Print again.");
+      else setError("Allow pop-ups to open the PDF, then select Print again.");
     } catch (err) {
       tab?.close(); setError(err instanceof Error ? err.message : "Unable to open the PDF.");
     }
@@ -152,6 +157,11 @@ export default function RentalDetailPage() {
     : "Reservation secured. Print the invoice, prepare pickup and collect the remaining balance when due.";
   const workflowStep = quotation.returned ? 6 : confirmed ? 5 : committed ? 4 : editable ? 2 : 3;
   const steps = ["Demand & client", "Rental requirements", "Quotation", "30% commitment", "Confirm booking", "Invoice & pickup", "Fulfilment"];
+  const pickupDate = parseDate(quotation.date_order);
+  const returnDate = parseDate(quotation.commitment_date);
+  const now = new Date();
+  const startsToday = Boolean(pickupDate && isSameDay(pickupDate, now));
+  const overdueReturn = Boolean(returnDate && returnDate < now && !isSameDay(returnDate, now));
 
 
   return (
@@ -162,7 +172,7 @@ export default function RentalDetailPage() {
       {notice && <div role="status" className="mt-4 rounded-xl border border-green-500/30 bg-green-500/10 p-4 text-sm text-green-400">{notice}</div>}
       <nav aria-label="Booking progress" className="mt-5 rounded-xl border border-border p-4">
         <ol className="flex flex-wrap gap-2">{steps.map((step, index) => <li key={step} aria-current={index === workflowStep ? "step" : undefined} className={`rounded-lg px-3 py-2 text-sm ${index < workflowStep ? "bg-green-500/10 text-green-300" : index === workflowStep ? "bg-blue-500/20 font-semibold text-blue-200" : "text-text-secondary"}`}>{index < workflowStep ? "✓" : index + 1} {step}</li>)}</ol>
-        <p className="mt-3 text-sm text-text-secondary">Progress is saved in Odoo. Resume here anytime, or use the actions below directly.</p>
+        <p className="mt-3 text-sm text-text-secondary">Progress is saved automatically. Resume here anytime, or use the actions below directly.</p>
       </nav>
       <section className={`mt-5 rounded-xl border p-5 ${financeColor}`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -173,17 +183,39 @@ export default function RentalDetailPage() {
           {printableInvoice && <button className="rounded-lg bg-blue-500 px-5 py-3 font-semibold text-white hover:bg-blue-400" onClick={() => printDocument(`/invoices/${printableInvoice.id}/print-link`)}>Print invoice · {printableInvoice.name}</button>}
           <a className={buttonClass} href="#follow-ups">Schedule call / email</a>
           <button className={buttonClass} onClick={() => printDocument(`/sales/${rentalId}/print-link`)}>Print quotation</button>
-          {!cancelled && <button disabled={!!busy} className={buttonClass} onClick={() => { if (window.confirm("Send this quotation to the customer's saved Odoo email address?")) void act(`/sales/${rentalId}/send`, "POST", undefined, "Quotation sent through Odoo."); }}>Email quotation</button>}
+          {!cancelled && <button disabled={!!busy} className={buttonClass} onClick={() => { if (window.confirm("Send this quotation to the customer's saved email address?")) void act(`/sales/${rentalId}/send`, "POST", undefined, "Quotation sent."); }}>Email quotation</button>}
           {!cancelled && <button disabled={!!busy} className={buttonClass} onClick={() => setEditingBooking(true)}>Edit booking</button>}
           {editable && <button disabled={!!busy || !quotation.lines.length} className={primaryClass} onClick={() => act(`/sales/${rentalId}/confirm`, "POST", undefined, "Quotation confirmed. Generate the invoice next.")}>Confirm quotation</button>}
           {!editable && !cancelled && quotation.amount_to_invoice > 0 && !pendingInvoice && <button disabled={!!busy} className={primaryClass} onClick={() => act(`/sales/${rentalId}/invoice`, "POST", undefined, "Invoice created. Validate it below to record payment.")}>Generate invoice</button>}
           {!cancelled && !confirmed && <button disabled={!!busy || !committed} title={!committed ? "Record at least 30% of the booking total first" : "Secure this paid reservation"} className={primaryClass} onClick={() => act(`/rentals/${rentalId}/confirm`, "POST", undefined, "Booking confirmed.")}>Confirm booking</button>}
-          {!cancelled && <button disabled={!!busy} className={`${buttonClass} text-danger`} onClick={() => { if (window.confirm("Cancel this booking and mark its prospect as lost? Odoo will keep any financial records.")) void act(`/rentals/${rentalId}/cancel`, "POST", undefined, "Booking cancelled and removed from the calendar."); }}>Cancel booking</button>}
+          {!cancelled && <button disabled={!!busy} className={`${buttonClass} text-danger`} onClick={() => { if (window.confirm("Cancel this booking and mark its prospect as lost? Financial records are kept.")) void act(`/rentals/${rentalId}/cancel`, "POST", undefined, "Booking cancelled and removed from the calendar."); }}>Cancel booking</button>}
         </div>
         {!cancelled && !confirmed && <div className="mt-4 rounded-lg bg-black/20 p-4"><div className="flex flex-wrap justify-between gap-2 font-semibold"><span>Deposit target · 30%</span><span>{formatCurrency(paid)} / {formatCurrency(requiredDeposit)}</span></div><progress aria-label="Deposit progress" className="mt-2 h-3 w-full accent-green-400" value={Math.min(paid, requiredDeposit)} max={requiredDeposit || 1} /><p className="mt-2 text-sm">{committed ? "Ready to confirm the reservation." : `${formatCurrency(depositRemaining)} still required. This booking stays incomplete until the deposit is recorded and the reservation is confirmed.`}</p>{!editable && <a href="#payments" className="mt-3 inline-block rounded-lg bg-blue-500 px-4 py-2 font-semibold text-white">Continue to payment →</a>}</div>}
+        {confirmed && !quotation.returned && startsToday && !quotation.picked_up && (
+          <div className="mt-4 rounded-lg border border-blue-400/30 bg-blue-500/10 p-4">
+            <p className="font-semibold">Rental starts today</p>
+            <p className="mt-1 text-sm">The customer is due to collect the vehicle today. Confirm once they have.</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button disabled={!!busy} className={primaryClass} onClick={() => act(`/rentals/${rentalId}/picked-up`, "POST", undefined, "Pickup confirmed.")}>Validate pickup</button>
+              <a className={buttonClass} href="#follow-ups">Not picked up · schedule a call</a>
+              <button disabled={!!busy} className={`${buttonClass} text-danger`} onClick={() => { if (window.confirm("Cancel this booking and mark its prospect as lost? Financial records are kept.")) void act(`/rentals/${rentalId}/cancel`, "POST", undefined, "Booking cancelled and removed from the calendar."); }}>Not picked up · cancel booking</button>
+            </div>
+          </div>
+        )}
+        {confirmed && quotation.picked_up && !quotation.returned && (
+          <div className="mt-4 rounded-lg border border-border bg-black/20 p-4">
+            <p className="font-semibold">{overdueReturn ? "Return is overdue" : "Vehicle is out with the customer"}</p>
+            <p className="mt-1 text-sm">{overdueReturn ? `Was due back ${formatDate(quotation.commitment_date)}.` : `Due back ${formatDate(quotation.commitment_date)}.`}</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button disabled={!!busy} className={primaryClass} onClick={() => act(`/cars/${quotation.vehicle_id}/return`, "POST", { next_state: "Nettoyage" }, "Vehicle marked returned.")}>Mark returned</button>
+              <Link href={`/dashboard/rentals/${rentalId}?edit=1`} className={buttonClass}>Not returned · extend booking</Link>
+              <a className={buttonClass} href="#payments">Not returned · invoice extra hours</a>
+            </div>
+          </div>
+        )}
       </section>
       {!editable && !cancelled && quotation.amount_to_invoice > 0 && !pendingInvoice && <form className="mt-3 flex flex-wrap items-end gap-3 rounded-xl border border-border p-4" onSubmit={event => { event.preventDefault(); void act(`/sales/${rentalId}/invoice`, "POST", { deposit_amount: Number(depositAmount || Math.min(depositRemaining, quotation.amount_to_invoice)) }, "Deposit invoice created. Validate it below, then record the amount received."); }}>
-        <label className="text-sm text-text-secondary">Invoice a deposit<input required type="number" min="0.01" max={quotation.amount_to_invoice} step="0.01" className={`${inputClass} ml-3 w-32`} value={depositAmount || String(Math.min(depositRemaining, quotation.amount_to_invoice))} onChange={event => setDepositAmount(event.target.value)} /></label><button disabled={!!busy} className={buttonClass}>Create deposit invoice</button><p className="text-sm text-muted">Suggested: the remaining 30% deposit. Odoo records advances on a deposit invoice before the final invoice.</p>
+        <label className="text-sm text-text-secondary">Invoice a deposit<input required type="number" min="0.01" max={quotation.amount_to_invoice} step="0.01" className={`${inputClass} ml-3 w-32`} value={depositAmount || String(Math.min(depositRemaining, quotation.amount_to_invoice))} onChange={event => setDepositAmount(event.target.value)} /></label><button disabled={!!busy} className={buttonClass}>Create deposit invoice</button><p className="text-sm text-muted">Suggested: the remaining 30% deposit. Advances are recorded on a deposit invoice before the final invoice.</p>
       </form>}
       {quotation.opportunity && <Link href={`/crm/leads/${quotation.opportunity.id}`} className="mt-4 inline-block text-sm text-lime">Open prospect & follow-ups →</Link>}
       <section className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -208,8 +240,8 @@ export default function RentalDetailPage() {
           </tr>)}
         </tbody></table></div>
         {editable && <div className="space-y-4 border-t border-border p-5">
-          <form onSubmit={addLine} className="flex flex-wrap items-end gap-3"><label className="min-w-0 flex-1 text-sm text-muted">Odoo product<select required className={`${inputClass} mt-1 w-full`} value={newProduct} onChange={(event) => setNewProduct(event.target.value)}><option value="">Choose an item...</option>{products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}</select></label><label className="text-sm text-muted">Quantity<input required type="number" min="0.01" step="0.01" value={newQuantity} onChange={(event) => setNewQuantity(event.target.value)} className={`${inputClass} mt-1 block w-24`} /></label><button disabled={!!busy} className={primaryClass}>Add item</button></form>
-          <form className="flex flex-wrap items-end gap-3" onSubmit={(event) => { event.preventDefault(); if (window.confirm("Apply this percentage to every quotation line? This replaces existing line discounts.")) void act(`/sales/${rentalId}/discount`, "PATCH", { discount_percent: Number(discount) }); }}><label className="text-sm text-muted">Discount on total (%)<input required type="number" min="0" max="100" step="0.01" value={discount} onChange={(event) => setDiscount(event.target.value)} className={`${inputClass} mt-1 block w-28`} /></label><button disabled={!!busy} className={buttonClass}>Apply to all items</button><p className="text-sm text-muted">Replaces line discounts; Odoo recalculates taxes and total.</p></form>
+          <form onSubmit={addLine} className="flex flex-wrap items-end gap-3"><label className="min-w-0 flex-1 text-sm text-muted">Product<select required className={`${inputClass} mt-1 w-full`} value={newProduct} onChange={(event) => setNewProduct(event.target.value)}><option value="">Choose an item...</option>{products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}</select></label><label className="text-sm text-muted">Quantity<input required type="number" min="0.01" step="0.01" value={newQuantity} onChange={(event) => setNewQuantity(event.target.value)} className={`${inputClass} mt-1 block w-24`} /></label><button disabled={!!busy} className={primaryClass}>Add item</button></form>
+          <form className="flex flex-wrap items-end gap-3" onSubmit={(event) => { event.preventDefault(); if (window.confirm("Apply this percentage to every quotation line? This replaces existing line discounts.")) void act(`/sales/${rentalId}/discount`, "PATCH", { discount_percent: Number(discount) }); }}><label className="text-sm text-muted">Discount on total (%)<input required type="number" min="0" max="100" step="0.01" value={discount} onChange={(event) => setDiscount(event.target.value)} className={`${inputClass} mt-1 block w-28`} /></label><button disabled={!!busy} className={buttonClass}>Apply to all items</button><p className="text-sm text-muted">Replaces line discounts; Taxes and total recalculate automatically.</p></form>
         </div>}
         <div className="flex flex-wrap justify-end gap-5 border-t border-border px-5 py-4 text-sm text-muted"><span>Untaxed: {formatCurrency(quotation.amount_untaxed)}</span><span>Tax: {formatCurrency(quotation.amount_tax)}</span><strong className="text-text">Total: {formatCurrency(quotation.amount_total)}</strong></div>
       </Card></section>
@@ -222,7 +254,7 @@ export default function RentalDetailPage() {
             {invoice.type === "out_invoice" && <button className="rounded-lg bg-blue-500 px-5 py-3 font-semibold text-white hover:bg-blue-400" onClick={() => printDocument(`/invoices/${invoice.id}/print-link`)}>Print invoice</button>}
             {invoice.draft && invoice.type === "out_invoice" && <button disabled={!!busy} className={primaryClass} onClick={() => act(`/invoices/${invoice.id}/post`, "POST", undefined, "Invoice validated. Record payment below.")}>Validate invoice</button>}
           </div>
-          {!invoice.draft && invoice.type === "out_invoice" && invoice.outstanding > 0 && <form className="mt-4 flex flex-wrap items-end gap-3" onSubmit={(event) => { event.preventDefault(); const amount = Number(paymentAmounts[invoice.id]); if (window.confirm(`Record ${formatCurrency(amount)} as received from the customer?`)) void act(`/invoices/${invoice.id}/payments`, "POST", { amount, journal_id: Number(paymentJournals[invoice.id]) }, "Payment recorded in Odoo. Balances updated."); }}>
+          {!invoice.draft && invoice.type === "out_invoice" && invoice.outstanding > 0 && <form className="mt-4 flex flex-wrap items-end gap-3" onSubmit={(event) => { event.preventDefault(); const amount = Number(paymentAmounts[invoice.id]); if (window.confirm(`Record ${formatCurrency(amount)} as received from the customer?`)) void act(`/invoices/${invoice.id}/payments`, "POST", { amount, journal_id: Number(paymentJournals[invoice.id]) }, "Payment recorded. Balances updated."); }}>
             <label className="font-medium text-text">Amount received<input required aria-label="Amount received" type="number" min="0.01" max={invoice.outstanding} step="0.01" className={`${inputClass} mt-1 block w-36`} value={paymentAmounts[invoice.id] || ""} onChange={(event) => setPaymentAmounts({ ...paymentAmounts, [invoice.id]: event.target.value })} /></label>
             <button type="button" className={buttonClass} onClick={() => setPaymentAmounts({ ...paymentAmounts, [invoice.id]: String(invoice.outstanding) })}>Full balance</button>
             <label className="min-w-0 font-medium text-text">Received into<select required className={`${inputClass} mt-1 block max-w-full`} value={paymentJournals[invoice.id] || ""} onChange={(event) => setPaymentJournals({ ...paymentJournals, [invoice.id]: event.target.value })}><option value="">Select account...</option>{journals.map((journal) => <option key={journal.id} value={journal.id}>{journal.name}</option>)}</select></label>

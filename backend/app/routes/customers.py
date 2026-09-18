@@ -21,6 +21,11 @@ class CustomerCreate(BaseModel):
     description: str | None = None
 
 
+class CustomerContactUpdate(BaseModel):
+    phone: str | None = None
+    email: str | None = None
+
+
 # ============================================================
 # HELPERS
 # ============================================================
@@ -1211,3 +1216,39 @@ def create_customer(customer: CustomerCreate):
         "partner_id": partner_id,
         "lead_id": lead_id,
     }
+
+
+@router.patch("/{partner_id}")
+def update_customer_contact(partner_id: int, data: CustomerContactUpdate):
+    """
+    Lets an agent add/correct a phone or email after the contact was
+    already saved — previously the only way in was at creation time.
+    Propagates to any open CRM leads for the same partner so the
+    prospect record doesn't go stale next to the updated contact.
+    """
+    values = {}
+    if data.phone is not None:
+        values["phone"] = data.phone.strip() or False
+    if data.email is not None:
+        values["email"] = data.email.strip() or False
+
+    if not values:
+        raise HTTPException(400, "Provide a phone and/or email to update.")
+
+    odoo.execute("res.partner", "write", [[partner_id], values])
+
+    lead_values = {}
+    if "phone" in values:
+        lead_values["phone"] = values["phone"]
+    if "email" in values:
+        lead_values["email_from"] = values["email"]
+
+    if lead_values:
+        lead_ids = odoo.execute(
+            "crm.lead", "search",
+            [[["partner_id", "=", partner_id], ["active", "=", True]]],
+        )
+        if lead_ids:
+            odoo.execute("crm.lead", "write", [lead_ids, lead_values])
+
+    return {"success": True}

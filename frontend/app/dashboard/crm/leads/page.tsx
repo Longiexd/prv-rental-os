@@ -277,7 +277,7 @@ export default function LeadsPage() {
       setError(
         err instanceof Error
           ? err.message
-          : "Unable to load CRM data."
+          : "Unable to load prospect data."
       );
     } finally {
       setLoading(false);
@@ -502,7 +502,7 @@ export default function LeadsPage() {
           </div>
 
           <div className="mt-1 text-xs text-[#52525B]">
-            CRM opportunities
+            Prospect opportunities
           </div>
 
         </div>
@@ -984,7 +984,7 @@ function LeadsKanban({
   if (stages.length === 0) {
     return (
       <div className="rounded-2xl border border-[#2B2B30] bg-[#111113] px-5 py-16 text-center text-sm text-[#52525B]">
-        No CRM stages configured in Odoo.
+        No prospect stages configured yet.
       </div>
     );
   }

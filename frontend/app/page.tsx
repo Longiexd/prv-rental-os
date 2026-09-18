@@ -302,9 +302,9 @@ export default function Home() {
 
                   {[
                     "Dashboard",
-                    "Fleet",
+                    "Vehicles",
                     "Rentals",
-                    "CRM",
+                    "Prospects",
                     "Calendar",
                     "Analytics",
                   ].map((item, index) => (

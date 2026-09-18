@@ -656,7 +656,7 @@ function RentalModal({
             </span>
 
             <span className="font-mono text-[10px] text-zinc-700">
-              Odoo #{rental.id}
+              Booking #{rental.id}
             </span>
           </div>
 
@@ -2596,7 +2596,7 @@ export default function CalendarPage() {
 
         <div className="mt-4 flex items-center justify-between px-1 text-[9px] text-zinc-700">
           <span>
-            Odoo fleet & rental data
+            Live fleet & rental data
           </span>
 
           <span>

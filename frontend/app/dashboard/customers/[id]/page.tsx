@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
+import { StatCard } from "@/components/ui/StatCard";
 
 // ============================================================
 // TYPES
@@ -138,61 +140,85 @@ export default function CustomerDetailPage() {
   const [error, setError] =
     useState("");
 
+  const [editingField, setEditingField] =
+    useState<"phone" | "email" | null>(null);
+  const [contactDraft, setContactDraft] = useState("");
+  const [savingContact, setSavingContact] = useState(false);
+
   // ============================================================
   // FETCH CUSTOMER
   // ============================================================
 
-  useEffect(() => {
-    if (!id) {
-      return;
-    }
+  const loadCustomer = React.useCallback(async () => {
+    if (!id) return;
 
-    async function loadCustomer() {
-      try {
-        setLoading(true);
-        setError("");
+    try {
+      setLoading(true);
+      setError("");
 
-        const response = await fetch(
-          `${API_URL}/customers/${id}`,
-          {
-            cache: "no-store",
-          }
-        );
+      const response = await fetch(
+        `${API_URL}/customers/${id}`,
+        {
+          cache: "no-store",
+        }
+      );
 
-        if (!response.ok) {
-          if (response.status === 404) {
-            throw new Error(
-              "Customer not found."
-            );
-          }
-
+      if (!response.ok) {
+        if (response.status === 404) {
           throw new Error(
-            `API returned ${response.status}`
+            "Customer not found."
           );
         }
 
-        const data: Customer =
-          await response.json();
-
-        setCustomer(data);
-      } catch (err) {
-        console.error(
-          "Failed to load customer:",
-          err
+        throw new Error(
+          `API returned ${response.status}`
         );
-
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Unable to load customer."
-        );
-      } finally {
-        setLoading(false);
       }
-    }
 
-    loadCustomer();
+      const data: Customer =
+        await response.json();
+
+      setCustomer(data);
+    } catch (err) {
+      console.error(
+        "Failed to load customer:",
+        err
+      );
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to load customer."
+      );
+    } finally {
+      setLoading(false);
+    }
   }, [id]);
+
+  useEffect(() => {
+    loadCustomer();
+  }, [loadCustomer]);
+
+  async function saveContact(field: "phone" | "email") {
+    setSavingContact(true);
+    try {
+      const response = await fetch(`${API_URL}/customers/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [field]: contactDraft }),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.detail || `API returned ${response.status}`);
+      }
+      setEditingField(null);
+      await loadCustomer();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Unable to update ${field}.`);
+    } finally {
+      setSavingContact(false);
+    }
+  }
 
   // ============================================================
   // LOADING
@@ -349,7 +375,7 @@ export default function CustomerDetailPage() {
 
       <section className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
 
-        <OverviewCard
+        <StatCard
           icon={<BriefcaseBusiness size={15} />}
           label="Sales"
           value={formatCurrency(
@@ -362,7 +388,7 @@ export default function CustomerDetailPage() {
           }`}
         />
 
-        <OverviewCard
+        <StatCard
           icon={<Receipt size={15} />}
           label="Invoices"
           value={customer.invoice_count.toString()}
@@ -371,7 +397,7 @@ export default function CustomerDetailPage() {
           )}
         />
 
-        <OverviewCard
+        <StatCard
           icon={<FileText size={15} />}
           label="Outstanding"
           value={formatCurrency(
@@ -382,18 +408,18 @@ export default function CustomerDetailPage() {
               ? "amount due"
               : "fully paid"
           }
-          accent={
+          tone={
             customer.outstanding_amount > 0
               ? "pink"
-              : "green"
+              : "lime"
           }
         />
 
-        <OverviewCard
+        <StatCard
           icon={<UserRound size={15} />}
           label="Probability"
           value={`${customer.probability}%`}
-          detail="CRM opportunity"
+          detail="Prospect opportunity"
         />
 
       </section>
@@ -510,8 +536,9 @@ export default function CustomerDetailPage() {
 
                 {customer.sales_orders.map(
                   (order) => (
-                    <div
+                    <Link
                       key={order.id}
+                      href={`/dashboard/rentals/${order.id}`}
                       className="flex items-center justify-between gap-4 px-4 py-4 transition hover:bg-[#17171A]/40"
                     >
 
@@ -564,7 +591,7 @@ export default function CustomerDetailPage() {
 
                       </div>
 
-                    </div>
+                    </Link>
                   )
                 )}
 
@@ -687,7 +714,7 @@ export default function CustomerDetailPage() {
             <SectionHeader
               icon={<User size={14} />}
               title="Contact information"
-              subtitle="Odoo contact"
+              subtitle="Contact record"
             />
 
             <div className="p-4">
@@ -699,6 +726,13 @@ export default function CustomerDetailPage() {
                   customer.phone ||
                   "No phone number"
                 }
+                editing={editingField === "phone"}
+                draft={contactDraft}
+                saving={savingContact}
+                onDraftChange={setContactDraft}
+                onEdit={() => { setEditingField("phone"); setContactDraft(customer.phone || ""); }}
+                onCancel={() => setEditingField(null)}
+                onSave={() => saveContact("phone")}
               />
 
               <ContactRow
@@ -708,6 +742,13 @@ export default function CustomerDetailPage() {
                   customer.email ||
                   "No email address"
                 }
+                editing={editingField === "email"}
+                draft={contactDraft}
+                saving={savingContact}
+                onDraftChange={setContactDraft}
+                onEdit={() => { setEditingField("email"); setContactDraft(customer.email || ""); }}
+                onCancel={() => setEditingField(null)}
+                onSave={() => saveContact("email")}
               />
 
               <ContactRow
@@ -838,7 +879,7 @@ export default function CustomerDetailPage() {
 
             <SectionHeader
               icon={<CalendarDays size={14} />}
-              title="CRM history"
+              title="Prospect history"
               subtitle={`${customer.lead_history.length} lead${
                 customer.lead_history.length !==
                 1
@@ -849,15 +890,16 @@ export default function CustomerDetailPage() {
 
             {customer.lead_history.length ===
             0 ? (
-              <EmptyState text="No CRM history." />
+              <EmptyState text="No prospect history." />
             ) : (
               <div className="divide-y divide-[#2B2B30]">
 
                 {customer.lead_history.map(
                   (lead) => (
-                    <div
+                    <Link
                       key={lead.id}
-                      className="p-4"
+                      href={`/crm/leads/${lead.id}`}
+                      className="block p-4 transition hover:bg-[#17171A]/40"
                     >
 
                       <div className="flex items-start justify-between gap-3">
@@ -903,7 +945,7 @@ export default function CustomerDetailPage() {
                         </p>
                       )}
 
-                    </div>
+                    </Link>
                   )
                 )}
 
@@ -961,68 +1003,6 @@ function SectionHeader({
 }
 
 // ============================================================
-// OVERVIEW CARD
-// ============================================================
-
-function OverviewCard({
-  icon,
-  label,
-  value,
-  detail,
-  accent = "green",
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  detail: string;
-  accent?: "green" | "pink";
-}) {
-  const isPink = accent === "pink";
-
-  return (
-    <div className="relative overflow-hidden rounded-xl border border-[#2B2B30] bg-[#111113]/80 p-5">
-
-      <div
-        className={`absolute -right-10 -top-10 h-24 w-24 rounded-full blur-3xl ${
-          isPink
-            ? "bg-[#F06AAA]/[0.05]"
-            : "bg-[#C8F065]/[0.05]"
-        }`}
-      />
-
-      <div className="relative">
-
-        <div className="flex items-center gap-2 text-[10px] text-[#71717A]">
-
-          <span
-            className={
-              isPink
-                ? "text-[#F06AAA]"
-                : "text-[#C8F065]"
-            }
-          >
-            {icon}
-          </span>
-
-          {label}
-
-        </div>
-
-        <div className="mt-4 text-lg font-semibold">
-          {value}
-        </div>
-
-        <div className="mt-1 text-[9px] text-[#71717A]">
-          {detail}
-        </div>
-
-      </div>
-
-    </div>
-  );
-}
-
-// ============================================================
 // INFO ITEM
 // ============================================================
 
@@ -1064,11 +1044,27 @@ function ContactRow({
   icon,
   label,
   value,
+  editing = false,
+  draft = "",
+  saving = false,
+  onDraftChange,
+  onEdit,
+  onCancel,
+  onSave,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
+  editing?: boolean;
+  draft?: string;
+  saving?: boolean;
+  onDraftChange?: (value: string) => void;
+  onEdit?: () => void;
+  onCancel?: () => void;
+  onSave?: () => void;
 }) {
+  const editable = Boolean(onEdit);
+
   return (
     <div className="flex gap-3 border-b border-[#2B2B30] py-3 last:border-b-0">
 
@@ -1076,15 +1072,40 @@ function ContactRow({
         {icon}
       </div>
 
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
 
-        <div className="text-[9px] uppercase tracking-wider text-[#52525B]">
-          {label}
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-[9px] uppercase tracking-wider text-[#52525B]">
+            {label}
+          </div>
+          {editable && !editing && (
+            <button type="button" onClick={onEdit} className="text-[9px] text-[#C8F065] hover:underline">
+              Edit
+            </button>
+          )}
         </div>
 
-        <div className="mt-1 break-words text-xs text-[#A1A1AA]">
-          {value}
-        </div>
+        {editing ? (
+          <div className="mt-1 flex items-center gap-2">
+            <input
+              autoFocus
+              value={draft}
+              onChange={(event) => onDraftChange?.(event.target.value)}
+              onKeyDown={(event) => { if (event.key === "Enter") onSave?.(); if (event.key === "Escape") onCancel?.(); }}
+              className="h-7 w-full rounded-md border border-[#2B2B30] bg-[#0B0B0D] px-2 text-xs text-white outline-none focus:border-[#C8F065]"
+            />
+            <button type="button" disabled={saving} onClick={onSave} className="shrink-0 text-[10px] font-medium text-[#C8F065] disabled:opacity-50">
+              {saving ? "…" : "Save"}
+            </button>
+            <button type="button" onClick={onCancel} className="shrink-0 text-[10px] text-[#71717A]">
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <div className="mt-1 break-words text-xs text-[#A1A1AA]">
+            {value}
+          </div>
+        )}
 
       </div>
 

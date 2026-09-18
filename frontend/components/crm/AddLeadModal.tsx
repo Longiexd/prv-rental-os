@@ -461,7 +461,7 @@ export default function AddLeadModal({
               </h2>
 
               <p className="mt-0.5 text-[10px] text-[#71717A]">
-                Create a new CRM lead in Odoo
+                Create a new prospect
               </p>
             </div>
 
@@ -673,7 +673,7 @@ export default function AddLeadModal({
                                         </span>
                                       ) : (
                                         <span className="text-[9px] text-[#71717A]">
-                                          Existing Odoo contact
+                                          Existing contact
                                         </span>
                                       )}
 
@@ -1063,7 +1063,7 @@ export default function AddLeadModal({
                     className="animate-spin"
                   />
 
-                  Loading vehicle options from Odoo...
+                  Loading vehicle options...
 
                 </div>
               )}

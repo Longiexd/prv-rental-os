@@ -49,6 +49,11 @@ class StageUpdate(BaseModel):
     stage_id: int
 
 
+class ContactUpdate(BaseModel):
+    phone: str | None = None
+    email: str | None = None
+
+
 @router.get("/{lead_id}")
 def get_lead(lead_id: int):
     records = odoo.execute("crm.lead", "search_read", [[["id", "=", lead_id]]],
@@ -340,6 +345,39 @@ def create_lead(lead: LeadCreate):
 # Therefore List + Kanban + Odoo remain synchronized.
 # =========================================================
 
+@router.patch("/{lead_id}/contact")
+def update_lead_contact(lead_id: int, data: ContactUpdate):
+    """Adds or corrects a prospect's phone/email after the lead was
+    already saved, and mirrors the change onto the linked customer
+    (if any) so the two records don't drift apart."""
+    values = {}
+    if data.phone is not None:
+        values["phone"] = data.phone.strip() or False
+    if data.email is not None:
+        values["email_from"] = data.email.strip() or False
+
+    if not values:
+        raise HTTPException(400, "Provide a phone and/or email to update.")
+
+    lead = odoo.execute("crm.lead", "search_read", [[["id", "=", lead_id]]],
+                         {"fields": ["partner_id"], "limit": 1})
+    if not lead:
+        raise HTTPException(404, "Prospect not found.")
+
+    odoo.execute("crm.lead", "write", [[lead_id], values])
+
+    partner_id = lead[0].get("partner_id") and lead[0]["partner_id"][0]
+    if partner_id:
+        partner_values = {}
+        if "phone" in values:
+            partner_values["phone"] = values["phone"]
+        if "email_from" in values:
+            partner_values["email"] = values["email_from"]
+        odoo.execute("res.partner", "write", [[partner_id], partner_values])
+
+    return {"success": True}
+
+
 @router.patch("/{lead_id}/stage")
 def update_lead_stage(
     lead_id: int,
@@ -420,7 +458,7 @@ def update_lead_stage(
     if not updated:
         raise HTTPException(
             status_code=500,
-            detail="Odoo could not update the lead stage.",
+            detail="Could not update the prospect stage.",
         )
 
     # ---------------------------------------------------------

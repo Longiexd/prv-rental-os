@@ -1,3 +1,6 @@
+import { useEffect, useState } from "react";
+import { apiFetch } from "@/lib/api";
+
 export { apiFetch as activityRequest } from "@/lib/api";
 
 export function noteText(html: string | false) {
@@ -15,4 +18,32 @@ export type Activity = {
 
 export function activityHref(item: Activity) {
   return `${item.res_model === "sale.order" ? "/dashboard/rentals" : "/crm/leads"}/${item.res_id}?activity=${item.id}`;
+}
+
+// Shared "what's due" data source for the notification bell and the
+// dashboard reminder section — same /activities list everyone else
+// reads, filtered to today/overdue, refreshed on an interval so the
+// bell badge doesn't go stale across a long session.
+export function useReminders(pollMs = 60000) {
+  const [due, setDue] = useState<Activity[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      try {
+        const result = await apiFetch<{ activities: Activity[] }>("/activities");
+        if (active) setDue(result.activities.filter((item) => item.state === "today" || item.state === "overdue"));
+      } catch {
+        // Reminders are a convenience layer — a failed poll shouldn't surface an error banner in the topbar.
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+    load();
+    const interval = setInterval(load, pollMs);
+    return () => { active = false; clearInterval(interval); };
+  }, [pollMs]);
+
+  return { due, loading };
 }

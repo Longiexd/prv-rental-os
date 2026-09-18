@@ -35,6 +35,7 @@ router = APIRouter(
 # =========================================================
 
 RETURNED_TAG = "[Rental OS returned]"
+PICKED_UP_TAG = "[Rental OS picked up]"
 
 
 def find_state_id(name: str) -> int:

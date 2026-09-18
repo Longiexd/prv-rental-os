@@ -32,7 +32,7 @@ type CardHeaderProps = {
 // subtitle, and an optional "View all →" / action on the right.
 export function CardHeader({ title, subtitle, action }: CardHeaderProps) {
   return (
-    <div className="os-card-header flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
       <div>
         <h2 className="text-sm font-semibold text-text">
           {title}

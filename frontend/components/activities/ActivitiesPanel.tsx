@@ -70,6 +70,15 @@ export default function ActivitiesPanel({ leadId, saleId, compact = false, onCom
     finally { setBusy(false); }
   }
 
+  async function reschedule(id: number, dateDeadline: string) {
+    setBusy(true); setError(""); setNotice("");
+    try {
+      await activityRequest(`/activities/${id}`, { method: "PATCH", body: JSON.stringify({ date_deadline: dateDeadline }) });
+      setNotice("Due date updated and synced with the calendar."); await load();
+    } catch (err) { setError(err instanceof Error ? err.message : "Unable to reschedule this activity."); }
+    finally { setBusy(false); }
+  }
+
   async function complete(id: number) {
     setBusy(true); setError(""); setNotice("");
     try {
@@ -98,7 +107,7 @@ export default function ActivitiesPanel({ leadId, saleId, compact = false, onCom
       {open && <form onSubmit={create} className="grid gap-4 rounded-xl border border-purple-400/25 p-4 sm:grid-cols-2">
         {!leadId && !saleId && <label className="space-y-1 text-sm text-[#A1A1AA]">Prospect<select name="lead" required className={input} defaultValue=""><option value="" disabled>Select prospect</option>{leads.map(lead => <option key={lead.id} value={lead.id}>{lead.name}</option>)}</select></label>}
         <label className="space-y-1 text-sm text-[#A1A1AA]">Activity<select name="type" required className={input} defaultValue={types.find(type => type.category === "phonecall")?.id || ""}><option value="" disabled>Select activity type</option>{types.map(type => <option key={type.id} value={type.id}>{type.name}</option>)}</select></label>
-        <label className="space-y-1 text-sm text-[#A1A1AA]">Due date<input name="date" type="date" required className={input} /></label>
+        <label className="space-y-1 text-sm text-[#A1A1AA]">Due date<input name="date" type="date" required min={new Date().toISOString().slice(0, 10)} className={input} /></label>
         <label className="space-y-1 text-sm text-[#A1A1AA]">Title<input name="summary" required maxLength={250} placeholder={saleId ? "Email invoice to customer" : "Call Mariem about her booking"} className={input} /></label>
         <label className="space-y-1 text-sm text-[#A1A1AA] sm:col-span-2">Notes / instructions<textarea name="note" maxLength={10000} rows={3} className={input} /></label>
         <div className="flex gap-3 sm:col-span-2"><button disabled={busy} className="rounded-lg bg-purple-300 px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-50">{busy ? "Saving…" : "Save activity"}</button><button type="button" disabled={busy} onClick={() => setOpen(false)} className="text-sm text-[#A1A1AA]">Cancel</button></div>
@@ -113,6 +122,7 @@ export default function ActivitiesPanel({ leadId, saleId, compact = false, onCom
           {selected === item.id && <div className="mt-3 space-y-3">
             <p className="whitespace-pre-wrap break-words text-sm text-[#D4D4D8]">{noteText(item.note) || "No instructions yet."}</p>
             <div className="flex flex-wrap justify-between gap-2 text-sm"><Link href={activityHref(item)} className="text-purple-200 underline">Open {item.res_model === "sale.order" ? "booking" : "prospect"} →</Link><span className="text-[#A1A1AA]">Assigned to {item.user_id ? item.user_id[1] : "—"}</span></div>
+            <label className="block space-y-1 text-sm text-[#A1A1AA]">Due date<input type="date" min={new Date().toISOString().slice(0, 10)} defaultValue={item.date_deadline} disabled={busy} onBlur={event => { if (event.target.value && event.target.value !== item.date_deadline) void reschedule(item.id, event.target.value); }} className={`${input} max-w-[180px]`} /></label>
             <label className="block space-y-1 text-sm text-[#A1A1AA]">Outcome / call notes<textarea value={feedback} onChange={event => setFeedback(event.target.value)} maxLength={10000} rows={2} className={input} /></label>
             {item.res_model !== "sale.order" && item.activity_category === "phonecall" && <p className="text-sm text-[#A1A1AA]">Completing the call moves an earlier prospect to Contacté when that stage is configured.</p>}
             <button type="button" disabled={busy} onClick={() => complete(item.id)} className="inline-flex items-center gap-2 rounded-lg bg-emerald-400/15 px-4 py-2.5 text-sm text-emerald-200 disabled:opacity-50"><Check size={16} /> {busy ? "Saving…" : "Mark done"}</button>

@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.odoo_client import odoo
 from app.routes.calendar import CONFIRMED_TAG, QUOTATION_TAG, booking_status, rental_vehicle_id
-from app.routes.cars import RETURNED_TAG, sync_vehicle_state, find_state_id
+from app.routes.cars import PICKED_UP_TAG, RETURNED_TAG, sync_vehicle_state, find_state_id
 from app.routes.rentals import RentalCreate, get_record
 
 router = APIRouter(prefix="/rentals", tags=["Rentals"])
@@ -36,7 +36,7 @@ def refresh_fleet(vehicle_id):
 def update_booking(order_id: int, rental: RentalCreate):
     order = get_record("sale.order", order_id, ["state", "note", "partner_id", "date_order", "commitment_date", "locked"])
     if order["state"] not in ("draft", "sent", "sale") or order.get("locked") or RETURNED_TAG in (order.get("note") or ""):
-        raise HTTPException(409, "This booking is cancelled, returned or locked in Odoo.")
+        raise HTTPException(409, "This booking is cancelled, returned or locked.")
     original_start = (order.get("date_order") or "")[:10]
     if rental.end_date <= rental.start_date or (rental.start_date < date.today() and rental.start_date.isoformat() != original_start):
         raise HTTPException(422, "Pickup cannot move into the past; return must be after pickup.")
@@ -63,13 +63,13 @@ def update_booking(order_id: int, rental: RentalCreate):
             seen.add(item.line_id)
             changes = {key: value for key, value in values.items() if value != (line[key][0] if key == "product_id" else line[key])}
             if changes and (line.get("qty_invoiced") or line.get("qty_delivered")):
-                raise HTTPException(409, "Invoiced or delivered articles must be adjusted with Odoo's accounting workflow; add new articles separately.")
+                raise HTTPException(409, "Invoiced or delivered articles must be adjusted through accounting; add new articles separately.")
             if changes:
                 commands.append((1, item.line_id, changes))
         else:
             product = get_record("product.product", item.product_id, ["active", "sale_ok"])
             if not product.get("active") or not product.get("sale_ok"):
-                raise HTTPException(422, "This product is not available for sale in Odoo.")
+                raise HTTPException(422, "This product is not available for sale.")
             commands.append((0, 0, values))
     for line_id, line in existing.items():
         if line_id not in seen:
@@ -115,12 +115,41 @@ def confirm_booking(order_id: int):
     return {"booking_status": "confirmed"}
 
 
+@router.post("/{order_id}/picked-up")
+def mark_picked_up(order_id: int):
+    """Records that the customer actually collected the vehicle today."""
+    order = get_record("sale.order", order_id, ["state", "note"])
+    if booking_status(order) != "confirmed":
+        raise HTTPException(409, "Only a confirmed booking can be marked as picked up.")
+    if PICKED_UP_TAG in (order.get("note") or ""):
+        return {"success": True, "already": True}
+    odoo.execute("sale.order", "write", [[order_id], {"note": f"{(order.get('note') or '')}\n{PICKED_UP_TAG}".strip()}])
+    return {"success": True}
+
+
 @router.post("/{order_id}/cancel")
 def cancel_booking(order_id: int):
-    order = get_record("sale.order", order_id, ["state", "note", "opportunity_id"])
-    if order["state"] != "cancel":
+    order = get_record("sale.order", order_id, ["state", "note", "opportunity_id", "locked"])
+    if order["state"] == "cancel":
+        return {"booking_status": "cancelled", "message": "Already cancelled."}
+    if order.get("locked"):
+        raise HTTPException(409, "This booking is locked and cannot be cancelled from here.")
+    try:
         odoo.execute("sale.order", "action_cancel", [[order_id]], {"context": {"disable_cancel_warning": True}})
+    except Exception as exc:
+        # An unhandled Odoo fault here used to bubble up as a bare
+        # 500 with no JSON body, which the frontend's apiFetch()
+        # can't parse into a message — surfacing as a hard "failed
+        # to fetch" with no explanation. Turn it into an actionable
+        # error instead so the agent knows what to fix in Odoo.
+        raise HTTPException(409, f"The cancellation was rejected: {exc}") from exc
     if order.get("opportunity_id"):
-        odoo.execute("crm.lead", "action_set_lost", [[order["opportunity_id"][0]]])
+        try:
+            odoo.execute("crm.lead", "action_set_lost", [[order["opportunity_id"][0]]])
+        except Exception:
+            # The sales order is already cancelled at this point; don't
+            # fail the whole request just because the linked lead
+            # couldn't also be marked lost (e.g. it was already won/lost).
+            pass
     refresh_fleet(rental_vehicle_id(order.get("note")))
-    return {"booking_status": "cancelled", "message": "Cancelled and marked lost. Existing posted invoices/payments remain in Odoo; process any refund separately."}
+    return {"booking_status": "cancelled", "message": "Cancelled and marked lost. Existing posted invoices/payments remain on record; process any refund separately."}

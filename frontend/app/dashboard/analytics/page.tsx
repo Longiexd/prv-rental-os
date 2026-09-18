@@ -113,7 +113,7 @@ type GroupMode =
   | "customer";
 
 const groupLabels: Record<GroupMode, string> = {
-  month: "Month", product: "Product category", fleet: "Fleet category",
+  month: "Month", product: "Product category", fleet: "Vehicle category",
   vehicle: "Vehicle", customer: "Customer",
 };
 
@@ -635,7 +635,7 @@ export default function AnalyticsPage() {
                     ],
                     [
                       "fleet",
-                      "Fleet category",
+                      "Vehicle category",
                     ],
                     ["vehicle", "Vehicle"],
                     [
@@ -683,7 +683,7 @@ export default function AnalyticsPage() {
             ))}
           </select>
           <span className="text-xs text-muted">
-            {vehicleId ? "Selected vehicle: confirmed sales and their linked invoices." : "Categories and vehicles come from Odoo. Choose Orders to compare demand."}
+            {vehicleId ? "Selected vehicle: confirmed sales and their linked invoices." : "Categories and vehicles load automatically. Choose Orders to compare demand."}
           </span>
         </div>
       </section>
@@ -1105,7 +1105,7 @@ export default function AnalyticsPage() {
                       </th>
 
                       <th className="px-5 py-3">
-                        Fleet category
+                        Vehicle category
                       </th>
 
                       <th className="px-5 py-3">

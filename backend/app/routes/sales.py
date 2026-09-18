@@ -6,7 +6,7 @@ from app.config import ODOO_URL
 
 from app.odoo_client import odoo
 from app.routes.calendar import QUOTATION_TAG, rental_vehicle_id, booking_status
-from app.routes.cars import RETURNED_TAG
+from app.routes.cars import PICKED_UP_TAG, RETURNED_TAG
 
 
 router = APIRouter(
@@ -82,6 +82,7 @@ def get_sales():
             "vehicle_id": rental_vehicle_id(order.get("note")),
             "booking_status": booking_status(order),
             "returned": RETURNED_TAG in (order.get("note") or ""),
+            "picked_up": PICKED_UP_TAG in (order.get("note") or ""),
         })
 
     return {
@@ -274,6 +275,7 @@ def get_sale(order_id: int):
         ),
 
         "returned": RETURNED_TAG in (order.get("note") or ""),
+        "picked_up": PICKED_UP_TAG in (order.get("note") or ""),
         "order_line_ids": order["order_line"],
         "vehicle_id": rental_vehicle_id(order.get("note")),
             "booking_status": booking_status(order),
@@ -303,7 +305,7 @@ def owned_line(order_id: int, line_id: int):
 
 def ensure_unbilled(lines):
     if any(line.get("qty_invoiced") or line.get("qty_delivered") for line in lines):
-        raise HTTPException(409, "Invoiced or delivered articles cannot be changed here. Use Odoo accounting adjustments.")
+        raise HTTPException(409, "Invoiced or delivered articles cannot be changed here. Use an accounting adjustment instead.")
 
 
 class LineUpdate(BaseModel):
@@ -340,7 +342,7 @@ def add_line(order_id: int, line: LineCreate):
                             [[["id", "=", line.product_id], ["sale_ok", "=", True]]],
                             {"fields": ["id"], "limit": 1})
     if not products:
-        raise HTTPException(404, "Choose a saleable product from Odoo.")
+        raise HTTPException(404, "Choose a saleable product.")
     # Odoo computes description, UoM, pricelist price, taxes and fiscal-position mapping.
     values = {"order_id": order_id, "product_id": line.product_id, "product_uom_qty": line.quantity}
     if line.unit_price is not None:
@@ -425,11 +427,11 @@ def send_quotation(order_id: int):
         raise HTTPException(400, "A cancelled quotation cannot be sent.")
     partners = odoo.execute("res.partner", "read", [[order["partner_id"][0]]], {"fields": ["email"]})
     if not partners or not partners[0].get("email"):
-        raise HTTPException(400, "Add the customer's email address in Odoo before sending.")
+        raise HTTPException(400, "Add the customer's email address before sending.")
     action = odoo.execute("sale.order", "action_quotation_send", [[order_id]])
     context = action.get("context") or {}
     if not context.get("default_template_id"):
-        raise HTTPException(400, "Configure an Odoo quotation email template before sending.")
+        raise HTTPException(400, "Configure a quotation email template before sending.")
     wizard = odoo.execute("mail.compose.message", "create", [{}], {"context": context})
     odoo.execute("mail.compose.message", "action_send_mail", [[wizard]], {"context": context})
     return {"order_id": order_id, "sent": True}

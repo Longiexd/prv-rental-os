@@ -24,6 +24,10 @@ class ActivityComplete(BaseModel):
     feedback: str = Field(default="", max_length=10000)
 
 
+class ActivityReschedule(BaseModel):
+    date_deadline: date
+
+
 def read(model, domain, fields, **kwargs):
     return odoo.execute(model, "search_read", [domain], {"fields": fields, **kwargs})
 
@@ -59,6 +63,8 @@ def list_activities(lead_id: int | None = None, date_from: date | None = None,
 def create_activity(data: ActivityCreate):
     if not data.summary.strip():
         raise HTTPException(400, "Activity title is required.")
+    if data.date_deadline < date.today():
+        raise HTTPException(422, "Due date cannot be in the past.")
     if bool(data.lead_id) == bool(data.sale_id):
         raise HTTPException(422, "Choose exactly one prospect or booking for this call/email.")
     model, record_id = ("crm.lead", data.lead_id) if data.lead_id else ("sale.order", data.sale_id)
@@ -66,16 +72,34 @@ def create_activity(data: ActivityCreate):
         raise HTTPException(404, "Related record not found.")
     types = activity_types(model)["types"]
     if not any(item["id"] == data.activity_type_id for item in types):
-        raise HTTPException(400, "Choose an available Odoo Call or Email activity type.")
+        raise HTTPException(400, "Choose an available Call or Email activity type.")
     models = read("ir.model", [["model", "=", model]], ["id"], limit=1)
     if not models:
-        raise HTTPException(409, "Odoo activity model is unavailable.")
+        raise HTTPException(409, "Activity scheduling is unavailable right now.")
     values = {"res_model_id": models[0]["id"], "res_id": record_id,
               "activity_type_id": data.activity_type_id, "summary": data.summary.strip(),
               "date_deadline": data.date_deadline.isoformat(),
               "note": escape(data.note).replace("\n", "<br/>")}
     activity_id = odoo.execute("mail.activity", "create", [values])
     return {"success": True, "activity_id": activity_id}
+
+
+@router.patch("/{activity_id}")
+def reschedule_activity(activity_id: int, data: ActivityReschedule):
+    """
+    Changes an activity's due date. mail.activity IS Odoo's own
+    activity/calendar record — writing date_deadline here updates
+    the same record the Odoo activity calendar reads, so there is
+    no separate calendar to keep in sync.
+    """
+    if data.date_deadline < date.today():
+        raise HTTPException(422, "Due date cannot be moved into the past.")
+    activities = read("mail.activity", [["id", "=", activity_id],
+                     ["res_model", "in", ["crm.lead", "sale.order"]], ["active", "=", True]], ["id"], limit=1)
+    if not activities:
+        raise HTTPException(404, "Activity is already completed or unavailable. Refresh the list.")
+    odoo.execute("mail.activity", "write", [[activity_id], {"date_deadline": data.date_deadline.isoformat()}])
+    return {"success": True}
 
 
 def contacted_stage(lead):

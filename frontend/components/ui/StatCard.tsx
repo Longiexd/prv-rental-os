@@ -42,7 +42,6 @@ export function StatCard({
 }: StatCardProps) {
   return (
     <div className="os-card relative h-full min-w-0 overflow-hidden rounded-xl border border-border bg-surface/80 p-5">
-      <div aria-hidden="true" className={cn("pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full blur-3xl", GLOW[tone])} />
       <div className="relative">
         <div className="flex items-center justify-between gap-3 text-xs text-text-secondary">
           <span>{label}</span><span className={cn("flex h-8 w-8 items-center justify-center rounded-lg", GLOW[tone], ICON_COLOR[tone])}>{icon}</span>

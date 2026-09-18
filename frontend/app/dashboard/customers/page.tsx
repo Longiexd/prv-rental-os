@@ -122,7 +122,7 @@ export default function CustomersPage() {
         <Card>
           <CardHeader
             title="Customer directory"
-            subtitle="Live customer data from Odoo"
+            subtitle="Live customer data"
             action={
               <SearchInput
                 value={search}

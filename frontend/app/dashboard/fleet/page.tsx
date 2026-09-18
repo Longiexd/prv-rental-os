@@ -664,7 +664,7 @@ function VehicleModal({
               </div>
 
               <div className="mt-0.5 text-xs text-zinc-600">
-                Fleet #
+                Vehicle #
                 {car.id}
               </div>
             </div>
@@ -738,7 +738,7 @@ function VehicleModal({
 
                 {car.status && (
                   <div className="mt-1 text-xs text-zinc-600">
-                    Odoo state:{" "}
+                    Status:{" "}
                     <span className="text-zinc-400">
                       {car.status}
                     </span>
@@ -952,7 +952,7 @@ function VehicleModal({
                     : "—",
                 ],
                 [
-                  "Odoo Fleet ID",
+                  "Fleet ID",
                   `#${car.id}`,
                 ],
               ].map(
@@ -1537,12 +1537,12 @@ export default function FleetPage() {
               <span>/</span>
 
               <span className="text-[#A1A1AA]">
-                Fleet
+                Vehicles
               </span>
             </div>
 
             <h1 className="font-[Syne] text-[28px] font-semibold tracking-[-0.035em] text-white sm:text-[32px]">
-              Fleet
+              Vehicles
             </h1>
 
             <p className="mt-1 text-sm text-[#71717A]">
@@ -1809,7 +1809,7 @@ export default function FleetPage() {
         <section className="mt-5">
           {loading ? (
             <div className="rounded-2xl border border-[#2B2B30] bg-[#111113] px-5 py-14 text-center text-sm text-zinc-600">
-              Loading fleet from Odoo...
+              Loading vehicles...
             </div>
           ) : filteredFleet.length ===
             0 ? (
