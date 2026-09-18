@@ -23,7 +23,7 @@
   "services": [
     {
       "binding": "RESPONSE_STORE",
-      "service": "app-response-store",
+      "service": "prv-rental-os-response-store"
       "entrypoint": "ResponseStoreService"
     }
   ]
