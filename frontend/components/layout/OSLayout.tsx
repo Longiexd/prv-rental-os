@@ -15,7 +15,8 @@ import {
   Users,
   Zap,
 } from "lucide-react";
-import React, { useState } from "react";
+import React, { useEffect,useRef,useState,} from "react";
+
 
 import AddCustomerModal from "@/components/customers/AddCustomerModal";
 import CreateRentalModal from "@/components/rentals/CreateRentalModal";
@@ -89,6 +90,18 @@ export default function OSLayout({
   const [addRentalOpen, setAddRentalOpen] = useState(false);
   const [addCustomerOpen, setAddCustomerOpen] = useState(false);
   const [bellOpen, setBellOpen] = useState(false);
+  const bellRef = useRef<HTMLDivElement>(null);
+
+useEffect(() => {
+  const close = (e: MouseEvent) => {
+    if (!bellRef.current?.contains(e.target as Node)) {
+      setBellOpen(false);
+    }
+  };
+
+  document.addEventListener("mousedown", close);
+  return () => document.removeEventListener("mousedown", close);
+}, []);
 
   const { due } = useReminders();
 
@@ -249,7 +262,7 @@ export default function OSLayout({
 
               {/* Notifications */}
 
-              <div className="relative">
+              <div ref={bellRef} className="relative">
                 <button
                   type="button"
                   aria-label="Notifications"

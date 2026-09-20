@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -69,14 +69,16 @@ class RentalCreate(BaseModel):
     One customer can have unlimited rentals/orders.
     One rental can contain multiple Odoo products.
     """
-
+    
     partner_id: int
 
     vehicle_id: int
 
     start_date: date
+    start_time: time | None = None
 
     end_date: date
+    end_time: time | None = None
 
     products: list[RentalProductLine] = Field(
         min_length=1,
@@ -503,13 +505,24 @@ def create_rental(
     # DATE VALIDATION
     # ========================================================
 
-    if rental.start_date < date.today() or rental.end_date <= rental.start_date:
-        raise HTTPException(
-            status_code=422,
-            detail=(
-                "Pickup cannot be in the past; return must be after pickup."
-            ),
-        )
+    pickup_at = datetime.combine(
+    rental.start_date,
+    rental.start_time or time.min,
+)
+
+return_at = datetime.combine(
+    rental.end_date,
+    rental.end_time or time.min,
+)
+
+if (
+    rental.start_date < date.today()
+    or return_at <= pickup_at
+):
+    raise HTTPException(
+        status_code=422,
+        detail="Pickup cannot be in the past; return must be after pickup.",
+    )
 
     # ========================================================
     # PRODUCT VALIDATION
