@@ -13,28 +13,38 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     setError("");
     setLoading(true);
 
-    // ---------------------------------------------------------
-    // DEMO AUTH
-    // ---------------------------------------------------------
+    try {
+      const response = await fetch("/api/auth", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username,
+          password,
+        }),
+      });
 
-    if (username === "admin" && password === "admin") {
-      document.cookie =
-        "klynx_session=demo; path=/; max-age=86400; SameSite=Lax";
+      const data = await response.json();
 
-      router.push("/dashboard");
-      router.refresh();
+      if (!response.ok) {
+        setError(data.message || "Invalid username or password.");
+        setLoading(false);
+        return;
+      }
 
-      return;
+     window.location.assign("/dashboard");
+     
+         } catch {
+      setError("Unable to sign in. Please try again.");
+      setLoading(false);
     }
-
-    setError("Invalid username or password.");
-    setLoading(false);
   }
 
   return (
@@ -51,13 +61,11 @@ export default function LoginPage() {
         text-white
       "
     >
-
       {/* =========================================================
           AMBIENT BACKGROUND
       ========================================================= */}
 
       <div className="pointer-events-none absolute inset-0">
-
         <div
           className="
             absolute
@@ -84,20 +92,16 @@ export default function LoginPage() {
             blur-[160px]
           "
         />
-
       </div>
-
 
       {/* =========================================================
           LOGIN
       ========================================================= */}
 
       <div className="relative w-full max-w-[390px]">
-
         {/* Logo */}
 
         <div className="mb-8 text-center">
-
           <Link
             href="/"
             className="
@@ -115,9 +119,7 @@ export default function LoginPage() {
           <p className="mt-2 text-sm text-[#71717A]">
             Rental business operating system
           </p>
-
         </div>
-
 
         {/* Card */}
 
@@ -132,9 +134,7 @@ export default function LoginPage() {
             backdrop-blur-xl
           "
         >
-
           <div className="mb-6">
-
             <h1 className="font-[Syne] text-xl font-semibold">
               Welcome back
             </h1>
@@ -142,19 +142,12 @@ export default function LoginPage() {
             <p className="mt-1 text-sm text-[#71717A]">
               Sign in to your workspace.
             </p>
-
           </div>
 
-
-          <form
-            onSubmit={handleSubmit}
-            className="space-y-4"
-          >
-
+          <form onSubmit={handleSubmit} className="space-y-4">
             {/* Username */}
 
             <div>
-
               <label
                 htmlFor="username"
                 className="mb-2 block text-xs text-[#A1A1AA]"
@@ -167,9 +160,7 @@ export default function LoginPage() {
                 type="text"
                 autoComplete="username"
                 value={username}
-                onChange={(event) =>
-                  setUsername(event.target.value)
-                }
+                onChange={(event) => setUsername(event.target.value)}
                 placeholder="admin"
                 className="
                   h-10
@@ -186,14 +177,11 @@ export default function LoginPage() {
                   focus:border-[#C8F065]/50
                 "
               />
-
             </div>
-
 
             {/* Password */}
 
             <div>
-
               <label
                 htmlFor="password"
                 className="mb-2 block text-xs text-[#A1A1AA]"
@@ -206,9 +194,7 @@ export default function LoginPage() {
                 type="password"
                 autoComplete="current-password"
                 value={password}
-                onChange={(event) =>
-                  setPassword(event.target.value)
-                }
+                onChange={(event) => setPassword(event.target.value)}
                 placeholder="••••••••"
                 className="
                   h-10
@@ -225,9 +211,7 @@ export default function LoginPage() {
                   focus:border-[#C8F065]/50
                 "
               />
-
             </div>
-
 
             {/* Error */}
 
@@ -247,7 +231,6 @@ export default function LoginPage() {
                 {error}
               </div>
             )}
-
 
             {/* Submit */}
 
@@ -270,18 +253,13 @@ export default function LoginPage() {
             >
               {loading ? "Opening workspace..." : "Sign in"}
             </button>
-
           </form>
-
         </div>
-
 
         <p className="mt-5 text-center text-[11px] text-[#52525B]">
           Klynx OS · Demo environment
         </p>
-
       </div>
-
     </main>
   );
 }
