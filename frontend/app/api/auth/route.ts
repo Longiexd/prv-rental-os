@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 
+const SESSION_COOKIE = "klynx_session";
+const SESSION_VALUE = "demo-admin-session";
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-
     const { username, password } = body;
 
     // Temporary demo authentication.
-    // This will later be replaced by the FastAPI/Odoo authentication flow.
+    // Later this can be replaced by the FastAPI/Odoo authentication flow.
     if (username !== "admin" || password !== "admin") {
       return NextResponse.json(
         {
@@ -29,14 +31,12 @@ export async function POST(request: Request) {
       },
     });
 
-    // Temporary session cookie.
-    // Later this can become a proper JWT/session from FastAPI.
-    response.cookies.set("klynx_session", "demo-admin-session", {
+    response.cookies.set(SESSION_COOKIE, SESSION_VALUE, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      maxAge: 60 * 60 * 8, // 8 hours
+      maxAge: 60 * 60 * 8,
     });
 
     return response;
@@ -51,4 +51,21 @@ export async function POST(request: Request) {
       }
     );
   }
+}
+
+export async function DELETE() {
+  const response = NextResponse.json({
+    success: true,
+    message: "Logged out",
+  });
+
+  response.cookies.set(SESSION_COOKIE, "", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 0,
+  });
+
+  return response;
 }
