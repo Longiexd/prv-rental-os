@@ -15,18 +15,14 @@ import {
   Users,
   Zap,
 } from "lucide-react";
-import React, { useEffect,useRef,useState,} from "react";
-
+import React, { useState } from "react";
 
 import AddCustomerModal from "@/components/customers/AddCustomerModal";
 import CreateRentalModal from "@/components/rentals/CreateRentalModal";
 import { QuickAddMenu } from "@/components/ui/QuickAddMenu";
 import { useReminders } from "@/components/activities/api";
 import KlynxLogo from "@/components/klynxlogo";
-
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://api.rental-os.klynx.net";
+import { API_URL } from "@/lib/api-config";
 
 const navigation = [
   {
@@ -90,30 +86,15 @@ export default function OSLayout({
   const [addRentalOpen, setAddRentalOpen] = useState(false);
   const [addCustomerOpen, setAddCustomerOpen] = useState(false);
   const [bellOpen, setBellOpen] = useState(false);
-  const bellRef = useRef<HTMLDivElement>(null);
-
-useEffect(() => {
-  const close = (e: MouseEvent) => {
-    if (!bellRef.current?.contains(e.target as Node)) {
-      setBellOpen(false);
-    }
-  };
-
-  document.addEventListener("mousedown", close);
-  return () => document.removeEventListener("mousedown", close);
-}, []);
 
   const { due } = useReminders();
 
-  const handleLogout = async () => {
-    try {
-      await fetch("/api/auth", {
-        method: "DELETE",
-      });
-    } finally {
-      router.replace("/login");
-      router.refresh();
-    }
+  const handleLogout = () => {
+    document.cookie =
+      "klynx_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
+
+    router.replace("/login");
+    router.refresh();
   };
 
   const isActive = (href: string) =>
@@ -131,11 +112,9 @@ useEffect(() => {
         {/* =====================================================
             DESKTOP SIDEBAR
         ===================================================== */}
-
         <aside className="hidden w-[208px] shrink-0 flex-col border-r border-border bg-background/80 lg:flex">
 
           {/* Klynx logo */}
-
           <Link
             href="/dashboard"
             className="flex h-[70px] items-center border-b border-border px-5"
@@ -145,7 +124,6 @@ useEffect(() => {
           </Link>
 
           {/* Navigation */}
-
           <nav
             aria-label="Main navigation"
             className="space-y-8 px-3 py-7"
@@ -180,12 +158,11 @@ useEffect(() => {
           </nav>
 
           {/* Sidebar footer */}
-
           <div className="mt-auto space-y-1 p-4">
+
             <div className="flex items-center gap-3 rounded-lg px-2 py-2 text-xs text-muted">
               <Zap size={15} className="text-pink" />
               Klynx AI
-
               <span className="ml-auto text-[10px] text-pink">
                 Soon
               </span>
@@ -198,21 +175,27 @@ useEffect(() => {
               <CircleHelp size={15} />
               Help & support
             </a>
+
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left text-xs text-muted transition hover:bg-white/[0.03] hover:text-text"
+            >
+              <LogOut size={15} />
+              Log out
+            </button>
           </div>
         </aside>
 
         {/* =====================================================
             MAIN AREA
         ===================================================== */}
-
         <div className="min-w-0 flex-1">
 
           {/* Header */}
-
           <header className="flex h-[70px] items-center justify-between gap-3 border-b border-border bg-background/70 px-4 sm:px-7">
 
             {/* Mobile Klynx logo */}
-
             <Link
               href="/dashboard"
               aria-label="Klynx overview"
@@ -222,7 +205,6 @@ useEffect(() => {
             </Link>
 
             {/* Search */}
-
             <div
               title="Search — coming soon"
               className="hidden h-10 w-full max-w-[390px] items-center gap-2 rounded-lg border border-border bg-surface/80 px-3 text-muted sm:flex"
@@ -239,8 +221,8 @@ useEffect(() => {
             </div>
 
             {/* Header actions */}
-
             <div className="ml-auto flex items-center gap-3">
+
               <QuickAddMenu
                 actions={[
                   {
@@ -261,8 +243,7 @@ useEffect(() => {
               />
 
               {/* Notifications */}
-
-              <div ref={bellRef} className="relative">
+              <div className="relative">
                 <button
                   type="button"
                   aria-label="Notifications"
@@ -282,6 +263,7 @@ useEffect(() => {
 
                 {bellOpen && (
                   <div className="absolute right-0 top-11 z-30 w-72 rounded-xl border border-border bg-surface p-3 shadow-xl">
+
                     <p className="px-1 pb-2 text-xs font-medium uppercase tracking-wider text-muted">
                       Due today & overdue
                     </p>
@@ -332,10 +314,9 @@ useEffect(() => {
                 )}
               </div>
 
-              {/* User + logout */}
-
-              <div className="flex items-center gap-2">
-                <div className="hidden text-right sm:block">
+              {/* Admin identity - desktop */}
+              <div className="hidden items-center gap-2 sm:flex">
+                <span className="text-right">
                   <span className="block text-xs font-medium leading-tight text-text">
                     Klynx Admin
                   </span>
@@ -343,27 +324,27 @@ useEffect(() => {
                   <span className="block text-[10px] leading-tight text-muted">
                     Administrator
                   </span>
-                </div>
+                </span>
 
                 <span className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-surface-secondary text-xs font-medium">
                   KL
                 </span>
-
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  aria-label="Log out"
-                  title="Log out"
-                  className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-text-secondary transition hover:border-pink/40 hover:bg-pink/5 hover:text-pink"
-                >
-                  <LogOut size={16} />
-                </button>
               </div>
+
+              {/* Mobile logout */}
+              <button
+                type="button"
+                onClick={handleLogout}
+                aria-label="Log out"
+                title="Log out"
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-text-secondary transition hover:border-pink/40 hover:text-pink lg:hidden"
+              >
+                <LogOut size={16} />
+              </button>
             </div>
           </header>
 
           {/* Mobile navigation */}
-
           <nav
             aria-label="Mobile navigation"
             className="flex gap-1 overflow-x-auto border-b border-border p-2 lg:hidden"

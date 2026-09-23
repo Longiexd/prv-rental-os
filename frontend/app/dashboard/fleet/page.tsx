@@ -33,6 +33,7 @@ import {
   formatDate as sharedFormatDate,
 } from "@/lib/format";
 import { SortableHeader, type SortDirection } from "@/components/ui/SortableHeader";
+import { API_URL, apiRequest } from "@/lib/api-config";
 
 // ============================================================
 // TYPES
@@ -98,10 +99,6 @@ type SortKey =
 // ============================================================
 // CONFIG
 // ============================================================
-
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://api.rental-os.klynx.net";
 
 // ============================================================
 // NORMALIZATION
@@ -1138,7 +1135,7 @@ export default function FleetPage() {
         // state only ever updates at the moment a rental is
         // created, and silently goes stale as days pass.
         try {
-          await fetch(`${API_URL}/cars/sync`, { method: "POST" });
+          await apiRequest(`${API_URL}/cars/sync`, { method: "POST" });
         } catch (syncError) {
           console.error("Fleet state sync failed:", syncError);
         }
@@ -1147,10 +1144,10 @@ export default function FleetPage() {
           carsResponse,
           salesResponse,
         ] = await Promise.all([
-          fetch(`${API_URL}/cars`, {
+          apiRequest(`${API_URL}/cars`, {
             cache: "no-store",
           }),
-          fetch(`${API_URL}/sales`, {
+          apiRequest(`${API_URL}/sales`, {
             cache: "no-store",
           }),
         ]);
@@ -1209,7 +1206,7 @@ export default function FleetPage() {
     nextState?: "Nettoyage" | "Disponible" | "Maintenance"
   ) {
     try {
-      const response = await fetch(
+      const response = await apiRequest(
         `${API_URL}/cars/${vehicleId}/${action}`,
         {
           method: "POST",

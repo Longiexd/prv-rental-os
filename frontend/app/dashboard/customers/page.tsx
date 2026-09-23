@@ -13,6 +13,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { SearchInput } from "@/components/ui/SearchInput";
 
 import { getInitials } from "@/lib/format";
+import { API_URL, apiRequest } from "@/lib/api-config";
 
 type Customer = {
   id: number;
@@ -27,9 +28,6 @@ type CustomersResponse = {
   customers: Customer[];
 };
 
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "https://api.rental-os.klynx.net";
-
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,7 +40,7 @@ export default function CustomersPage() {
       setLoading(true);
       setError("");
 
-      const response = await fetch(`${API_URL}/customers`, {
+      const response = await apiRequest(`${API_URL}/customers`, {
         cache: "no-store",
       });
 

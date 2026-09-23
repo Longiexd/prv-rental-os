@@ -27,6 +27,7 @@ import {
   toneClasses,
 } from "@/lib/status";
 import { formatDate as sharedFormatDate } from "@/lib/format";
+import { API_URL, apiRequest } from "@/lib/api-config";
 
 
 type Customer = {
@@ -101,10 +102,6 @@ type CreateRentalResult = {
   sale: Sale;
 };
 
-
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://api.rental-os.klynx.net";
 
 
 function formatDate(value: string | null | false) {
@@ -210,7 +207,7 @@ export default function RentalsPage() {
           ] =
             await Promise.all([
 
-              fetch(
+              apiRequest(
                 `${API_URL}/sales`,
                 {
                   cache:
@@ -218,7 +215,7 @@ export default function RentalsPage() {
                 }
               ),
 
-              fetch(
+              apiRequest(
                 `${API_URL}/invoices`,
                 {
                   cache:
@@ -226,7 +223,7 @@ export default function RentalsPage() {
                 }
               ),
 
-              fetch(
+              apiRequest(
                 `${API_URL}/cars`,
                 {
                   cache:

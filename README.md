@@ -1,5 +1,12 @@
 # Klynx Rental OS
 
+Deployment and environment setup is documented in
+[`docs/staging-production-infrastructure.md`](docs/staging-production-infrastructure.md).
+
+The release model is one codebase and one tested commit, promoted from
+`staging` to protected `main`; only environment variables, secrets, Odoo
+connections, and named Cloudflare Worker environments differ.
+
 Internal development documentation for Klynx Rental OS.
 
 A modular SaaS platform for rental businesses built as the first product of the Klynx ecosystem.

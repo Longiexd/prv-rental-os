@@ -1,6 +1,4 @@
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://api.rental-os.klynx.net";
+import { API_URL, apiRequest } from "@/lib/api-config";
 
 
 // ============================================================
@@ -167,7 +165,7 @@ export async function apiFetch<T>(
   options?: RequestInit
 ): Promise<T> {
 
-  const response = await fetch(
+  const response = await apiRequest(
     `${API_URL}${endpoint}`,
     {
       ...options,

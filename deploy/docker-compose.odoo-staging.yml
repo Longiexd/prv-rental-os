@@ -1,0 +1,40 @@
+services:
+  postgres-staging:
+    image: postgres:16
+    container_name: klynx-odoo-postgres-staging
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - odoo-staging-db:/var/lib/postgresql/data
+    networks:
+      - odoo-staging
+
+  odoo-staging:
+    image: ${ODOO_IMAGE}
+    container_name: klynx-odoo-staging
+    restart: unless-stopped
+    depends_on:
+      - postgres-staging
+    environment:
+      HOST: postgres-staging
+      USER: ${POSTGRES_USER}
+      PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:8069:8069"
+    volumes:
+      - odoo-staging-data:/var/lib/odoo
+    networks:
+      - odoo-staging
+
+volumes:
+  odoo-staging-db:
+    name: klynx-odoo-staging-db
+  odoo-staging-data:
+    name: klynx-odoo-staging-data
+
+networks:
+  odoo-staging:
+    name: klynx-odoo-staging

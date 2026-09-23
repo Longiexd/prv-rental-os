@@ -16,10 +16,7 @@ import { Card, CardHeader } from "@/components/ui/Card";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard } from "@/components/ui/StatCard";
 import { formatCurrency } from "@/lib/format";
-
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://api.rental-os.klynx.net";
+import { API_URL, apiRequest } from "@/lib/api-config";
 
 type Analytics = {
   range: {
@@ -285,7 +282,7 @@ export default function AnalyticsPage() {
   const loadAnalytics = useCallback(() => {
     const version = ++requestVersion.current;
     const range = getYearRange(year);
-    return fetch(`${API_URL}/analytics?start_date=${range.start}&end_date=${range.end}${vehicleId ? `&vehicle_id=${vehicleId}` : ""}`, { cache: "no-store" })
+    return apiRequest(`${API_URL}/analytics?start_date=${range.start}&end_date=${range.end}${vehicleId ? `&vehicle_id=${vehicleId}` : ""}`, { cache: "no-store" })
       .then(response => {
         if (!response.ok) throw new Error(`API returned ${response.status}`);
         return response.json() as Promise<Analytics>;

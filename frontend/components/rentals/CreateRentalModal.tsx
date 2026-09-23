@@ -20,10 +20,7 @@ import {
   X,
 
 } from "lucide-react";
-
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://api.rental-os.klynx.net";
+import { API_URL, apiRequest } from "@/lib/api-config";
 
 function formDateAfter(value: string) {
   const day = new Date(`${value}T12:00:00`);
@@ -259,7 +256,7 @@ export default function CreateRentalModal({
         setLoading(true);
         setError(null);
 
-        const rentalOptionsResponse = await fetch(`${API_URL}/rentals/options`, { cache: "no-store" });
+        const rentalOptionsResponse = await apiRequest(`${API_URL}/rentals/options`, { cache: "no-store" });
 
         if (!rentalOptionsResponse.ok) {
           throw new Error(
@@ -333,7 +330,7 @@ export default function CreateRentalModal({
 
     async function refreshVehicles() {
       try {
-        const response = await fetch(
+        const response = await apiRequest(
           `${API_URL}/rentals/options?start_date=${form.start_date}&end_date=${form.end_date}${rentalId ? `&exclude_order_id=${rentalId}` : ""}`,
           { cache: "no-store" }
         );
@@ -472,7 +469,7 @@ export default function CreateRentalModal({
       try {
         setSearchingCustomers(true);
 
-        const response = await fetch(
+        const response = await apiRequest(
           `${API_URL}/customers/search?q=${encodeURIComponent(
             query
           )}`,
@@ -517,7 +514,7 @@ export default function CreateRentalModal({
       setCreatingCustomer(true);
       setCreateCustomerError(null);
 
-      const response = await fetch(`${API_URL}/customers`, {
+      const response = await apiRequest(`${API_URL}/customers`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -890,7 +887,7 @@ export default function CreateRentalModal({
   const linkedOpportunity = opportunityId || (createdProspect?.partner_id === Number(form.partner_id) ? createdProspect.lead_id : undefined);
 
   async function submitRental(): Promise<CreatedSale> {
-    const response = await fetch(`${API_URL}/rentals${rentalId ? `/${rentalId}` : ""}`, {
+    const response = await apiRequest(`${API_URL}/rentals${rentalId ? `/${rentalId}` : ""}`, {
       method: rentalId ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -913,7 +910,7 @@ export default function CreateRentalModal({
   }
 
   async function submitAsLead(): Promise<{ lead_id: number }> {
-    const response = await fetch(`${API_URL}/crm/leads`, {
+    const response = await apiRequest(`${API_URL}/crm/leads`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

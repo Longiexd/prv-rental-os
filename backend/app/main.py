@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.config import get_cors_allowed_origins
 from app.odoo_client import odoo
 from app.routes import activities, analytics, booking_changes, calendar, cars, crm, customers, invoices, leads, rentals, sales
 
@@ -11,10 +12,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://rental-os.klynx.net",
-        "http://localhost:3100",
-    ],
+    allow_origins=get_cors_allowed_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

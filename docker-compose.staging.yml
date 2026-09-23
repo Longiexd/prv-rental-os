@@ -1,0 +1,27 @@
+services:
+  backend-staging:
+    build:
+      context: ./backend
+    container_name: klynx-rental-api-staging
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8001:8000"
+    env_file:
+      - ./backend/.env.staging
+    networks:
+      - odoo-staging
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=3)"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+networks:
+  odoo-staging:
+    external: true
+    name: ${ODOO_STAGING_DOCKER_NETWORK:-klynx-odoo-staging}

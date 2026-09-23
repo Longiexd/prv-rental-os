@@ -23,6 +23,7 @@ import {
   rentalStateMeta,
   toneClasses,
 } from "@/lib/status";
+import { API_URL, apiRequest } from "@/lib/api-config";
 
 // ============================================================
 // TYPES
@@ -88,10 +89,6 @@ type FleetStatus =
 // ============================================================
 // CONFIG
 // ============================================================
-
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://api.rental-os.klynx.net";
 
 // ============================================================
 // DATE HELPERS
@@ -1912,14 +1909,14 @@ export default function CalendarPage() {
           salesResponse,
           carsResponse,
         ] = await Promise.all([
-          fetch(
+          apiRequest(
             `${API_URL}/sales`,
             {
               cache:
                 "no-store",
             }
           ),
-          fetch(
+          apiRequest(
             `${API_URL}/cars`,
             {
               cache:

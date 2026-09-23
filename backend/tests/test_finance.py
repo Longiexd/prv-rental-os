@@ -40,7 +40,11 @@ class FinanceTests(unittest.TestCase):
         self.assertIn(["order_id", "=", 1], rpc.call_args.args[2][0])
 
     def test_discount_updates_odoo_lines_in_one_write(self):
-        with patch.object(sales, "sale_record"), patch.object(sales.odoo, "execute", side_effect=[[1, 2], True]) as rpc:
+        lines = [
+            {"id": 1, "qty_invoiced": 0, "qty_delivered": 0},
+            {"id": 2, "qty_invoiced": 0, "qty_delivered": 0},
+        ]
+        with patch.object(sales, "sale_record"), patch.object(sales.odoo, "execute", side_effect=[lines, True]) as rpc:
             sales.discount_order(1, sales.OrderDiscount(discount_percent=15))
         self.assertEqual(rpc.call_args.args, ("sale.order.line", "write", [[1, 2], {"discount": 15}]))
 

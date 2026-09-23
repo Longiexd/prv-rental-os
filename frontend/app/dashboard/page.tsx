@@ -25,6 +25,7 @@ import { RentalActionMenu } from "@/components/rentals/RentalActionMenu";
 
 import { formatCurrency, formatDateShort, isSameDay, parseDate } from "@/lib/format";
 import { getFleetStatus, getRentalState, rentalStateMeta, type RentalState } from "@/lib/status";
+import { API_URL, apiRequest } from "@/lib/api-config";
 
 // ============================================================
 // TYPES
@@ -76,9 +77,6 @@ type InvoiceData = {
   payment_state: string;
   amount_residual: number;
 };
-
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "https://api.rental-os.klynx.net";
 
 // Recent-rentals ordering: quotations first (need action), then
 // confirmed/ongoing (in progress), then completed/cancelled last —
@@ -136,16 +134,16 @@ export default function DashboardPage() {
       setError(null);
 
       try {
-        await fetch(`${API_URL}/cars/sync`, { method: "POST" });
+        await apiRequest(`${API_URL}/cars/sync`, { method: "POST" });
       } catch (syncError) {
         console.error("Fleet state sync failed:", syncError);
       }
 
       const [carsRes, customersRes, salesRes, invoicesRes] = await Promise.all([
-        fetch(`${API_URL}/cars`, { cache: "no-store" }),
-        fetch(`${API_URL}/customers`, { cache: "no-store" }),
-        fetch(`${API_URL}/sales`, { cache: "no-store" }),
-        fetch(`${API_URL}/invoices`, { cache: "no-store" }),
+        apiRequest(`${API_URL}/cars`, { cache: "no-store" }),
+        apiRequest(`${API_URL}/customers`, { cache: "no-store" }),
+        apiRequest(`${API_URL}/sales`, { cache: "no-store" }),
+        apiRequest(`${API_URL}/invoices`, { cache: "no-store" }),
       ]);
 
       if (!carsRes.ok) throw new Error(`Cars API returned ${carsRes.status}`);
@@ -179,7 +177,7 @@ export default function DashboardPage() {
   // instead of a bespoke try/catch per action.
   async function runAction(path: string, method: string, notFetchLabel: string, body?: unknown) {
     try {
-      const response = await fetch(`${API_URL}${path}`, {
+      const response = await apiRequest(`${API_URL}${path}`, {
         method,
         ...(body !== undefined ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}),
       });

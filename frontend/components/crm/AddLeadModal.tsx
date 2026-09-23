@@ -13,6 +13,7 @@ import {
   UserRound,
   X,
 } from "lucide-react";
+import { API_URL, apiRequest } from "@/lib/api-config";
 
 type AddLeadModalProps = {
   open: boolean;
@@ -37,10 +38,6 @@ type LeadOptions = {
   vehicle_types: VehicleOption[];
   vehicle_brands: VehicleOption[];
 };
-
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://api.rental-os.klynx.net";
 
 export default function AddLeadModal({
   open,
@@ -124,7 +121,7 @@ export default function AddLeadModal({
     try {
       setLoadingOptions(true);
 
-      const response = await fetch(
+      const response = await apiRequest(
         `${API_URL}/crm/lead-options`,
         {
           cache: "no-store",
@@ -237,7 +234,7 @@ export default function AddLeadModal({
       try {
         setSearchingCustomers(true);
 
-        const response = await fetch(
+        const response = await apiRequest(
           `${API_URL}/customers/search?q=${encodeURIComponent(
             query
           )}`,
@@ -338,7 +335,7 @@ export default function AddLeadModal({
       setSaving(true);
       setError(null);
 
-      const response = await fetch(
+      const response = await apiRequest(
         `${API_URL}/crm/leads`,
         {
           method: "POST",

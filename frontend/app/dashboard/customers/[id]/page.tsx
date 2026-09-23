@@ -19,6 +19,7 @@ import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { StatCard } from "@/components/ui/StatCard";
+import { API_URL, apiRequest } from "@/lib/api-config";
 
 // ============================================================
 // TYPES
@@ -115,10 +116,6 @@ type Customer = {
 // API
 // ============================================================
 
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://api.rental-os.klynx.net";
-
 // ============================================================
 // PAGE
 // ============================================================
@@ -156,7 +153,7 @@ export default function CustomerDetailPage() {
       setLoading(true);
       setError("");
 
-      const response = await fetch(
+      const response = await apiRequest(
         `${API_URL}/customers/${id}`,
         {
           cache: "no-store",
@@ -202,7 +199,7 @@ export default function CustomerDetailPage() {
   async function saveContact(field: "phone" | "email") {
     setSavingContact(true);
     try {
-      const response = await fetch(`${API_URL}/customers/${id}`, {
+      const response = await apiRequest(`${API_URL}/customers/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ [field]: contactDraft }),

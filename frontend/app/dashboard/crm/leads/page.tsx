@@ -17,6 +17,7 @@ import {
 import CreateRentalModal from "@/components/rentals/CreateRentalModal";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SortableHeader, type SortDirection } from "@/components/ui/SortableHeader";
+import { API_URL, apiRequest } from "@/lib/api-config";
 
 type LeadSortKey = "name" | "customer" | "stage" | "revenue";
 
@@ -47,10 +48,6 @@ type View = "list" | "kanban";
 // =========================================================
 // API
 // =========================================================
-
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://api.rental-os.klynx.net";
 
 // =========================================================
 // STAGE COLORS
@@ -233,11 +230,11 @@ export default function LeadsPage() {
         leadsResponse,
         stagesResponse,
       ] = await Promise.all([
-        fetch(`${API_URL}/crm/leads`, {
+        apiRequest(`${API_URL}/crm/leads`, {
           cache: "no-store",
         }),
 
-        fetch(`${API_URL}/crm/stages`, {
+        apiRequest(`${API_URL}/crm/stages`, {
           cache: "no-store",
         }),
       ]);
@@ -313,7 +310,7 @@ export default function LeadsPage() {
     );
 
     try {
-      const response = await fetch(
+      const response = await apiRequest(
         `${API_URL}/crm/leads/${leadId}/stage`,
         {
           method: "PATCH",

@@ -2,6 +2,7 @@
 
 import { AlertTriangle, Loader2, Mail, Phone, User, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { apiRequest } from "@/lib/api-config";
 
 // ============================================================
 // TYPES
@@ -72,7 +73,7 @@ export default function AddCustomerModal({
       try {
         setChecking(true);
 
-        const response = await fetch(
+        const response = await apiRequest(
           `${apiUrl}/customers/search?q=${encodeURIComponent(query)}`
         );
 
@@ -110,7 +111,7 @@ export default function AddCustomerModal({
       setSubmitting(true);
       setError("");
 
-      const response = await fetch(`${apiUrl}/customers`, {
+      const response = await apiRequest(`${apiUrl}/customers`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -144,7 +145,7 @@ export default function AddCustomerModal({
       setSubmitting(true);
       setError("");
 
-      const response = await fetch(`${apiUrl}/crm/leads`, {
+      const response = await apiRequest(`${apiUrl}/crm/leads`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
