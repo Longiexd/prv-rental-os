@@ -504,25 +504,25 @@ def create_rental(
     # ========================================================
     # DATE VALIDATION
     # ========================================================
-
+  
     pickup_at = datetime.combine(
-    rental.start_date,
-    rental.start_time or time.min,
-)
-
-return_at = datetime.combine(
-    rental.end_date,
-    rental.end_time or time.min,
-)
-
-if (
-    rental.start_date < date.today()
-    or return_at <= pickup_at
-):
-    raise HTTPException(
-        status_code=422,
-        detail="Pickup cannot be in the past; return must be after pickup.",
+        rental.start_date,
+        rental.start_time or time.min,
     )
+
+    return_at = datetime.combine(
+        rental.end_date,
+        rental.end_time or time.min,
+    )
+
+    if (
+        rental.start_date < date.today()
+        or return_at <= pickup_at
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="Pickup cannot be in the past; return must be after pickup.",
+        )
 
     # ========================================================
     # PRODUCT VALIDATION
