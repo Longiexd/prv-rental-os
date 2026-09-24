@@ -47,6 +47,7 @@ case "$environment" in
   staging)
     compose_file="docker-compose.staging.yml"
     service_name="backend-staging"
+    compose_project="klynx-rental-os-staging"
     env_filename=".env.staging"
     health_url="http://127.0.0.1:8001/"
     compose_env_file="deploy/staging.compose.env"
@@ -54,6 +55,7 @@ case "$environment" in
   production)
     compose_file="docker-compose.production.yml"
     service_name="backend-production"
+    compose_project="klynx-rental-os-production"
     env_filename=".env.production"
     health_url="http://127.0.0.1:8000/"
     compose_env_file="deploy/production.compose.env"
@@ -78,8 +80,8 @@ tar -xzf "$archive_path" -C "$release_dir"
 install -m 600 "$backend_env_path" "$release_dir/backend/$env_filename"
 
 cd "$release_dir"
-docker compose --env-file "$compose_env_file" -f "$compose_file" config --quiet
-docker compose --env-file "$compose_env_file" -f "$compose_file" up -d --build "$service_name"
+docker compose --project-name "$compose_project" --env-file "$compose_env_file" -f "$compose_file" config --quiet
+docker compose --project-name "$compose_project" --env-file "$compose_env_file" -f "$compose_file" up -d --build "$service_name"
 
 healthy=false
 for _ in {1..30}; do
@@ -94,7 +96,7 @@ if [[ "$healthy" != "true" ]]; then
   echo "$environment health check failed; attempting to restore the previous release" >&2
   if [[ -n "$previous_release" && -d "$previous_release" ]]; then
     cd "$previous_release"
-    docker compose --env-file "$compose_env_file" -f "$compose_file" up -d --build "$service_name"
+    docker compose --project-name "$compose_project" --env-file "$compose_env_file" -f "$compose_file" up -d --build "$service_name"
   fi
   exit 1
 fi
