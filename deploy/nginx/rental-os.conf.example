@@ -1,6 +1,6 @@
 server {
     listen 127.0.0.1:8081;
-    server_name api-staging.klynx.net;
+    server_name api-staging.rental-os.klynx.net;
 
     location / {
         proxy_pass http://127.0.0.1:8001;
@@ -12,7 +12,7 @@ server {
 
 server {
     listen 127.0.0.1:8080;
-    server_name api.klynx.net;
+    server_name api.rental-os.klynx.net;
 
     location / {
         proxy_pass http://127.0.0.1:8000;

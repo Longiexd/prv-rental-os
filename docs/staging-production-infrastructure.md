@@ -10,7 +10,7 @@ This package was prepared from `origin/main` commit
 | --- | --- | --- |
 | Git branch | `staging` | protected `main` |
 | Frontend | `staging.rental-os.klynx.net` | `rental-os.klynx.net` |
-| API | `api-staging.klynx.net` | `api.klynx.net` |
+| API | `api-staging.rental-os.klynx.net` | `api.rental-os.klynx.net` |
 | Worker | `prv-rental-os-staging` | `prv-rental-os-production` |
 | Wrangler environment | `staging` | `production` |
 | Backend port on VPS | loopback `8001` | loopback `8000` |
@@ -20,7 +20,7 @@ This package was prepared from `origin/main` commit
 | Browser access | Cloudflare Access | public application |
 
 The API hostnames above follow the current decision:
-`api-staging.klynx.net` and `api.klynx.net`.
+`api-staging.rental-os.klynx.net` and `api.rental-os.klynx.net`.
 
 ## Normal day-to-day flow
 
@@ -49,7 +49,7 @@ Add these variables to each environment:
 
 | Variable | Staging value | Production value |
 | --- | --- | --- |
-| `NEXT_PUBLIC_API_URL` | `https://api-staging.klynx.net` | `https://api.klynx.net` |
+| `NEXT_PUBLIC_API_URL` | `https://api-staging.rental-os.klynx.net` | `https://api.rental-os.klynx.net` |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID | same account ID |
 | `VPS_SSH_HOST` | VPS hostname/IP | VPS hostname/IP |
 | `VPS_SSH_PORT` | normally `22` | normally `22` |
@@ -179,7 +179,7 @@ Before exposing staging DNS, create one Cloudflare Access self-hosted
 application with these two concrete hostnames:
 
 - `staging.rental-os.klynx.net`
-- `api-staging.klynx.net`
+- `api-staging.rental-os.klynx.net`
 
 Add an Allow policy for the intended staff identity/group. Access is deny by
 default, so do not add an Everyone bypass.

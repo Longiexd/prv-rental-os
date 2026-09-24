@@ -38,7 +38,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          test "$NEXT_PUBLIC_API_URL" = "https://api-staging.klynx.net"
+          test "$NEXT_PUBLIC_API_URL" = "https://api-staging.rental-os.klynx.net"
           test -n "$CLOUDFLARE_ACCOUNT_ID"
           test -n "$CLOUDFLARE_API_TOKEN"
           test -n "$BACKEND_ENV"
