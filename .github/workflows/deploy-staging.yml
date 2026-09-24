@@ -70,7 +70,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          tar --exclude=.git --exclude=frontend/node_modules --exclude=frontend/dist --exclude=frontend/.next -czf "klynx-${GITHUB_SHA}.tar.gz" .
+          tar --exclude=.git --exclude=frontend/node_modules --exclude=frontend/dist --exclude=frontend/.next -czf "${RUNNER_TEMP}/klynx-${GITHUB_SHA}.tar.gz" .
           umask 077
           printf '%s\n' "$BACKEND_ENV" > backend-runtime.env
 
@@ -85,7 +85,7 @@ jobs:
           port="${VPS_SSH_PORT:-22}"
           remote="${VPS_SSH_USER}@${VPS_SSH_HOST}"
           prefix="/tmp/klynx-staging-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          scp -P "$port" "klynx-${GITHUB_SHA}.tar.gz" "$remote:$prefix.tar.gz"
+          scp -P "$port" "${RUNNER_TEMP}/klynx-${GITHUB_SHA}.tar.gz" "$remote:$prefix.tar.gz"
           scp -P "$port" backend-runtime.env "$remote:$prefix.env"
           ssh -p "$port" "$remote" "sudo /usr/local/sbin/klynx-install-release staging '$GITHUB_SHA' '$prefix.tar.gz' '$prefix.env' '${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}'"
 
