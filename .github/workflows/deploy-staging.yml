@@ -30,7 +30,7 @@ jobs:
       VPS_SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
       BACKEND_ENV: ${{ secrets.BACKEND_ENV }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -43,7 +43,7 @@ jobs:
           test -n "$CLOUDFLARE_API_TOKEN"
           test -n "$BACKEND_ENV"
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -55,7 +55,7 @@ jobs:
           python -m pip install -r backend/requirements.txt pytest
           python -m pytest -q backend
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
@@ -73,6 +73,14 @@ jobs:
           tar --exclude=.git --exclude=frontend/node_modules --exclude=frontend/dist --exclude=frontend/.next -czf "${RUNNER_TEMP}/klynx-${GITHUB_SHA}.tar.gz" .
           umask 077
           printf '%s\n' "$BACKEND_ENV" > backend-runtime.env
+
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+          ping: ${{ vars.VPS_SSH_HOST }}
 
       - name: Connect to Tailscale
         uses: tailscale/github-action@v4
