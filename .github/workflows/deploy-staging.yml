@@ -10,7 +10,7 @@ permissions:
 
 concurrency:
   group: deploy-staging
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -20,15 +20,12 @@ jobs:
       name: staging
       url: https://staging.rental-os.klynx.net
     env:
+      CLOUDFLARE_ENV: staging
       NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       VPS_SSH_HOST: ${{ vars.VPS_SSH_HOST }}
       VPS_SSH_PORT: ${{ vars.VPS_SSH_PORT }}
       VPS_SSH_USER: ${{ vars.VPS_SSH_USER }}
-      VPS_SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
-      VPS_SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
-      BACKEND_ENV: ${{ secrets.BACKEND_ENV }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -38,10 +35,9 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
+          test "$GITHUB_REF" = "refs/heads/staging"
           test "$NEXT_PUBLIC_API_URL" = "https://api-staging.rental-os.klynx.net"
           test -n "$CLOUDFLARE_ACCOUNT_ID"
-          test -n "$CLOUDFLARE_API_TOKEN"
-          test -n "$BACKEND_ENV"
 
       - uses: actions/setup-python@v7
         with:
@@ -66,13 +62,21 @@ jobs:
           npm ci
           npm run build:vinext
 
+      - name: Verify generated Worker isolation
+        run: |
+          node --test deploy/verify-worker.test.mjs
+          node deploy/verify-worker.mjs staging
+
       - name: Create backend release
         shell: bash
+        env:
+          BACKEND_ENV: ${{ secrets.BACKEND_ENV }}
         run: |
           set -Eeuo pipefail
-          tar --exclude=.git --exclude=frontend/node_modules --exclude=frontend/dist --exclude=frontend/.next -czf "${RUNNER_TEMP}/klynx-${GITHUB_SHA}.tar.gz" .
+          test -n "$BACKEND_ENV"
+          git archive --format=tar.gz --output="${RUNNER_TEMP}/klynx-${GITHUB_SHA}.tar.gz" "${GITHUB_SHA}"
           umask 077
-          printf '%s\n' "$BACKEND_ENV" > backend-runtime.env
+          printf '%s\n' "$BACKEND_ENV" > "${RUNNER_TEMP}/backend-runtime.env"
 
       - name: Connect to Tailscale
         uses: tailscale/github-action@v4
@@ -84,9 +88,15 @@ jobs:
 
 
       - name: Deploy staging backend
+        env:
+          VPS_SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          VPS_SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
         shell: bash
         run: |
           set -Eeuo pipefail
+          test -n "$VPS_SSH_PRIVATE_KEY"
+          test -n "$VPS_SSH_KNOWN_HOSTS"
+          umask 077
           install -d -m 700 ~/.ssh
           printf '%s\n' "$VPS_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
           printf '%s\n' "$VPS_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
@@ -95,9 +105,18 @@ jobs:
           remote="${VPS_SSH_USER}@${VPS_SSH_HOST}"
           prefix="/tmp/klynx-staging-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           scp -P "$port" "${RUNNER_TEMP}/klynx-${GITHUB_SHA}.tar.gz" "$remote:$prefix.tar.gz"
-          scp -P "$port" backend-runtime.env "$remote:$prefix.env"
+          scp -p -P "$port" "${RUNNER_TEMP}/backend-runtime.env" "$remote:$prefix.env"
           ssh -p "$port" "$remote" "sudo /usr/local/sbin/klynx-install-release staging '$GITHUB_SHA' '$prefix.tar.gz' '$prefix.env' '${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}'"
 
       - name: Deploy staging Worker
         working-directory: frontend
-        run: npx vinext-cloudflare deploy --env staging --skip-build
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN"
+          npx wrangler deploy --config dist/server/wrangler.json
+
+      - name: Clean runner deployment credentials
+        if: always()
+        shell: bash
+        run: rm -f "${RUNNER_TEMP}/backend-runtime.env" ~/.ssh/id_ed25519
