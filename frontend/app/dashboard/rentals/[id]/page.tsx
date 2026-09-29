@@ -36,7 +36,7 @@ type Payment = { amount: number; date: string | null; reference: string | null }
 type Product = { id: number; name: string; list_price: number };
 const inputClass = "h-10 min-w-0 rounded-lg border border-border bg-surface-secondary px-3 text-sm text-text outline-none focus:border-lime/60";
 const buttonClass = "rounded-lg border border-border px-3 py-2 text-sm text-text transition hover:bg-surface-secondary disabled:opacity-50";
-const primaryClass = `${buttonClass} border-lime/40 bg-lime/15 text-lime`;
+const primaryClass = `${buttonClass} border-lime/40 bg-lime/15 text-lime-ink`;
 
 export default function RentalDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -217,7 +217,7 @@ export default function RentalDetailPage() {
       {!editable && !cancelled && quotation.amount_to_invoice > 0 && !pendingInvoice && <form className="mt-3 flex flex-wrap items-end gap-3 rounded-xl border border-border p-4" onSubmit={event => { event.preventDefault(); void act(`/sales/${rentalId}/invoice`, "POST", { deposit_amount: Number(depositAmount || Math.min(depositRemaining, quotation.amount_to_invoice)) }, "Deposit invoice created. Validate it below, then record the amount received."); }}>
         <label className="text-sm text-text-secondary">Invoice a deposit<input required type="number" min="0.01" max={quotation.amount_to_invoice} step="0.01" className={`${inputClass} ml-3 w-32`} value={depositAmount || String(Math.min(depositRemaining, quotation.amount_to_invoice))} onChange={event => setDepositAmount(event.target.value)} /></label><button disabled={!!busy} className={buttonClass}>Create deposit invoice</button><p className="text-sm text-muted">Suggested: the remaining 30% deposit. Advances are recorded on a deposit invoice before the final invoice.</p>
       </form>}
-      {quotation.opportunity && <Link href={`/crm/leads/${quotation.opportunity.id}`} className="mt-4 inline-block text-sm text-lime">Open prospect & follow-ups →</Link>}
+      {quotation.opportunity && <Link href={`/crm/leads/${quotation.opportunity.id}`} className="mt-4 inline-block text-sm text-lime-ink">Open prospect & follow-ups →</Link>}
       <section className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard icon={<Receipt size={17} />} label="Total" value={formatCurrency(quotation.amount_total)} />
         <StatCard icon={<FileText size={17} />} label="Invoiced" value={formatCurrency(quotation.amount_invoiced)} tone="pink" />
@@ -225,8 +225,8 @@ export default function RentalDetailPage() {
         <StatCard icon={<Receipt size={17} />} label="Outstanding" value={formatCurrency(quotation.amount_outstanding)} tone={quotation.amount_outstanding > 0 ? "danger" : "lime"} />
       </section>
       <section className="mt-4 grid min-w-0 gap-3 md:grid-cols-3">
-        <Card className="min-w-0 p-5"><div className="flex items-center gap-2 text-sm text-muted"><User size={16} />Customer</div>{quotation.customer ? <Link href={`/dashboard/customers/${quotation.customer.id}`} className="mt-2 block break-words text-base font-medium text-text hover:text-lime">{quotation.customer.name}</Link> : <p className="mt-2 text-muted">—</p>}</Card>
-        <Card className="min-w-0 p-5"><div className="flex items-center gap-2 text-sm text-muted"><Car size={16} />Vehicle</div><Link href={`/dashboard/calendar?vehicle=${quotation.vehicle_id}`} className="mt-2 block break-words text-base font-medium text-text hover:text-lime">{vehicle?.name || "—"} →</Link>{vehicle?.license_plate && <p className="mt-1 break-words text-sm text-muted">{vehicle.license_plate}</p>}</Card>
+        <Card className="min-w-0 p-5"><div className="flex items-center gap-2 text-sm text-muted"><User size={16} />Customer</div>{quotation.customer ? <Link href={`/dashboard/customers/${quotation.customer.id}`} className="mt-2 block break-words text-base font-medium text-text hover:text-lime-ink">{quotation.customer.name}</Link> : <p className="mt-2 text-muted">—</p>}</Card>
+        <Card className="min-w-0 p-5"><div className="flex items-center gap-2 text-sm text-muted"><Car size={16} />Vehicle</div><Link href={`/dashboard/calendar?vehicle=${quotation.vehicle_id}`} className="mt-2 block break-words text-base font-medium text-text hover:text-lime-ink">{vehicle?.name || "—"} →</Link>{vehicle?.license_plate && <p className="mt-1 break-words text-sm text-muted">{vehicle.license_plate}</p>}</Card>
         <Card className="min-w-0 p-5"><div className="flex items-center gap-2 text-sm text-muted"><Calendar size={16} />Dates</div><dl className="mt-2 space-y-2 text-sm"><div><dt className="text-muted">Pickup</dt><dd className="break-words text-text">{formatDate(quotation.date_order)}</dd></div><div><dt className="text-muted">Return</dt><dd className="break-words text-text">{formatDate(quotation.commitment_date)}</dd></div></dl></Card>
       </section>
       <section className="mt-4"><Card>

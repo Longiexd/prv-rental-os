@@ -22,8 +22,8 @@ const GLOW: Record<StatusTone, string> = {
 };
 
 const ICON_COLOR: Record<StatusTone, string> = {
-  lime: "text-lime",
-  pink: "text-pink",
+  lime: "text-lime-ink",
+  pink: "text-pink-ink",
   danger: "text-danger",
   muted: "text-muted",
   amber: "text-amber-400",

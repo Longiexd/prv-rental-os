@@ -69,9 +69,9 @@ function getStageColors(stageName: string | null) {
   ) {
     return {
       dot: "bg-[#F06AAA]",
-      text: "text-[#F06AAA]",
+      text: "text-pink-ink",
       tag: "border-[#F06AAA]/30 bg-[#F06AAA]/10",
-      count: "bg-[#F06AAA]/10 text-[#F06AAA]",
+      count: "bg-[#F06AAA]/10 text-pink-ink",
     };
   }
 
@@ -86,9 +86,9 @@ function getStageColors(stageName: string | null) {
   ) {
     return {
       dot: "bg-[#A78BFA]",
-      text: "text-[#A78BFA]",
+      text: "text-violet-ink",
       tag: "border-[#A78BFA]/30 bg-[#A78BFA]/10",
-      count: "bg-[#A78BFA]/10 text-[#A78BFA]",
+      count: "bg-[#A78BFA]/10 text-violet-ink",
     };
   }
 
@@ -103,9 +103,9 @@ function getStageColors(stageName: string | null) {
   ) {
     return {
       dot: "bg-[#FB923C]",
-      text: "text-[#FB923C]",
+      text: "text-orange-ink",
       tag: "border-[#FB923C]/30 bg-[#FB923C]/10",
-      count: "bg-[#FB923C]/10 text-[#FB923C]",
+      count: "bg-[#FB923C]/10 text-orange-ink",
     };
   }
 
@@ -120,10 +120,10 @@ function getStageColors(stageName: string | null) {
     stage === "reservation confirmed"
   ) {
     return {
-      dot: "bg-[#C8F065]",
-      text: "text-[#C8F065]",
+      dot: "bg-lime-ink",
+      text: "text-lime-ink",
       tag: "border-[#C8F065]/30 bg-[#C8F065]/10",
-      count: "bg-[#C8F065]/10 text-[#C8F065]",
+      count: "bg-[#C8F065]/10 text-lime-ink",
     };
   }
 
@@ -138,9 +138,9 @@ function getStageColors(stageName: string | null) {
   ) {
     return {
       dot: "bg-[#60A5FA]",
-      text: "text-[#60A5FA]",
+      text: "text-blue-ink",
       tag: "border-[#60A5FA]/30 bg-[#60A5FA]/10",
-      count: "bg-[#60A5FA]/10 text-[#60A5FA]",
+      count: "bg-[#60A5FA]/10 text-blue-ink",
     };
   }
 
@@ -154,10 +154,10 @@ function getStageColors(stageName: string | null) {
     stage === "gagne"
   ) {
     return {
-      dot: "bg-[#C8F065]",
-      text: "text-[#C8F065]",
+      dot: "bg-lime-ink",
+      text: "text-lime-ink",
       tag: "border-[#C8F065]/30 bg-[#C8F065]/10",
-      count: "bg-[#C8F065]/10 text-[#C8F065]",
+      count: "bg-[#C8F065]/10 text-lime-ink",
     };
   }
 
@@ -171,9 +171,9 @@ function getStageColors(stageName: string | null) {
   ) {
     return {
       dot: "bg-[#EF4444]",
-      text: "text-[#EF4444]",
+      text: "text-red-ink",
       tag: "border-[#EF4444]/30 bg-[#EF4444]/10",
-      count: "bg-[#EF4444]/10 text-[#EF4444]",
+      count: "bg-[#EF4444]/10 text-red-ink",
     };
   }
 
@@ -461,7 +461,7 @@ export default function LeadsPage() {
           <button
             type="button"
             onClick={() => setBookingOpen(true)}
-            className="flex h-9 items-center justify-center gap-2 rounded-lg bg-lime px-4 text-xs font-medium text-background shadow-glow-lime transition hover:bg-lime-dark"
+            className="flex h-9 items-center justify-center gap-2 rounded-lg bg-lime px-4 text-xs font-medium text-[#111113] shadow-glow-lime transition hover:bg-lime-dark"
           >
             <Plus size={14} />
             New booking
@@ -487,7 +487,7 @@ export default function LeadsPage() {
 
             <TrendingUp
               size={18}
-              className="text-[#C8F065]"
+              className="text-lime-ink"
             />
 
           </div>
@@ -516,7 +516,7 @@ export default function LeadsPage() {
 
             <UserRound
               size={18}
-              className="text-[#F06AAA]"
+              className="text-pink-ink"
             />
 
           </div>
@@ -545,7 +545,7 @@ export default function LeadsPage() {
 
             <ArrowUpRight
               size={18}
-              className="text-[#C8F065]"
+              className="text-lime-ink"
             />
 
           </div>
@@ -631,7 +631,7 @@ export default function LeadsPage() {
       ===================================================== */}
 
       {error && (
-        <div className="mb-4 rounded-xl border border-[#F06AAA]/30 bg-[#F06AAA]/5 px-4 py-3 text-sm text-[#F06AAA]">
+        <div className="mb-4 rounded-xl border border-[#F06AAA]/30 bg-[#F06AAA]/5 px-4 py-3 text-sm text-pink-ink">
           {error}
         </div>
       )}
@@ -787,7 +787,7 @@ function LeadsTable({
 
                     <td className="px-5 py-4">
 
-                      <Link href={`/crm/leads/${lead.id}`} className="font-medium text-text hover:text-[#C8F065]">
+                      <Link href={`/crm/leads/${lead.id}`} className="font-medium text-text hover:text-lime-ink">
                         {lead.name}
                       </Link>
 
@@ -1126,7 +1126,7 @@ function LeadsKanban({
 
                       {/* LEAD NAME */}
 
-                      <Link href={`/crm/leads/${lead.id}`} className="text-sm font-medium text-text hover:text-[#C8F065]">
+                      <Link href={`/crm/leads/${lead.id}`} className="text-sm font-medium text-text hover:text-lime-ink">
                         {lead.name}
                       </Link>
 
@@ -1164,7 +1164,7 @@ function LeadsKanban({
                           #{lead.id}
                         </span>
 
-                        <span className="text-[10px] font-medium text-[#C8F065]">
+                        <span className="text-[10px] font-medium text-lime-ink">
                           {(
                             lead.expected_revenue ||
                             0

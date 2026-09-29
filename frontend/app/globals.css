@@ -15,8 +15,14 @@
 
   --color-lime: var(--lime);
   --color-lime-dark: var(--lime-dark);
+  --color-lime-ink: var(--lime-ink);
   --color-pink: var(--pink);
   --color-pink-dark: var(--pink-dark);
+  --color-pink-ink: var(--pink-ink);
+  --color-blue-ink: var(--blue-ink);
+  --color-violet-ink: var(--violet-ink);
+  --color-orange-ink: var(--orange-ink);
+  --color-red-ink: var(--red-ink);
 
   --color-success: var(--success);
   --color-danger: var(--danger);
@@ -108,5 +114,14 @@ html[data-theme="light"] .os-shell textarea::placeholder { color: var(--muted); 
   box-shadow: var(--card-shadow);
 }
 html[data-theme="light"] .klynx-pro-card {
-  background: linear-gradient(145deg, #FFF3F8, #FFFFFF 72%);
+  background: linear-gradient(145deg, #FFF0F6, #FFFFFF 72%);
+  border-color: #E9CAD9;
 }
+
+/* Light-mode readability: brand lime stays bright for fills/buttons, while
+   text and icon foregrounds use darker accessible ink tones. */
+html[data-theme="light"] .os-shell .text-lime { color: var(--lime-ink); }
+html[data-theme="light"] .os-shell .text-pink { color: var(--pink-ink); }
+html[data-theme="light"] .os-shell .bg-surface { box-shadow: 0 1px 1px rgba(17,17,19,.015); }
+html[data-theme="light"] .os-shell .border-border { border-color: var(--border); }
+html[data-theme="light"] .os-shell header { box-shadow: 0 1px 0 rgba(17,17,19,.02); }

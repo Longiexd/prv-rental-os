@@ -86,7 +86,7 @@ export function QuickAddMenu({
               }}
               className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-surface-secondary"
             >
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-lime/10 text-lime">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-lime/15 text-lime-ink">
                 {action.icon}
               </div>
 

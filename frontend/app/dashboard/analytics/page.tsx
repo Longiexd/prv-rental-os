@@ -505,7 +505,7 @@ export default function AnalyticsPage() {
                         }}
                         className={`block w-full px-3 py-2 text-left text-xs ${
                           item === year
-                            ? "bg-lime/10 text-lime"
+                            ? "bg-lime/10 text-lime-ink"
                             : "text-muted hover:bg-surface-2 hover:text-text"
                         }`}
                       >
@@ -591,7 +591,7 @@ export default function AnalyticsPage() {
                   }
                   className={`rounded-md border px-3 py-1.5 text-[10px] ${
                     measure === value
-                      ? "border-lime/30 bg-lime/10 text-lime"
+                      ? "border-lime/30 bg-lime/10 text-lime-ink"
                       : "border-border bg-surface-2 text-muted hover:text-text"
                   }`}
                 >
@@ -654,7 +654,7 @@ export default function AnalyticsPage() {
                         }}
                         className={`block w-full px-3 py-2 text-left text-[10px] ${
                           groupBy === value
-                            ? "bg-lime/10 text-lime"
+                            ? "bg-lime/10 text-lime-ink"
                             : "text-muted hover:bg-surface-2 hover:text-text"
                         }`}
                       >
@@ -686,7 +686,7 @@ export default function AnalyticsPage() {
       </section>
 
       {error && (
-        <div className="mt-4 rounded-lg border border-pink/20 bg-pink/5 px-4 py-3 text-xs text-pink">
+        <div className="mt-4 rounded-lg border border-pink/20 bg-pink/5 px-4 py-3 text-xs text-pink-ink">
           {error}
         </div>
       )}
@@ -872,7 +872,7 @@ export default function AnalyticsPage() {
                   {data.vehicles.map((vehicle, index) => (
                     <button key={vehicle.id} type="button" onClick={() => { setVehicleId(String(vehicle.id)); setGroupBy("vehicle"); setMeasure("orders"); }}
                       className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left hover:bg-surface-2">
-                      <span className="min-w-0 break-words text-sm text-text"><span className="mr-3 text-lime">#{index + 1}</span>{vehicleLabel(vehicle)}</span>
+                      <span className="min-w-0 break-words text-sm text-text"><span className="mr-3 text-lime-ink">#{index + 1}</span>{vehicleLabel(vehicle)}</span>
                       <span className="shrink-0 text-right text-sm text-text">{vehicle.orders} orders <span className="block text-xs text-muted">{formatCurrency(vehicle.revenue)}</span></span>
                     </button>
                   ))}

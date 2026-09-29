@@ -73,7 +73,7 @@ export function RentalActionMenu({
 
               {kind === "pickup" && !sale.picked_up && (
                 <>
-                  <button type="button" onClick={() => { onPickedUp?.(sale.id); close(); }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-lime hover:bg-lime/10">
+                  <button type="button" onClick={() => { onPickedUp?.(sale.id); close(); }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-lime-ink hover:bg-lime/10">
                     <Check size={14} /> Picked up
                   </button>
                   <button type="button" onClick={() => setSubMenu("not-picked-up")} className="flex w-full items-center gap-2 px-3 py-2 text-left text-text-secondary hover:bg-surface-secondary hover:text-text">
@@ -84,10 +84,10 @@ export function RentalActionMenu({
 
               {(kind === "return" || kind === "overdue") && !sale.returned && sale.vehicle_id && (
                 <>
-                  <button type="button" onClick={() => { onReturn?.(sale.vehicle_id!, "Nettoyage"); close(); }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-lime hover:bg-lime/10">
+                  <button type="button" onClick={() => { onReturn?.(sale.vehicle_id!, "Nettoyage"); close(); }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-lime-ink hover:bg-lime/10">
                     <Check size={14} /> Returned · send to cleaning
                   </button>
-                  <button type="button" onClick={() => { onReturn?.(sale.vehicle_id!, "Disponible"); close(); }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-lime hover:bg-lime/10">
+                  <button type="button" onClick={() => { onReturn?.(sale.vehicle_id!, "Disponible"); close(); }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-lime-ink hover:bg-lime/10">
                     <Check size={14} /> Returned · ready now
                   </button>
                   <button type="button" onClick={() => setSubMenu("not-returned")} className="flex w-full items-center gap-2 px-3 py-2 text-left text-text-secondary hover:bg-surface-secondary hover:text-text">

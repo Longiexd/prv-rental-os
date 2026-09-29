@@ -257,9 +257,9 @@ export default function AddCustomerModal({
             <div className="flex items-start gap-2">
               <AlertTriangle
                 size={13}
-                className="mt-0.5 shrink-0 text-[#F06AAA]"
+                className="mt-0.5 shrink-0 text-pink-ink"
               />
-              <p className="text-[11px] leading-relaxed text-[#F0A3C4]">
+              <p className="text-[11px] leading-relaxed text-pink-ink">
                 {matches.length === 1 ? "A contact" : "Contacts"} matching
                 this name already{" "}
                 {matches.length === 1 ? "exists" : "exist"}. Attach a new
@@ -288,7 +288,7 @@ export default function AddCustomerModal({
                   <button
                     disabled={submitting}
                     onClick={() => handleAttachToExisting(match)}
-                    className="shrink-0 rounded-md border border-[#C8F065]/30 bg-[#C8F065]/10 px-2 py-1 text-[10px] font-medium text-[#C8F065] transition hover:bg-[#C8F065]/20 disabled:opacity-50"
+                    className="shrink-0 rounded-md border border-[#C8F065]/30 bg-[#C8F065]/10 px-2 py-1 text-[10px] font-medium text-lime-ink transition hover:bg-[#C8F065]/20 disabled:opacity-50"
                   >
                     Attach opportunity
                   </button>
@@ -301,7 +301,7 @@ export default function AddCustomerModal({
         {/* ERROR */}
 
         {error && (
-          <div className="mt-3 rounded-lg border border-[#F06AAA]/30 bg-[#F06AAA]/5 px-3 py-2 text-[11px] text-[#F06AAA]">
+          <div className="mt-3 rounded-lg border border-[#F06AAA]/30 bg-[#F06AAA]/5 px-3 py-2 text-[11px] text-pink-ink">
             {error}
           </div>
         )}

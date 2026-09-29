@@ -1018,7 +1018,7 @@ export default function CreateRentalModal({
         <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-border bg-surface p-5 sm:p-6">
 
           <div>
-            <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-[#C8F065]">
+            <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-lime-ink">
               {rentalId ? "Edit booking" : "New booking"}
             </div>
 
@@ -1083,7 +1083,7 @@ export default function CreateRentalModal({
               <div className="relative space-y-2">
                 <label className="text-xs font-medium text-text-secondary">
                   Customer
-                  <span className="ml-1 text-[#F06AAA]">*</span>
+                  <span className="ml-1 text-pink-ink">*</span>
                 </label>
 
                 <div className="relative">
@@ -1164,7 +1164,7 @@ export default function CreateRentalModal({
                             <span
                               className={
                                 customer.is_customer
-                                  ? "text-[#C8F065]"
+                                  ? "text-lime-ink"
                                   : "text-muted"
                               }
                             >
@@ -1185,7 +1185,7 @@ export default function CreateRentalModal({
                           onClick={() =>
                             setShowCreateCustomer(true)
                           }
-                          className="flex w-full items-center gap-2 border-t border-border bg-background px-3 py-2.5 text-left text-xs font-medium text-[#C8F065] transition hover:bg-[#C8F065]/10"
+                          className="flex w-full items-center gap-2 border-t border-border bg-background px-3 py-2.5 text-left text-xs font-medium text-lime-ink transition hover:bg-[#C8F065]/10"
                         >
                           <Plus size={13} />
                           Create new customer
@@ -1469,7 +1469,7 @@ export default function CreateRentalModal({
                     </div>
 
                     {String(vehicle.id) === form.vehicle_id && (
-                      <Check size={14} className="shrink-0 text-[#C8F065]" />
+                      <Check size={14} className="shrink-0 text-lime-ink" />
                     )}
                   </button>
                 ))}
@@ -1580,7 +1580,7 @@ export default function CreateRentalModal({
                           </div>
 
                           {selected ? (
-                            <span className="flex shrink-0 items-center gap-1 text-[10px] font-medium text-[#C8F065]">
+                            <span className="flex shrink-0 items-center gap-1 text-[10px] font-medium text-lime-ink">
                               <Check
                                 size={
                                   13
@@ -1617,7 +1617,7 @@ export default function CreateRentalModal({
                 <div className="mt-4">
                   <div className="mb-2 flex items-center gap-2">
                     <span className="h-1.5 w-1.5 rounded-full bg-[#F06AAA]" />
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[#F06AAA]">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-pink-ink">
                       Matches this vehicle type
                     </span>
                   </div>
@@ -1642,7 +1642,7 @@ export default function CreateRentalModal({
 
                         <Plus
                           size={14}
-                          className="shrink-0 text-[#F06AAA]"
+                          className="shrink-0 text-pink-ink"
                         />
                       </button>
                     ))}
@@ -1660,9 +1660,9 @@ export default function CreateRentalModal({
 
                   <div className="mb-2 flex items-center gap-2">
 
-                    <span className="h-1.5 w-1.5 rounded-full bg-[#C8F065]" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-lime-ink" />
 
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[#C8F065]">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-lime-ink">
                       Suggested for this rental
                     </span>
 
@@ -1704,7 +1704,7 @@ export default function CreateRentalModal({
                             size={
                               14
                             }
-                            className="shrink-0 text-[#C8F065]"
+                            className="shrink-0 text-lime-ink"
                           />
 
                         </button>

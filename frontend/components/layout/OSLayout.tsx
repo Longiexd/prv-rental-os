@@ -149,7 +149,7 @@ export default function OSLayout({
                         aria-current={isActive(href) ? "page" : undefined}
                         className={`flex min-h-11 items-center gap-3 rounded-lg px-3 text-[13px] transition-colors ${
                           isActive(href)
-                            ? "bg-[var(--sidebar-active)] font-medium text-text [&>svg]:text-lime"
+                            ? "bg-[var(--sidebar-active)] font-medium text-text [&>svg]:text-lime-ink"
                             : "text-text-secondary hover:bg-surface-secondary hover:text-text"
                         }`}
                       >
@@ -167,23 +167,23 @@ export default function OSLayout({
 
             <div className="klynx-pro-card mb-3 rounded-xl p-3.5">
               <div className="flex items-start gap-2.5">
-                <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-pink/15 text-pink">
+                <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-pink/15 text-pink-ink">
                   <Zap size={14} fill="currentColor" />
                 </span>
                 <div className="min-w-0">
                   <p className="text-xs font-semibold text-text">{t("Upgrade to Pro")}</p>
                   <p className="mt-1 text-[10px] leading-relaxed text-muted">{t("More vehicles, more features.")}</p>
                 </div>
-                <button type="button" title={t("Explore Pro")} aria-label={t("Explore Pro")} className="ml-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-pink/20 bg-surface text-pink transition hover:bg-pink/10">
+                <button type="button" title={t("Explore Pro")} aria-label={t("Explore Pro")} className="ml-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-pink/20 bg-surface text-pink-ink transition hover:bg-pink/10">
                   <ArrowUpRight size={13} />
                 </button>
               </div>
             </div>
 
             <div className="flex items-center gap-3 rounded-lg px-2 py-2 text-xs text-muted">
-              <Zap size={15} className="text-pink" />
+              <Zap size={15} className="text-pink-ink" />
               Klynx AI
-              <span className="ml-auto text-[10px] text-pink">
+              <span className="ml-auto text-[10px] text-pink-ink">
                 {t("Soon")}
               </span>
             </div>
@@ -349,7 +349,7 @@ export default function OSLayout({
                     <Link
                       href="/dashboard/activities"
                       onClick={() => setBellOpen(false)}
-                      className="mt-2 block rounded-lg px-2 py-1.5 text-center text-xs text-lime hover:underline"
+                      className="mt-2 block rounded-lg px-2 py-1.5 text-center text-xs text-lime-ink hover:underline"
                     >
                       {t("View all activities →")}
                     </Link>
@@ -380,7 +380,7 @@ export default function OSLayout({
                 onClick={handleLogout}
                 aria-label="Log out"
                 title="Log out"
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-text-secondary transition hover:border-pink/40 hover:text-pink lg:hidden"
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-text-secondary transition hover:border-pink/40 hover:text-pink-ink lg:hidden"
               >
                 <LogOut size={16} />
               </button>

@@ -5,8 +5,14 @@ html[data-theme="dark"] {
   /* Brand */
   --lime: #C8F065;
   --lime-dark: #6E9501;
+  --lime-ink: #C8F065;
   --pink: #F06AAA;
   --pink-dark: #54273C;
+  --pink-ink: #F06AAA;
+  --blue-ink: #60A5FA;
+  --violet-ink: #A78BFA;
+  --orange-ink: #FB923C;
+  --red-ink: #EF4444;
 
   /* Dark UI */
   --background: #0E0E10;
@@ -65,26 +71,34 @@ html[data-theme="light"] {
   /* Brand stays identical in both modes */
   --lime: #C8F065;
   --lime-dark: #A8D84A;
+  --lime-ink: #4D6800;
   --pink: #F06AAA;
   --pink-dark: #B93878;
+  --pink-ink: #B93878;
+  --blue-ink: #155E9C;
+  --violet-ink: #6D28D9;
+  --orange-ink: #925000;
+  --red-ink: #B91C1C;
 
-  /* Requested Klynx light palette */
-  --background: #F7F7F2;
+  /* Klynx light palette — warm off-white canvas, crisp white surfaces.
+     The slightly darker canvas gives cards/sidebar real separation without
+     turning light mode grey or changing the product identity. */
+  --background: #F0F0E9;
   --surface: #FFFFFF;
-  --surface-secondary: #FAFAF6;
-  --border: #E3E3DC;
-  --border-strong: #D4D4CC;
+  --surface-secondary: #F7F7F1;
+  --border: #D9D9D0;
+  --border-strong: #C8C8BE;
   --text: #111113;
-  --text-secondary: #5F6270;
-  --muted: #8B8E9A;
+  --text-secondary: #515662;
+  --muted: #707581;
 
-  --stage: #EFEFE9;
-  --shell-border: #D4D4CC;
+  --stage: #E7E7DF;
+  --shell-border: #CFCFC5;
   --chrome-bg: #FFFFFF;
-  --row-hover: #F7F7F2;
+  --row-hover: #F4F4ED;
   --sidebar-active: #EEF8D7;
-  --card-shadow: 0 1px 2px rgba(17,17,19,.035), 0 8px 28px rgba(17,17,19,.035);
-  --shell-shadow: 0 20px 65px rgba(17,17,19,.08);
+  --card-shadow: 0 1px 2px rgba(17,17,19,.055), 0 8px 26px rgba(17,17,19,.055);
+  --shell-shadow: 0 20px 65px rgba(17,17,19,.10);
 
   /* Requested status palette */
   --status-available-bg: #F1FFD8;

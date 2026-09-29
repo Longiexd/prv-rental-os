@@ -533,7 +533,7 @@ export default function RentalsPage() {
           <button
             type="button"
             onClick={() => openCreateForm()}
-            className="flex h-9 items-center justify-center gap-2 rounded-lg bg-lime px-4 text-xs font-medium text-background shadow-glow-lime transition hover:bg-lime-dark"
+            className="flex h-9 items-center justify-center gap-2 rounded-lg bg-lime px-4 text-xs font-medium text-[#111113] shadow-glow-lime transition hover:bg-lime-dark"
           >
             <CalendarDays size={14} />
             New booking
@@ -547,7 +547,7 @@ export default function RentalsPage() {
       ===================================================== */}
 
       <section className="mt-5 grid gap-3 sm:grid-cols-4" aria-label="Filter bookings">
-        {[["all", "All", sales.length], ["draft", "Quotations", sales.filter(sale => classifyRentalState(sale) === "draft").length], ["confirmed", "Confirmed", confirmed], ["cancelled", "Cancelled", sales.filter(sale => classifyRentalState(sale) === "cancelled").length]].map(([value, label, count]) => <button key={value} onClick={() => setBookingFilter(String(value))} aria-pressed={bookingFilter === value} className={`rounded-xl border p-4 text-left ${bookingFilter === value ? "border-lime/50 bg-lime/5" : "border-border bg-surface"}`}><span className={value === "confirmed" ? "text-lime" : value === "cancelled" ? "text-danger" : "text-text-secondary"}>{label}</span><strong className="mt-2 block text-2xl text-text">{loading ? "—" : count}</strong></button>)}
+        {[["all", "All", sales.length], ["draft", "Quotations", sales.filter(sale => classifyRentalState(sale) === "draft").length], ["confirmed", "Confirmed", confirmed], ["cancelled", "Cancelled", sales.filter(sale => classifyRentalState(sale) === "cancelled").length]].map(([value, label, count]) => <button key={value} onClick={() => setBookingFilter(String(value))} aria-pressed={bookingFilter === value} className={`rounded-xl border p-4 text-left ${bookingFilter === value ? "border-lime/50 bg-lime/5" : "border-border bg-surface"}`}><span className={value === "confirmed" ? "text-lime-ink" : value === "cancelled" ? "text-danger" : "text-text-secondary"}>{label}</span><strong className="mt-2 block text-2xl text-text">{loading ? "—" : count}</strong></button>)}
       </section>
 
       <section
@@ -589,7 +589,7 @@ export default function RentalsPage() {
             <Car
               size={16}
               className="
-                text-[#C8F065]
+                text-lime-ink
               "
             />
 
@@ -653,7 +653,7 @@ export default function RentalsPage() {
             <CircleDollarSign
               size={16}
               className="
-                text-[#C8F065]
+                text-lime-ink
               "
             />
 
@@ -998,7 +998,7 @@ export default function RentalsPage() {
                               text-sm
                               font-medium
                               text-text
-                              hover:text-[#C8F065]
+                              hover:text-lime-ink
                             "
                           >
                             {sale.name}
@@ -1038,7 +1038,7 @@ export default function RentalsPage() {
                               block
                               text-sm
                               text-text
-                              hover:text-[#C8F065]
+                              hover:text-lime-ink
                             "
                           >
                             {
@@ -1173,7 +1173,7 @@ export default function RentalsPage() {
                                 invoice.payment_state ===
                                 "paid"
 
-                                  ? "text-[#C8F065]"
+                                  ? "text-lime-ink"
 
                                   : "text-orange-300"
                               }

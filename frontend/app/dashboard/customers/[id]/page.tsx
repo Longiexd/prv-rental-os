@@ -295,7 +295,7 @@ export default function CustomerDetailPage() {
 
           <div className="flex items-center gap-4">
 
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[#C8F065]/10 text-sm font-semibold text-[#C8F065]">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[#C8F065]/10 text-sm font-semibold text-lime-ink">
               {getInitials(customer.name)}
             </div>
 
@@ -675,7 +675,7 @@ export default function CustomerDetailPage() {
 
                         {invoice.amount_residual >
                           0 && (
-                          <div className="mt-1 text-[9px] text-[#F06AAA]">
+                          <div className="mt-1 text-[9px] text-pink-ink">
                             Due{" "}
                             {formatCurrency(
                               invoice.amount_residual
@@ -788,7 +788,7 @@ export default function CustomerDetailPage() {
 
               <CalendarDays
                 size={14}
-                className="text-[#C8F065]"
+                className="text-lime-ink"
               />
 
               Rental status
@@ -823,7 +823,7 @@ export default function CustomerDetailPage() {
 
               <Receipt
                 size={14}
-                className="text-[#C8F065]"
+                className="text-lime-ink"
               />
 
               Payment summary
@@ -977,7 +977,7 @@ function SectionHeader({
 
       <div className="flex items-center gap-2">
 
-        <span className="text-[#C8F065]">
+        <span className="text-lime-ink">
           {icon}
         </span>
 
@@ -1076,7 +1076,7 @@ function ContactRow({
             {label}
           </div>
           {editable && !editing && (
-            <button type="button" onClick={onEdit} className="text-[9px] text-[#C8F065] hover:underline">
+            <button type="button" onClick={onEdit} className="text-[9px] text-lime-ink hover:underline">
               Edit
             </button>
           )}
@@ -1091,7 +1091,7 @@ function ContactRow({
               onKeyDown={(event) => { if (event.key === "Enter") onSave?.(); if (event.key === "Escape") onCancel?.(); }}
               className="h-7 w-full rounded-md border border-border bg-background px-2 text-xs text-text outline-none focus:border-[#C8F065]"
             />
-            <button type="button" disabled={saving} onClick={onSave} className="shrink-0 text-[10px] font-medium text-[#C8F065] disabled:opacity-50">
+            <button type="button" disabled={saving} onClick={onSave} className="shrink-0 text-[10px] font-medium text-lime-ink disabled:opacity-50">
               {saving ? "…" : "Save"}
             </button>
             <button type="button" onClick={onCancel} className="shrink-0 text-[10px] text-muted">
@@ -1133,7 +1133,7 @@ function SummaryRow({
       <span
         className={`text-xs font-medium ${
           highlight
-            ? "text-[#F06AAA]"
+            ? "text-pink-ink"
             : "text-text-secondary"
         }`}
       >
@@ -1180,13 +1180,13 @@ function CRMStageBadge({
     value.includes("reservation")
   ) {
     className =
-      "border-[#C8F065]/20 bg-[#C8F065]/10 text-[#C8F065]";
+      "border-[#C8F065]/20 bg-[#C8F065]/10 text-lime-ink";
   } else if (
     value.includes("véhicule remis") ||
     value.includes("vehicule remis")
   ) {
     className =
-      "border-[#F06AAA]/20 bg-[#F06AAA]/10 text-[#F06AAA]";
+      "border-[#F06AAA]/20 bg-[#F06AAA]/10 text-pink-ink";
   } else if (
     value.includes("location terminée") ||
     value.includes("location terminee")
@@ -1215,7 +1215,7 @@ function RentalStatusBadge({
 }) {
   if (status === "Réservé") {
     return (
-      <span className="inline-flex rounded-full border border-[#C8F065]/20 bg-[#C8F065]/10 px-2.5 py-1 text-[9px] font-medium text-[#C8F065]">
+      <span className="inline-flex rounded-full border border-[#C8F065]/20 bg-[#C8F065]/10 px-2.5 py-1 text-[9px] font-medium text-lime-ink">
         Reserved
       </span>
     );
@@ -1223,7 +1223,7 @@ function RentalStatusBadge({
 
   if (status === "Loué") {
     return (
-      <span className="inline-flex rounded-full border border-[#F06AAA]/20 bg-[#F06AAA]/10 px-2.5 py-1 text-[9px] font-medium text-[#F06AAA]">
+      <span className="inline-flex rounded-full border border-[#F06AAA]/20 bg-[#F06AAA]/10 px-2.5 py-1 text-[9px] font-medium text-pink-ink">
         Rented
       </span>
     );
@@ -1248,13 +1248,13 @@ function RentalStatusLarge({
         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#C8F065]/10">
           <CalendarDays
             size={16}
-            className="text-[#C8F065]"
+            className="text-lime-ink"
           />
         </div>
 
         <div>
 
-          <div className="text-sm font-medium text-[#C8F065]">
+          <div className="text-sm font-medium text-lime-ink">
             Reserved
           </div>
 
@@ -1275,13 +1275,13 @@ function RentalStatusLarge({
         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#F06AAA]/10">
           <CheckCircle2
             size={16}
-            className="text-[#F06AAA]"
+            className="text-pink-ink"
           />
         </div>
 
         <div>
 
-          <div className="text-sm font-medium text-[#F06AAA]">
+          <div className="text-sm font-medium text-pink-ink">
             Rented
           </div>
 
@@ -1315,7 +1315,7 @@ function PaymentBadge({
     value === "in_payment"
   ) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-[#C8F065]/20 bg-[#C8F065]/10 px-2 py-1 text-[8px] font-medium text-[#C8F065]">
+      <span className="inline-flex items-center gap-1 rounded-full border border-[#C8F065]/20 bg-[#C8F065]/10 px-2 py-1 text-[8px] font-medium text-lime-ink">
         <CheckCircle2 size={9} />
         Paid
       </span>
@@ -1327,7 +1327,7 @@ function PaymentBadge({
     value === "partial"
   ) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-[#F06AAA]/20 bg-[#F06AAA]/10 px-2 py-1 text-[8px] font-medium text-[#F06AAA]">
+      <span className="inline-flex items-center gap-1 rounded-full border border-[#F06AAA]/20 bg-[#F06AAA]/10 px-2 py-1 text-[8px] font-medium text-pink-ink">
         <XCircle size={9} />
         Unpaid
       </span>

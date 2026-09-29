@@ -448,7 +448,7 @@ export default function AddLeadModal({
 
           <div className="flex items-center gap-2">
 
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#C8F065]/10 text-[#C8F065]">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#C8F065]/10 text-lime-ink">
               <UserRound size={16} />
             </div>
 
@@ -510,7 +510,7 @@ export default function AddLeadModal({
 
                 <label className="mb-1.5 block text-[11px] font-medium text-text-secondary">
                   Lead name
-                  <span className="ml-1 text-[#F06AAA]">
+                  <span className="ml-1 text-pink-ink">
                     *
                   </span>
                 </label>
@@ -616,7 +616,7 @@ export default function AddLeadModal({
 
                                 <div className="flex items-start gap-3">
 
-                                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#C8F065]/10 text-[#C8F065]">
+                                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#C8F065]/10 text-lime-ink">
                                     <UserRound
                                       size={
                                         14
@@ -635,7 +635,7 @@ export default function AddLeadModal({
                                       </span>
 
                                       {exactNameMatch && (
-                                        <span className="shrink-0 rounded-md bg-[#F06AAA]/10 px-1.5 py-0.5 text-[9px] font-medium text-[#F06AAA]">
+                                        <span className="shrink-0 rounded-md bg-[#F06AAA]/10 px-1.5 py-0.5 text-[9px] font-medium text-pink-ink">
                                           Possible duplicate
                                         </span>
                                       )}
@@ -665,7 +665,7 @@ export default function AddLeadModal({
                                     <div className="mt-1.5">
 
                                       {customer.is_customer ? (
-                                        <span className="text-[9px] text-[#C8F065]">
+                                        <span className="text-[9px] text-lime-ink">
                                           Existing CRM customer
                                         </span>
                                       ) : (
@@ -706,13 +706,13 @@ export default function AddLeadModal({
 
                     <div className="flex items-start gap-3">
 
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#C8F065]/10 text-[#C8F065]">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#C8F065]/10 text-lime-ink">
                         <Check size={15} />
                       </div>
 
                       <div className="min-w-0 flex-1">
 
-                        <div className="text-[9px] font-medium uppercase tracking-wider text-[#C8F065]">
+                        <div className="text-[9px] font-medium uppercase tracking-wider text-lime-ink">
                           Linked to existing customer
                         </div>
 
@@ -844,7 +844,7 @@ export default function AddLeadModal({
 
                   <CalendarDays
                     size={15}
-                    className="text-[#C8F065]"
+                    className="text-lime-ink"
                   />
 
                   <h3 className="text-xs font-semibold text-text">
@@ -1096,7 +1096,7 @@ export default function AddLeadModal({
             ================================================== */}
 
             {error && (
-              <div className="rounded-lg border border-[#F06AAA]/30 bg-[#F06AAA]/5 px-3 py-2.5 text-xs text-[#F06AAA]">
+              <div className="rounded-lg border border-[#F06AAA]/30 bg-[#F06AAA]/5 px-3 py-2.5 text-xs text-pink-ink">
                 {error}
               </div>
             )}
