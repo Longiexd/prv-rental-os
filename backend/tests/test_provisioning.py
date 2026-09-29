@@ -9,7 +9,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "deploy"))
 from tenant_compose import compose_document, names
-from admin import Admin, command, repair_runtime_user
+from admin import Admin, command, database_bootstrap, repair_runtime_user
 from test_tenancy import control
 
 ODOO = "odoo@sha256:" + "a"*64
@@ -39,6 +39,14 @@ def test_invalid_names_cannot_reach_docker_or_sql(code):
 def test_image_tags_cannot_silently_change_on_next_onboarding():
     with pytest.raises(ValueError, match="immutable"):
         compose_document("staging", "atlas", "odoo:latest", POSTGRES)
+
+
+def test_database_bootstrap_limits_maintenance_database_access_to_odoo():
+    sql = database_bootstrap("db_atlas", "private-test-password")
+    assert "CREATE DATABASE db_atlas OWNER odoo;" in sql
+    assert "REVOKE CONNECT ON DATABASE postgres FROM PUBLIC;" in sql
+    assert "GRANT CONNECT ON DATABASE postgres TO odoo;" in sql
+    assert sql.index("REVOKE CONNECT") < sql.index("GRANT CONNECT")
 
 
 def test_failed_reset_revokes_access_before_contacting_odoo(control):

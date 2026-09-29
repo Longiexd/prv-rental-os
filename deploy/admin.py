@@ -49,6 +49,14 @@ def write_new(path, text, mode=0o600):
     path.chmod(mode)
 
 
+def database_bootstrap(database, password):
+    """Create the isolated role while retaining Odoo's maintenance connection."""
+    return (f"CREATE ROLE odoo LOGIN PASSWORD '{password}' NOSUPERUSER NOCREATEDB NOCREATEROLE;\n"
+            f"CREATE DATABASE {database} OWNER odoo;\n"
+            "REVOKE CONNECT ON DATABASE postgres FROM PUBLIC;\n"
+            "GRANT CONNECT ON DATABASE postgres TO odoo;\n")
+
+
 def repair_runtime_user(directory):
     """Upgrade only the known faulty user setting in an incomplete company's stack."""
     path = directory / "compose.json"
@@ -173,7 +181,7 @@ class Admin:
         write_new(directory / "company.json", json.dumps(manifest))
         password = secrets.token_hex(32)
         write_new(directory / "postgres-password", secrets.token_hex(32), 0o444)
-        write_new(directory / "bootstrap.sql", f"CREATE ROLE odoo LOGIN PASSWORD '{password}' NOSUPERUSER NOCREATEDB NOCREATEROLE;\nCREATE DATABASE {database} OWNER odoo;\nREVOKE CONNECT ON DATABASE postgres FROM PUBLIC;\n", 0o444)
+        write_new(directory / "bootstrap.sql", database_bootstrap(database, password), 0o444)
         config = f"""[options]
 db_host = postgres
 db_port = 5432
