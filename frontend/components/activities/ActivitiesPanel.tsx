@@ -6,7 +6,7 @@ import { Check, Plus } from "lucide-react";
 import { activityRequest, activityHref, noteText, type Activity } from "./api";
 
 type Option = { id: number; name: string; category?: string };
-const input = "w-full rounded-lg border border-[#3f3f46] bg-[#17171A] px-3 py-2.5 text-sm text-white";
+const input = "w-full rounded-lg border border-strong bg-surface-secondary px-3 py-2.5 text-sm text-text";
 
 export default function ActivitiesPanel({ leadId, saleId, compact = false, onCompleted }: {
   leadId?: number; saleId?: number; compact?: boolean; onCompleted?: () => void;
@@ -95,36 +95,36 @@ export default function ActivitiesPanel({ leadId, saleId, compact = false, onCom
   const filtered = activities.filter(item => filter === "all" || (filter === "due" ? ["today", "overdue"].includes(item.state) : item.state === filter));
   const visible = compact ? filtered.slice(0, 5) : filtered;
   return (
-    <section className="space-y-4 rounded-2xl border border-purple-400/25 bg-[#111114] p-5">
+    <section className="space-y-4 rounded-2xl border border-purple-400/25 bg-surface p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div><h2 className="text-lg font-semibold text-white">To do <span className="text-purple-300">{due.length} due</span></h2>
-          <p className="mt-1 text-sm text-[#A1A1AA]">Schedule a call or email reminder, then continue from the linked record.</p></div>
+        <div><h2 className="text-lg font-semibold text-text">To do <span className="text-purple-300">{due.length} due</span></h2>
+          <p className="mt-1 text-sm text-text-secondary">Schedule a call or email reminder, then continue from the linked record.</p></div>
         <button type="button" disabled={busy} onClick={startCreate} className="inline-flex items-center gap-2 rounded-lg bg-purple-400/15 px-4 py-2.5 text-sm text-purple-200 disabled:opacity-50"><Plus size={16} /> Schedule activity</button>
       </div>
       {error && <p role="alert" className="text-sm text-red-300">{error} <button type="button" onClick={load} className="underline">Refresh</button></p>}
       {notice && <p role="status" className="rounded-lg bg-emerald-400/10 p-3 text-sm text-emerald-200">{notice}</p>}
       <p className="text-sm text-purple-200">Email activities remind an agent to send the email; they do not send it automatically.</p>
       {open && <form onSubmit={create} className="grid gap-4 rounded-xl border border-purple-400/25 p-4 sm:grid-cols-2">
-        {!leadId && !saleId && <label className="space-y-1 text-sm text-[#A1A1AA]">Prospect<select name="lead" required className={input} defaultValue=""><option value="" disabled>Select prospect</option>{leads.map(lead => <option key={lead.id} value={lead.id}>{lead.name}</option>)}</select></label>}
-        <label className="space-y-1 text-sm text-[#A1A1AA]">Activity<select name="type" required className={input} defaultValue={types.find(type => type.category === "phonecall")?.id || ""}><option value="" disabled>Select activity type</option>{types.map(type => <option key={type.id} value={type.id}>{type.name}</option>)}</select></label>
-        <label className="space-y-1 text-sm text-[#A1A1AA]">Due date<input name="date" type="date" required min={new Date().toISOString().slice(0, 10)} className={input} /></label>
-        <label className="space-y-1 text-sm text-[#A1A1AA]">Title<input name="summary" required maxLength={250} placeholder={saleId ? "Email invoice to customer" : "Call Mariem about her booking"} className={input} /></label>
-        <label className="space-y-1 text-sm text-[#A1A1AA] sm:col-span-2">Notes / instructions<textarea name="note" maxLength={10000} rows={3} className={input} /></label>
-        <div className="flex gap-3 sm:col-span-2"><button disabled={busy} className="rounded-lg bg-purple-300 px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-50">{busy ? "Saving…" : "Save activity"}</button><button type="button" disabled={busy} onClick={() => setOpen(false)} className="text-sm text-[#A1A1AA]">Cancel</button></div>
+        {!leadId && !saleId && <label className="space-y-1 text-sm text-text-secondary">Prospect<select name="lead" required className={input} defaultValue=""><option value="" disabled>Select prospect</option>{leads.map(lead => <option key={lead.id} value={lead.id}>{lead.name}</option>)}</select></label>}
+        <label className="space-y-1 text-sm text-text-secondary">Activity<select name="type" required className={input} defaultValue={types.find(type => type.category === "phonecall")?.id || ""}><option value="" disabled>Select activity type</option>{types.map(type => <option key={type.id} value={type.id}>{type.name}</option>)}</select></label>
+        <label className="space-y-1 text-sm text-text-secondary">Due date<input name="date" type="date" required min={new Date().toISOString().slice(0, 10)} className={input} /></label>
+        <label className="space-y-1 text-sm text-text-secondary">Title<input name="summary" required maxLength={250} placeholder={saleId ? "Email invoice to customer" : "Call Mariem about her booking"} className={input} /></label>
+        <label className="space-y-1 text-sm text-text-secondary sm:col-span-2">Notes / instructions<textarea name="note" maxLength={10000} rows={3} className={input} /></label>
+        <div className="flex gap-3 sm:col-span-2"><button disabled={busy} className="rounded-lg bg-purple-300 px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-50">{busy ? "Saving…" : "Save activity"}</button><button type="button" disabled={busy} onClick={() => setOpen(false)} className="text-sm text-text-secondary">Cancel</button></div>
       </form>}
-      <div className="flex flex-wrap gap-2">{[["all", "All"], ["due", "Due now"], ["today", "Today"], ["overdue", "Overdue"], ["planned", "Upcoming"]].map(([value, label]) => <button key={value} type="button" onClick={() => setFilter(value)} className={`rounded-lg px-3 py-2 text-sm ${filter === value ? "bg-purple-400/20 text-purple-200" : "text-[#A1A1AA] hover:bg-white/5"}`}>{label}</button>)}</div>
-      {loading ? <p className="text-sm text-[#A1A1AA]">Loading activities…</p> : !visible.length && !error ? <p className="text-sm text-[#A1A1AA]">No activities in this view. Schedule the next follow-up above.</p> : visible.map(item => (
+      <div className="flex flex-wrap gap-2">{[["all", "All"], ["due", "Due now"], ["today", "Today"], ["overdue", "Overdue"], ["planned", "Upcoming"]].map(([value, label]) => <button key={value} type="button" onClick={() => setFilter(value)} className={`rounded-lg px-3 py-2 text-sm ${filter === value ? "bg-purple-400/20 text-purple-200" : "text-text-secondary hover:bg-white/5"}`}>{label}</button>)}</div>
+      {loading ? <p className="text-sm text-text-secondary">Loading activities…</p> : !visible.length && !error ? <p className="text-sm text-text-secondary">No activities in this view. Schedule the next follow-up above.</p> : visible.map(item => (
         <article key={item.id} className={`rounded-xl border p-4 ${item.state === "overdue" ? "border-red-400/30 bg-red-400/5" : item.state === "today" ? "border-amber-400/30 bg-amber-400/5" : "border-purple-400/25 bg-purple-400/5"}`}>
           <button type="button" onClick={() => { setSelected(selected === item.id ? null : item.id); setFeedback(""); }} className="flex w-full flex-wrap items-center justify-between gap-2 text-left">
-            <span className="font-medium text-white">{item.summary || (item.activity_type_id && item.activity_type_id[1]) || "Follow up"} · {item.res_name}</span>
+            <span className="font-medium text-text">{item.summary || (item.activity_type_id && item.activity_type_id[1]) || "Follow up"} · {item.res_name}</span>
             <span className={`text-sm ${item.state === "overdue" ? "text-red-300" : item.state === "today" ? "text-amber-300" : "text-purple-300"}`}>{item.date_deadline} · {item.state}</span>
           </button>
           {selected === item.id && <div className="mt-3 space-y-3">
-            <p className="whitespace-pre-wrap break-words text-sm text-[#D4D4D8]">{noteText(item.note) || "No instructions yet."}</p>
-            <div className="flex flex-wrap justify-between gap-2 text-sm"><Link href={activityHref(item)} className="text-purple-200 underline">Open {item.res_model === "sale.order" ? "booking" : "prospect"} →</Link><span className="text-[#A1A1AA]">Assigned to {item.user_id ? item.user_id[1] : "—"}</span></div>
-            <label className="block space-y-1 text-sm text-[#A1A1AA]">Due date<input type="date" min={new Date().toISOString().slice(0, 10)} defaultValue={item.date_deadline} disabled={busy} onBlur={event => { if (event.target.value && event.target.value !== item.date_deadline) void reschedule(item.id, event.target.value); }} className={`${input} max-w-[180px]`} /></label>
-            <label className="block space-y-1 text-sm text-[#A1A1AA]">Outcome / call notes<textarea value={feedback} onChange={event => setFeedback(event.target.value)} maxLength={10000} rows={2} className={input} /></label>
-            {item.res_model !== "sale.order" && item.activity_category === "phonecall" && <p className="text-sm text-[#A1A1AA]">Completing the call moves an earlier prospect to Contacté when that stage is configured.</p>}
+            <p className="whitespace-pre-wrap break-words text-sm text-text-secondary">{noteText(item.note) || "No instructions yet."}</p>
+            <div className="flex flex-wrap justify-between gap-2 text-sm"><Link href={activityHref(item)} className="text-purple-200 underline">Open {item.res_model === "sale.order" ? "booking" : "prospect"} →</Link><span className="text-text-secondary">Assigned to {item.user_id ? item.user_id[1] : "—"}</span></div>
+            <label className="block space-y-1 text-sm text-text-secondary">Due date<input type="date" min={new Date().toISOString().slice(0, 10)} defaultValue={item.date_deadline} disabled={busy} onBlur={event => { if (event.target.value && event.target.value !== item.date_deadline) void reschedule(item.id, event.target.value); }} className={`${input} max-w-[180px]`} /></label>
+            <label className="block space-y-1 text-sm text-text-secondary">Outcome / call notes<textarea value={feedback} onChange={event => setFeedback(event.target.value)} maxLength={10000} rows={2} className={input} /></label>
+            {item.res_model !== "sale.order" && item.activity_category === "phonecall" && <p className="text-sm text-text-secondary">Completing the call moves an earlier prospect to Contacté when that stage is configured.</p>}
             <button type="button" disabled={busy} onClick={() => complete(item.id)} className="inline-flex items-center gap-2 rounded-lg bg-emerald-400/15 px-4 py-2.5 text-sm text-emerald-200 disabled:opacity-50"><Check size={16} /> {busy ? "Saving…" : "Mark done"}</button>
           </div>}
         </article>

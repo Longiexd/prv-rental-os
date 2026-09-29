@@ -56,9 +56,9 @@ export default function LoginPage() {
         items-center
         justify-center
         overflow-hidden
-        bg-[#09090B]
+        bg-background
         px-6
-        text-white
+        text-text
       "
     >
       {/* =========================================================
@@ -116,7 +116,7 @@ export default function LoginPage() {
             <span className="text-[#F06AAA]">OS</span>
           </Link>
 
-          <p className="mt-2 text-sm text-[#71717A]">
+          <p className="mt-2 text-sm text-muted">
             Rental business operating system
           </p>
         </div>
@@ -127,8 +127,8 @@ export default function LoginPage() {
           className="
             rounded-2xl
             border
-            border-[#2B2B30]
-            bg-[#111113]/90
+            border-border
+            bg-surface/90
             p-6
             shadow-[0_30px_100px_rgba(0,0,0,.6)]
             backdrop-blur-xl
@@ -139,7 +139,7 @@ export default function LoginPage() {
               Welcome back
             </h1>
 
-            <p className="mt-1 text-sm text-[#71717A]">
+            <p className="mt-1 text-sm text-muted">
               Sign in to your workspace.
             </p>
           </div>
@@ -150,7 +150,7 @@ export default function LoginPage() {
             <div>
               <label
                 htmlFor="username"
-                className="mb-2 block text-xs text-[#A1A1AA]"
+                className="mb-2 block text-xs text-text-secondary"
               >
                 Username
               </label>
@@ -167,13 +167,13 @@ export default function LoginPage() {
                   w-full
                   rounded-lg
                   border
-                  border-[#2B2B30]
-                  bg-[#09090B]
+                  border-border
+                  bg-background
                   px-3
                   text-sm
                   outline-none
                   transition
-                  placeholder:text-[#52525B]
+                  placeholder:text-muted
                   focus:border-[#C8F065]/50
                 "
               />
@@ -184,7 +184,7 @@ export default function LoginPage() {
             <div>
               <label
                 htmlFor="password"
-                className="mb-2 block text-xs text-[#A1A1AA]"
+                className="mb-2 block text-xs text-text-secondary"
               >
                 Password
               </label>
@@ -201,13 +201,13 @@ export default function LoginPage() {
                   w-full
                   rounded-lg
                   border
-                  border-[#2B2B30]
-                  bg-[#09090B]
+                  border-border
+                  bg-background
                   px-3
                   text-sm
                   outline-none
                   transition
-                  placeholder:text-[#52525B]
+                  placeholder:text-muted
                   focus:border-[#C8F065]/50
                 "
               />
@@ -256,7 +256,7 @@ export default function LoginPage() {
           </form>
         </div>
 
-        <p className="mt-5 text-center text-[11px] text-[#52525B]">
+        <p className="mt-5 text-center text-[11px] text-muted">
           Klynx OS · Demo environment
         </p>
       </div>

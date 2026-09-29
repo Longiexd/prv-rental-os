@@ -8,7 +8,7 @@ type CardProps = {
 
 // The one "panel" container for the whole app — sections, tables,
 // lists all live inside one of these. Previously every page redefined
-// `rounded-xl border border-[#2B2B30] bg-[#111113]/80` by hand.
+// `rounded-xl border border-border bg-surface/80` by hand.
 export function Card({ children, className }: CardProps) {
   return (
     <div

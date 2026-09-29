@@ -57,7 +57,7 @@ export function QuickAddMenu({
         }
         aria-expanded={open}
         aria-haspopup="menu"
-        className="flex h-9 items-center justify-center gap-2 rounded-lg bg-lime px-4 text-xs font-medium text-background shadow-glow-lime transition hover:bg-lime-dark"
+        className="flex h-9 items-center justify-center gap-2 rounded-lg bg-lime px-4 text-xs font-medium text-[#111113] shadow-glow-lime transition hover:bg-lime-dark"
       >
         {label}
 

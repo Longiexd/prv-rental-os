@@ -343,22 +343,22 @@ function VehicleCard({
       onKeyDown={(event) => {
         if (event.key === "Enter") onClick();
       }}
-      className="group relative overflow-hidden rounded-2xl border border-[#2B2B30] bg-[#111113] text-left transition duration-200 hover:-translate-y-0.5 hover:border-[#414148] hover:bg-[#151517] hover:shadow-2xl hover:shadow-black/20"
+      className="group relative overflow-hidden rounded-2xl border border-border bg-surface text-left transition duration-200 hover:-translate-y-0.5 hover:border-strong hover:bg-surface hover:shadow-2xl hover:shadow-black/20"
     >
       <div
         className={`absolute inset-x-0 top-0 h-px ${
           fleetStatus ===
           "available"
-            ? "bg-[#C8F065]/40"
+            ? "bg-[var(--status-available-text)]/40"
             : fleetStatus ===
                 "rented"
-              ? "bg-[#F06AAA]/40"
+              ? "bg-[var(--status-rented-text)]/40"
               : fleetStatus ===
                   "cleaning"
-                ? "bg-blue-400/40"
+                ? "bg-[var(--status-cleaning-text)]/40"
                 : fleetStatus ===
                     "maintenance"
-                  ? "bg-violet-400/40"
+                  ? "bg-[var(--status-maintenance-text)]/40"
                   : "bg-transparent"
         }`}
       />
@@ -366,20 +366,20 @@ function VehicleCard({
       <div className="p-5">
         <div className="flex items-start justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#2B2B30] bg-[#17171A]">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-surface-secondary">
               <Car
                 size={20}
-                className="text-zinc-400 transition group-hover:text-white"
+                className="text-text-secondary transition group-hover:text-text"
               />
             </div>
 
             <div className="min-w-0">
-              <div className="truncate text-sm font-semibold text-white">
+              <div className="truncate text-sm font-semibold text-text">
                 {car.model ||
                   car.name}
               </div>
 
-              <div className="mt-1 flex items-center gap-2 text-xs text-zinc-600">
+              <div className="mt-1 flex items-center gap-2 text-xs text-muted">
                 <span>
                   {car.name}
                 </span>
@@ -403,7 +403,7 @@ function VehicleCard({
 
           <ChevronRight
             size={16}
-            className="shrink-0 text-zinc-700 transition group-hover:translate-x-0.5 group-hover:text-zinc-400"
+            className="shrink-0 text-muted transition group-hover:translate-x-0.5 group-hover:text-text-secondary"
           />
         </div>
 
@@ -414,19 +414,19 @@ function VehicleCard({
         {rental &&
           fleetStatus ===
             "rented" && (
-            <div className="mt-5 rounded-xl border border-[#2B2B30] bg-[#17171A] p-3.5">
-              <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.12em] text-zinc-600">
+            <div className="mt-5 rounded-xl border border-border bg-surface-secondary p-3.5">
+              <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.12em] text-muted">
                 <UserRound size={12} />
                 Rented to
               </div>
 
-              <div className="mt-2 truncate text-sm font-medium text-white">
+              <div className="mt-2 truncate text-sm font-medium text-text">
                 {rental.customer
                   ?.name ||
                   "Customer"}
               </div>
 
-              <div className="mt-1 flex items-center gap-2 text-xs text-zinc-500">
+              <div className="mt-1 flex items-center gap-2 text-xs text-muted">
                 <CalendarDays size={12} />
 
                 <span>
@@ -450,12 +450,12 @@ function VehicleCard({
 
         {fleetStatus ===
           "cleaning" && (
-          <div className="mt-5 rounded-xl border border-blue-400/10 bg-blue-400/[0.04] p-3.5">
-            <div className="text-[10px] uppercase tracking-[0.12em] text-blue-400/70">
+          <div className="mt-5 rounded-xl border border-blue-400/10 bg-[var(--status-cleaning-text)]/[0.04] p-3.5">
+            <div className="text-[10px] uppercase tracking-[0.12em] text-[var(--status-cleaning-text)]/70">
               Operational state
             </div>
 
-            <div className="mt-1 text-sm font-medium text-white">
+            <div className="mt-1 text-sm font-medium text-text">
               En nettoyage
             </div>
           </div>
@@ -463,12 +463,12 @@ function VehicleCard({
 
         {fleetStatus ===
           "maintenance" && (
-          <div className="mt-5 rounded-xl border border-violet-400/10 bg-violet-400/[0.04] p-3.5">
-            <div className="text-[10px] uppercase tracking-[0.12em] text-violet-400/70">
+          <div className="mt-5 rounded-xl border border-violet-400/10 bg-[var(--status-maintenance-text)]/[0.04] p-3.5">
+            <div className="text-[10px] uppercase tracking-[0.12em] text-[var(--status-maintenance-text)]/70">
               Operational state
             </div>
 
-            <div className="mt-1 text-sm font-medium text-white">
+            <div className="mt-1 text-sm font-medium text-text">
               Maintenance
             </div>
           </div>
@@ -476,19 +476,19 @@ function VehicleCard({
 
         {fleetStatus ===
           "available" && (
-          <div className="mt-5 rounded-xl border border-[#2B2B30] bg-[#17171A]/60 p-3.5">
-            <div className="text-xs text-zinc-600">
+          <div className="mt-5 rounded-xl border border-border bg-surface-secondary/60 p-3.5">
+            <div className="text-xs text-muted">
               No active rental
             </div>
 
-            <div className="mt-1 text-sm text-zinc-400">
+            <div className="mt-1 text-sm text-text-secondary">
               Ready for operations
             </div>
           </div>
         )}
 
         <div className="mt-5 flex items-center justify-between gap-3 text-xs">
-          <div className="flex min-w-0 items-center gap-2 text-zinc-600">
+          <div className="flex min-w-0 items-center gap-2 text-muted">
             <MapPin size={12} />
 
             <span className="truncate">
@@ -499,7 +499,7 @@ function VehicleCard({
 
           {car.odometer !=
             null && (
-            <div className="flex shrink-0 items-center gap-1.5 text-zinc-600">
+            <div className="flex shrink-0 items-center gap-1.5 text-muted">
               <Gauge size={12} />
 
               <span>
@@ -524,7 +524,7 @@ function VehicleCard({
                 className={`w-full rounded-lg border py-2 text-xs font-medium transition ${
                   fleetStatus === "returnDue"
                     ? "border-danger/30 bg-danger/10 text-danger hover:bg-danger/20"
-                    : "border-[#2B2B30] bg-[#17171A] text-zinc-300 hover:bg-[#1D1D20]"
+                    : "border-border bg-surface-secondary text-text hover:bg-surface-secondary"
                 }`}
               >
                 {fleetStatus === "returnDue"
@@ -535,7 +535,7 @@ function VehicleCard({
 
             {needsReturn && showReturnChoices && (
               <div className="space-y-1.5">
-                <div className="mb-1 text-[10px] text-zinc-500">
+                <div className="mb-1 text-[10px] text-muted">
                   Send vehicle to:
                 </div>
 
@@ -545,9 +545,9 @@ function VehicleCard({
                     onClick={() =>
                       onAction(car.id, "return", "Nettoyage")
                     }
-                    className="rounded-lg border border-blue-400/30 bg-blue-400/10 py-1.5 text-[11px] font-medium text-blue-300 transition hover:bg-blue-400/20"
+                    className="rounded-lg border border-blue-400/30 bg-[var(--status-cleaning-text)]/10 py-1.5 text-[11px] font-medium text-blue-300 transition hover:bg-[var(--status-cleaning-text)]/20"
                   >
-                    Nettoyage
+                    Cleaning
                   </button>
 
                   <button
@@ -555,9 +555,9 @@ function VehicleCard({
                     onClick={() =>
                       onAction(car.id, "return", "Disponible")
                     }
-                    className="rounded-lg border border-[#C8F065]/30 bg-[#C8F065]/10 py-1.5 text-[11px] font-medium text-[#C8F065] transition hover:bg-[#C8F065]/20"
+                    className="rounded-lg border border-[#C8F065]/30 bg-[var(--status-available-text)]/10 py-1.5 text-[11px] font-medium text-[var(--status-available-text)] transition hover:bg-[var(--status-available-text)]/20"
                   >
-                    Disponible
+                    Available
                   </button>
 
                   <button
@@ -565,7 +565,7 @@ function VehicleCard({
                     onClick={() =>
                       onAction(car.id, "return", "Maintenance")
                     }
-                    className="rounded-lg border border-violet-400/30 bg-violet-400/10 py-1.5 text-[11px] font-medium text-violet-300 transition hover:bg-violet-400/20"
+                    className="rounded-lg border border-violet-400/30 bg-[var(--status-maintenance-text)]/10 py-1.5 text-[11px] font-medium text-violet-300 transition hover:bg-[var(--status-maintenance-text)]/20"
                   >
                     Maintenance
                   </button>
@@ -574,7 +574,7 @@ function VehicleCard({
                 <button
                   type="button"
                   onClick={() => setShowReturnChoices(false)}
-                  className="w-full py-1 text-[10px] text-zinc-600 hover:text-zinc-400"
+                  className="w-full py-1 text-[10px] text-muted hover:text-text-secondary"
                 >
                   Cancel
                 </button>
@@ -589,7 +589,7 @@ function VehicleCard({
                   onClick={() =>
                     onAction(car.id, "mark-available")
                   }
-                  className="w-full rounded-lg border border-[#C8F065]/30 bg-[#C8F065]/10 py-2 text-xs font-medium text-[#C8F065] transition hover:bg-[#C8F065]/20"
+                  className="w-full rounded-lg border border-[#C8F065]/30 bg-[var(--status-available-text)]/10 py-2 text-xs font-medium text-[var(--status-available-text)] transition hover:bg-[var(--status-available-text)]/20"
                 >
                   Mark as available
                 </button>
@@ -643,24 +643,24 @@ function VehicleModal({
         className="absolute inset-0 bg-black/75 backdrop-blur-md"
       />
 
-      <div className="relative z-10 flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[#2B2B30] bg-[#0D0D0F] shadow-2xl shadow-black/50">
+      <div className="relative z-10 flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl shadow-black/50">
         {/* HEADER */}
 
-        <div className="flex items-center justify-between border-b border-[#2B2B30] px-5 py-4 sm:px-6">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4 sm:px-6">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#2B2B30] bg-[#17171A]">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-surface-secondary">
               <Car
                 size={18}
-                className="text-zinc-300"
+                className="text-text"
               />
             </div>
 
             <div>
-              <div className="text-sm font-semibold text-white">
+              <div className="text-sm font-semibold text-text">
                 Vehicle details
               </div>
 
-              <div className="mt-0.5 text-xs text-zinc-600">
+              <div className="mt-0.5 text-xs text-muted">
                 Vehicle #
                 {car.id}
               </div>
@@ -670,7 +670,7 @@ function VehicleModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#2B2B30] bg-[#111113] text-zinc-500 transition hover:bg-[#17171A] hover:text-white"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-surface text-muted transition hover:bg-surface-secondary hover:text-text"
           >
             <X size={16} />
           </button>
@@ -681,16 +681,16 @@ function VehicleModal({
         <div className="overflow-y-auto p-5 sm:p-6">
           <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
             <div>
-              <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-600">
+              <div className="text-[10px] uppercase tracking-[0.14em] text-muted">
                 Vehicle
               </div>
 
-              <h2 className="mt-2 font-[Syne] text-2xl font-semibold tracking-tight text-white">
+              <h2 className="mt-2 font-[Syne] text-2xl font-semibold tracking-tight text-text">
                 {car.model ||
                   car.name}
               </h2>
 
-              <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-zinc-500">
+              <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted">
                 <span>
                   {car.name}
                 </span>
@@ -716,7 +716,7 @@ function VehicleModal({
 
           {/* AVAILABILITY */}
 
-          <div className="mt-6 rounded-2xl border border-[#2B2B30] bg-[#111113] p-5">
+          <div className="mt-6 rounded-2xl border border-border bg-surface p-5">
             <div className="flex items-start gap-4">
               <div
                 className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${meta.className}`}
@@ -725,18 +725,18 @@ function VehicleModal({
               </div>
 
               <div className="min-w-0">
-                <div className="text-xs text-zinc-600">
+                <div className="text-xs text-muted">
                   Current status
                 </div>
 
-                <div className="mt-1 text-base font-semibold text-white">
+                <div className="mt-1 text-base font-semibold text-text">
                   {meta.label}
                 </div>
 
                 {car.status && (
-                  <div className="mt-1 text-xs text-zinc-600">
+                  <div className="mt-1 text-xs text-muted">
                     Status:{" "}
-                    <span className="text-zinc-400">
+                    <span className="text-text-secondary">
                       {car.status}
                     </span>
                   </div>
@@ -747,14 +747,14 @@ function VehicleModal({
             {fleetStatus ===
               "rented" &&
             rental ? (
-              <div className="mt-5 border-t border-[#2B2B30] pt-5">
-                <div className="mb-4 text-[10px] uppercase tracking-[0.12em] text-zinc-600">
+              <div className="mt-5 border-t border-border pt-5">
+                <div className="mb-4 text-[10px] uppercase tracking-[0.12em] text-muted">
                   Current rental
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div>
-                    <div className="text-[10px] uppercase tracking-[0.12em] text-zinc-600">
+                    <div className="text-[10px] uppercase tracking-[0.12em] text-muted">
                       Customer
                     </div>
 
@@ -762,11 +762,11 @@ function VehicleModal({
                       <Link
                         href={`/dashboard/customers/${rental.customer.id}`}
                         onClick={onClose}
-                        className="mt-2 flex items-center gap-2 text-sm font-medium text-white transition hover:text-[#C8F065]"
+                        className="mt-2 flex items-center gap-2 text-sm font-medium text-text transition hover:text-[var(--status-available-text)]"
                       >
                         <UserRound
                           size={14}
-                          className="text-[#F06AAA]"
+                          className="text-[var(--status-rented-text)]"
                         />
 
                         <span className="truncate">
@@ -778,21 +778,21 @@ function VehicleModal({
                         </span>
                       </Link>
                     ) : (
-                      <div className="mt-2 text-sm text-zinc-500">
+                      <div className="mt-2 text-sm text-muted">
                         No customer
                       </div>
                     )}
                   </div>
 
                   <div>
-                    <div className="text-[10px] uppercase tracking-[0.12em] text-zinc-600">
+                    <div className="text-[10px] uppercase tracking-[0.12em] text-muted">
                       Pickup
                     </div>
 
-                    <div className="mt-2 flex items-center gap-2 text-sm font-medium text-white">
+                    <div className="mt-2 flex items-center gap-2 text-sm font-medium text-text">
                       <CalendarDays
                         size={14}
-                        className="text-zinc-500"
+                        className="text-muted"
                       />
 
                       {formatDate(
@@ -802,14 +802,14 @@ function VehicleModal({
                   </div>
 
                   <div>
-                    <div className="text-[10px] uppercase tracking-[0.12em] text-zinc-600">
+                    <div className="text-[10px] uppercase tracking-[0.12em] text-muted">
                       Return
                     </div>
 
-                    <div className="mt-2 flex items-center gap-2 text-sm font-medium text-white">
+                    <div className="mt-2 flex items-center gap-2 text-sm font-medium text-text">
                       <Clock3
                         size={14}
-                        className="text-zinc-500"
+                        className="text-muted"
                       />
 
                       {formatDate(
@@ -819,49 +819,49 @@ function VehicleModal({
                   </div>
                 </div>
 
-                <div className="mt-5 rounded-xl border border-[#2B2B30] bg-[#17171A] p-4">
-                  <div className="text-[10px] uppercase tracking-[0.12em] text-zinc-600">
+                <div className="mt-5 rounded-xl border border-border bg-surface-secondary p-4">
+                  <div className="text-[10px] uppercase tracking-[0.12em] text-muted">
                     Rental order
                   </div>
 
-                  <div className="mt-1 font-mono text-sm font-medium text-white">
+                  <div className="mt-1 font-mono text-sm font-medium text-text">
                     {rental.name}
                   </div>
                 </div>
               </div>
             ) : fleetStatus ===
               "cleaning" ? (
-              <div className="mt-5 border-t border-[#2B2B30] pt-5">
-                <div className="rounded-xl border border-blue-400/10 bg-blue-400/[0.04] p-4">
-                  <div className="text-sm font-medium text-white">
+              <div className="mt-5 border-t border-border pt-5">
+                <div className="rounded-xl border border-blue-400/10 bg-[var(--status-cleaning-text)]/[0.04] p-4">
+                  <div className="text-sm font-medium text-text">
                     En nettoyage
                   </div>
 
-                  <div className="mt-1 text-xs leading-5 text-zinc-500">
+                  <div className="mt-1 text-xs leading-5 text-muted">
                     This vehicle is currently being prepared and should not be assigned to a new rental.
                   </div>
                 </div>
               </div>
             ) : fleetStatus ===
               "maintenance" ? (
-              <div className="mt-5 border-t border-[#2B2B30] pt-5">
-                <div className="rounded-xl border border-violet-400/10 bg-violet-400/[0.04] p-4">
-                  <div className="text-sm font-medium text-white">
+              <div className="mt-5 border-t border-border pt-5">
+                <div className="rounded-xl border border-violet-400/10 bg-[var(--status-maintenance-text)]/[0.04] p-4">
+                  <div className="text-sm font-medium text-text">
                     Maintenance
                   </div>
 
-                  <div className="mt-1 text-xs leading-5 text-zinc-500">
+                  <div className="mt-1 text-xs leading-5 text-muted">
                     This vehicle is currently unavailable for rental operations.
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="mt-5 border-t border-[#2B2B30] pt-5">
-                <div className="text-sm font-medium text-white">
+              <div className="mt-5 border-t border-border pt-5">
+                <div className="text-sm font-medium text-text">
                   No active rental
                 </div>
 
-                <div className="mt-1 text-xs text-zinc-600">
+                <div className="mt-1 text-xs text-muted">
                   No rental currently associated with this vehicle.
                 </div>
               </div>
@@ -875,7 +875,7 @@ function VehicleModal({
               <Link
                 href={`/dashboard/customers/${rental.customer.id}`}
                 onClick={onClose}
-                className="flex h-11 items-center justify-between rounded-xl border border-[#2B2B30] bg-[#17171A] px-4 text-xs font-medium text-zinc-300 transition hover:border-[#414148] hover:bg-[#1B1B1E] hover:text-white"
+                className="flex h-11 items-center justify-between rounded-xl border border-border bg-surface-secondary px-4 text-xs font-medium text-text transition hover:border-strong hover:bg-surface-secondary hover:text-text"
               >
                 <span className="flex items-center gap-2">
                   <UserRound size={14} />
@@ -889,7 +889,7 @@ function VehicleModal({
             <Link
               href={`/dashboard/calendar?vehicle=${car.id}`}
               onClick={onClose}
-              className="flex h-11 items-center justify-between rounded-xl bg-[#C8F065] px-4 text-xs font-semibold text-black transition hover:bg-[#d7ff80]"
+              className="flex h-11 items-center justify-between rounded-xl bg-[var(--status-available-text)] px-4 text-xs font-semibold text-black transition hover:bg-[#d7ff80]"
             >
               <span className="flex items-center gap-2">
                 <CalendarDays size={14} />
@@ -903,11 +903,11 @@ function VehicleModal({
           {/* VEHICLE INFORMATION */}
 
           <div className="mt-6">
-            <div className="mb-3 text-[10px] uppercase tracking-[0.14em] text-zinc-600">
+            <div className="mb-3 text-[10px] uppercase tracking-[0.14em] text-muted">
               Vehicle information
             </div>
 
-            <div className="overflow-hidden rounded-2xl border border-[#2B2B30] bg-[#111113]">
+            <div className="overflow-hidden rounded-2xl border border-border bg-surface">
               {[
                 [
                   "Vehicle",
@@ -962,15 +962,15 @@ function VehicleModal({
                     className={`flex items-center justify-between gap-5 px-5 py-3.5 ${
                       index <
                       7
-                        ? "border-b border-[#2B2B30]"
+                        ? "border-b border-border"
                         : ""
                     }`}
                   >
-                    <span className="text-xs text-zinc-600">
+                    <span className="text-xs text-muted">
                       {label}
                     </span>
 
-                    <span className="text-right text-sm text-zinc-300">
+                    <span className="text-right text-sm text-text">
                       {value}
                     </span>
                   </div>
@@ -986,11 +986,11 @@ function VehicleModal({
           fleetStatus === "returnDue" ||
           fleetStatus === "cleaning" ||
           fleetStatus === "maintenance") && (
-          <div className="border-t border-[#2B2B30] bg-[#0A0A0B] px-5 py-4 sm:px-6">
+          <div className="border-t border-border bg-background px-5 py-4 sm:px-6">
             {(fleetStatus === "rented" ||
               fleetStatus === "returnDue") && (
               <>
-                <div className="mb-2 text-[10px] uppercase tracking-[0.14em] text-zinc-600">
+                <div className="mb-2 text-[10px] uppercase tracking-[0.14em] text-muted">
                   Confirm return — send to:
                 </div>
                 <div className="flex gap-2">
@@ -999,25 +999,25 @@ function VehicleModal({
                     onClick={() =>
                       onAction(car.id, "return", "Nettoyage")
                     }
-                    className="flex-1 rounded-lg border border-blue-400/30 bg-blue-400/10 py-2 text-xs font-medium text-blue-300 transition hover:bg-blue-400/20"
+                    className="flex-1 rounded-lg border border-blue-400/30 bg-[var(--status-cleaning-text)]/10 py-2 text-xs font-medium text-blue-300 transition hover:bg-[var(--status-cleaning-text)]/20"
                   >
-                    Nettoyage
+                    Cleaning
                   </button>
                   <button
                     type="button"
                     onClick={() =>
                       onAction(car.id, "return", "Disponible")
                     }
-                    className="flex-1 rounded-lg border border-[#C8F065]/30 bg-[#C8F065]/10 py-2 text-xs font-medium text-[#C8F065] transition hover:bg-[#C8F065]/20"
+                    className="flex-1 rounded-lg border border-[#C8F065]/30 bg-[var(--status-available-text)]/10 py-2 text-xs font-medium text-[var(--status-available-text)] transition hover:bg-[var(--status-available-text)]/20"
                   >
-                    Disponible
+                    Available
                   </button>
                   <button
                     type="button"
                     onClick={() =>
                       onAction(car.id, "return", "Maintenance")
                     }
-                    className="flex-1 rounded-lg border border-violet-400/30 bg-violet-400/10 py-2 text-xs font-medium text-violet-300 transition hover:bg-violet-400/20"
+                    className="flex-1 rounded-lg border border-violet-400/30 bg-[var(--status-maintenance-text)]/10 py-2 text-xs font-medium text-violet-300 transition hover:bg-[var(--status-maintenance-text)]/20"
                   >
                     Maintenance
                   </button>
@@ -1027,7 +1027,7 @@ function VehicleModal({
 
             {fleetStatus === "cleaning" && (
               <>
-                <div className="mb-2 text-[10px] uppercase tracking-[0.14em] text-zinc-600">
+                <div className="mb-2 text-[10px] uppercase tracking-[0.14em] text-muted">
                   Cleaning status
                 </div>
                 <div className="flex gap-2">
@@ -1036,9 +1036,9 @@ function VehicleModal({
                     onClick={() =>
                       onAction(car.id, "mark-available")
                     }
-                    className="flex-1 rounded-lg border border-[#C8F065]/30 bg-[#C8F065]/10 py-2 text-xs font-medium text-[#C8F065] transition hover:bg-[#C8F065]/20"
+                    className="flex-1 rounded-lg border border-[#C8F065]/30 bg-[var(--status-available-text)]/10 py-2 text-xs font-medium text-[var(--status-available-text)] transition hover:bg-[var(--status-available-text)]/20"
                   >
-                    Cleaning finished — Disponible
+                    Cleaning finished — Available
                   </button>
                   <button
                     type="button"
@@ -1048,7 +1048,7 @@ function VehicleModal({
                         "needs-diagnosis"
                       )
                     }
-                    className="flex-1 rounded-lg border border-violet-400/30 bg-violet-400/10 py-2 text-xs font-medium text-violet-300 transition hover:bg-violet-400/20"
+                    className="flex-1 rounded-lg border border-violet-400/30 bg-[var(--status-maintenance-text)]/10 py-2 text-xs font-medium text-violet-300 transition hover:bg-[var(--status-maintenance-text)]/20"
                   >
                     Needs diagnosis — Maintenance
                   </button>
@@ -1060,9 +1060,9 @@ function VehicleModal({
               <button
                 type="button"
                 onClick={() => onAction(car.id, "mark-available")}
-                className="w-full rounded-lg border border-[#C8F065]/30 bg-[#C8F065]/10 py-2 text-xs font-medium text-[#C8F065] transition hover:bg-[#C8F065]/20"
+                className="w-full rounded-lg border border-[#C8F065]/30 bg-[var(--status-available-text)]/10 py-2 text-xs font-medium text-[var(--status-available-text)] transition hover:bg-[var(--status-available-text)]/20"
               >
-                Repairs finished — mark Disponible
+                Repairs finished — mark Available
               </button>
             )}
           </div>
@@ -1526,30 +1526,30 @@ export default function FleetPage() {
 
         <section className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
           <div>
-            <div className="mb-2 flex items-center gap-2 text-[11px] text-[#71717A]">
+            <div className="mb-2 flex items-center gap-2 text-[11px] text-muted">
               <span>
                 Workspace
               </span>
 
               <span>/</span>
 
-              <span className="text-[#A1A1AA]">
+              <span className="text-text-secondary">
                 Vehicles
               </span>
             </div>
 
-            <h1 className="font-[Syne] text-[28px] font-semibold tracking-[-0.035em] text-white sm:text-[32px]">
+            <h1 className="font-[Syne] text-[28px] font-semibold tracking-[-0.035em] text-text sm:text-[32px]">
               Vehicles
             </h1>
 
-            <p className="mt-1 text-sm text-[#71717A]">
+            <p className="mt-1 text-sm text-muted">
               Vehicle availability and operational status.
             </p>
           </div>
 
           {/* VIEW SWITCHER */}
 
-          <div className="flex h-9 items-center rounded-lg border border-[#2B2B30] bg-[#111113] p-1">
+          <div className="flex h-9 items-center rounded-lg border border-border bg-surface p-1">
             <button
               type="button"
               onClick={() =>
@@ -1557,8 +1557,8 @@ export default function FleetPage() {
               }
               className={`flex h-7 items-center gap-2 rounded-md px-3 text-xs font-medium transition ${
                 view === "list"
-                  ? "bg-[#2B2B30] text-white"
-                  : "text-zinc-600 hover:text-zinc-300"
+                  ? "bg-surface-secondary text-text"
+                  : "text-muted hover:text-text"
               }`}
             >
               <List size={13} />
@@ -1572,8 +1572,8 @@ export default function FleetPage() {
               }
               className={`flex h-7 items-center gap-2 rounded-md px-3 text-xs font-medium transition ${
                 view === "cards"
-                  ? "bg-[#2B2B30] text-white"
-                  : "text-zinc-600 hover:text-zinc-300"
+                  ? "bg-surface-secondary text-text"
+                  : "text-muted hover:text-text"
               }`}
             >
               <LayoutGrid
@@ -1592,28 +1592,28 @@ export default function FleetPage() {
             onClick={() => setStatusFilter(null)}
             className={`rounded-2xl border p-5 text-left transition ${
               statusFilter === null
-                ? "border-[#2B2B30] bg-[#17171A]"
-                : "border-[#2B2B30] bg-[#111113] hover:bg-[#17171A]"
+                ? "border-border bg-surface-secondary"
+                : "border-border bg-surface hover:bg-surface-secondary"
             }`}
           >
             <div className="flex items-center justify-between">
-              <span className="text-xs text-zinc-500">
+              <span className="text-xs text-muted">
                 Total Fleet
               </span>
 
               <Car
                 size={16}
-                className="text-zinc-500"
+                className="text-muted"
               />
             </div>
 
-            <div className="mt-3 text-3xl font-semibold text-white">
+            <div className="mt-3 text-3xl font-semibold text-text">
               {loading
                 ? "—"
                 : counts.total}
             </div>
 
-            <div className="mt-1 text-xs text-zinc-600">
+            <div className="mt-1 text-xs text-muted">
               {statusFilter
                 ? "clear filter"
                 : "vehicles"}
@@ -1631,21 +1631,21 @@ export default function FleetPage() {
             }
             className={`rounded-2xl border p-5 text-left transition ${
               statusFilter === "available"
-                ? "border-[#C8F065]/60 bg-[#C8F065]/10"
-                : "border-[#C8F065]/20 bg-[#C8F065]/[0.04] hover:bg-[#C8F065]/10"
+                ? "border-[#C8F065]/60 bg-[var(--status-available-text)]/10"
+                : "border-[var(--status-available-border)] bg-[var(--status-available-text)]/[0.04] hover:bg-[var(--status-available-text)]/10"
             }`}
           >
-            <span className="text-xs text-[#C8F065]">
-              Disponible
+            <span className="text-xs text-[var(--status-available-text)]">
+              Available
             </span>
 
-            <div className="mt-3 text-3xl font-semibold text-white">
+            <div className="mt-3 text-3xl font-semibold text-text">
               {loading
                 ? "—"
                 : counts.available}
             </div>
 
-            <div className="mt-1 text-xs text-[#C8F065]/50">
+            <div className="mt-1 text-xs text-[var(--status-available-text)]/50">
               ready to rent
             </div>
           </button>
@@ -1661,21 +1661,21 @@ export default function FleetPage() {
             }
             className={`rounded-2xl border p-5 text-left transition ${
               statusFilter === "reserved"
-                ? "border-amber-400/60 bg-amber-400/10"
-                : "border-amber-400/20 bg-amber-400/[0.04] hover:bg-amber-400/10"
+                ? "border-amber-400/60 bg-[var(--status-reserved-text)]/10"
+                : "border-[var(--status-reserved-border)] bg-[var(--status-reserved-text)]/[0.04] hover:bg-[var(--status-reserved-text)]/10"
             }`}
           >
-            <span className="text-xs text-amber-400">
-              Réservé
+            <span className="text-xs text-[var(--status-reserved-text)]">
+              Reserved
             </span>
 
-            <div className="mt-3 text-3xl font-semibold text-white">
+            <div className="mt-3 text-3xl font-semibold text-text">
               {loading
                 ? "—"
                 : counts.reserved}
             </div>
 
-            <div className="mt-1 text-xs text-amber-400/50">
+            <div className="mt-1 text-xs text-[var(--status-reserved-text)]/50">
               booked, not yet picked up
             </div>
           </button>
@@ -1691,21 +1691,21 @@ export default function FleetPage() {
             }
             className={`rounded-2xl border p-5 text-left transition ${
               statusFilter === "rented"
-                ? "border-[#F06AAA]/60 bg-[#F06AAA]/10"
-                : "border-[#F06AAA]/20 bg-[#F06AAA]/[0.04] hover:bg-[#F06AAA]/10"
+                ? "border-[#F06AAA]/60 bg-[var(--status-rented-text)]/10"
+                : "border-[var(--status-rented-border)] bg-[var(--status-rented-text)]/[0.04] hover:bg-[var(--status-rented-text)]/10"
             }`}
           >
-            <span className="text-xs text-[#F06AAA]">
-              Loué
+            <span className="text-xs text-[var(--status-rented-text)]">
+              Rented
             </span>
 
-            <div className="mt-3 text-3xl font-semibold text-white">
+            <div className="mt-3 text-3xl font-semibold text-text">
               {loading
                 ? "—"
                 : counts.rented}
             </div>
 
-            <div className="mt-1 text-xs text-[#F06AAA]/50">
+            <div className="mt-1 text-xs text-[var(--status-rented-text)]/50">
               currently rented
             </div>
           </button>
@@ -1721,21 +1721,21 @@ export default function FleetPage() {
             }
             className={`rounded-2xl border p-5 text-left transition ${
               statusFilter === "cleaning"
-                ? "border-blue-400/60 bg-blue-400/10"
-                : "border-blue-400/20 bg-blue-400/[0.04] hover:bg-blue-400/10"
+                ? "border-blue-400/60 bg-[var(--status-cleaning-text)]/10"
+                : "border-[var(--status-cleaning-border)] bg-[var(--status-cleaning-text)]/[0.04] hover:bg-[var(--status-cleaning-text)]/10"
             }`}
           >
-            <span className="text-xs text-blue-400">
-              Nettoyage
+            <span className="text-xs text-[var(--status-cleaning-text)]">
+              Cleaning
             </span>
 
-            <div className="mt-3 text-3xl font-semibold text-white">
+            <div className="mt-3 text-3xl font-semibold text-text">
               {loading
                 ? "—"
                 : counts.cleaning}
             </div>
 
-            <div className="mt-1 text-xs text-blue-400/50">
+            <div className="mt-1 text-xs text-[var(--status-cleaning-text)]/50">
               being prepared
             </div>
           </button>
@@ -1751,21 +1751,21 @@ export default function FleetPage() {
             }
             className={`rounded-2xl border p-5 text-left transition ${
               statusFilter === "maintenance"
-                ? "border-violet-400/60 bg-violet-400/10"
-                : "border-violet-400/20 bg-violet-400/[0.04] hover:bg-violet-400/10"
+                ? "border-violet-400/60 bg-[var(--status-maintenance-text)]/10"
+                : "border-[var(--status-maintenance-border)] bg-[var(--status-maintenance-text)]/[0.04] hover:bg-[var(--status-maintenance-text)]/10"
             }`}
           >
-            <span className="text-xs text-violet-400">
+            <span className="text-xs text-[var(--status-maintenance-text)]">
               Maintenance
             </span>
 
-            <div className="mt-3 text-3xl font-semibold text-white">
+            <div className="mt-3 text-3xl font-semibold text-text">
               {loading
                 ? "—"
                 : counts.maintenance}
             </div>
 
-            <div className="mt-1 text-xs text-violet-400/50">
+            <div className="mt-1 text-xs text-[var(--status-maintenance-text)]/50">
               unavailable
             </div>
           </button>
@@ -1777,7 +1777,7 @@ export default function FleetPage() {
           <div className="relative">
             <Search
               size={16}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted"
             />
 
             <input
@@ -1788,7 +1788,7 @@ export default function FleetPage() {
                 )
               }
               placeholder="Search vehicles, plates, models, status, customers..."
-              className="h-10 w-full rounded-xl border border-[#2B2B30] bg-[#111113] pl-10 pr-4 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-[#C8F065]/50"
+              className="h-10 w-full rounded-xl border border-border bg-surface pl-10 pr-4 text-sm text-text outline-none placeholder:text-muted focus:border-[#C8F065]/50"
             />
           </div>
         </section>
@@ -1805,18 +1805,18 @@ export default function FleetPage() {
 
         <section className="mt-5">
           {loading ? (
-            <div className="rounded-2xl border border-[#2B2B30] bg-[#111113] px-5 py-14 text-center text-sm text-zinc-600">
+            <div className="rounded-2xl border border-border bg-surface px-5 py-14 text-center text-sm text-muted">
               Loading vehicles...
             </div>
           ) : filteredFleet.length ===
             0 ? (
-            <div className="rounded-2xl border border-[#2B2B30] bg-[#111113] px-5 py-16 text-center">
+            <div className="rounded-2xl border border-border bg-surface px-5 py-16 text-center">
               <Car
                 size={24}
-                className="mx-auto text-zinc-700"
+                className="mx-auto text-muted"
               />
 
-              <div className="mt-4 text-sm text-zinc-400">
+              <div className="mt-4 text-sm text-text-secondary">
                 No vehicles found.
               </div>
             </div>
@@ -1826,11 +1826,11 @@ export default function FleetPage() {
                LIST VIEW
             ================================================= */
 
-            <div className="overflow-hidden rounded-2xl border border-[#2B2B30] bg-[#111113]">
+            <div className="overflow-hidden rounded-2xl border border-border bg-surface">
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[950px]">
                   <thead>
-                    <tr className="border-b border-[#2B2B30] text-left">
+                    <tr className="border-b border-border text-left">
                       <SortableHeader
                         label="Vehicle"
                         sortKey="name"
@@ -1945,36 +1945,36 @@ export default function FleetPage() {
                               car
                             )
                           }
-                          className="cursor-pointer border-b border-[#2B2B30] transition last:border-0 hover:bg-[#17171A]"
+                          className="cursor-pointer border-b border-border transition last:border-0 hover:bg-surface-secondary"
                         >
                           <td className="px-5 py-4">
                             <div className="flex items-center gap-3">
-                              <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#2B2B30] bg-[#17171A]">
+                              <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-surface-secondary">
                                 <Car
                                   size={15}
-                                  className="text-zinc-400"
+                                  className="text-text-secondary"
                                 />
                               </div>
 
                               <div>
-                                <div className="font-medium text-white">
+                                <div className="font-medium text-text">
                                   {car.model ||
                                     car.name}
                                 </div>
 
-                                <div className="mt-0.5 text-xs text-zinc-600">
+                                <div className="mt-0.5 text-xs text-muted">
                                   {car.name}
                                 </div>
                               </div>
                             </div>
                           </td>
 
-                          <td className="px-5 py-4 font-mono text-xs text-zinc-400">
+                          <td className="px-5 py-4 font-mono text-xs text-text-secondary">
                             {car.license_plate ||
                               "—"}
                           </td>
 
-                          <td className="px-5 py-4 text-sm text-zinc-400">
+                          <td className="px-5 py-4 text-sm text-text-secondary">
                             {car.model ||
                               "—"}
                           </td>
@@ -1994,14 +1994,14 @@ export default function FleetPage() {
                             ) ===
                               "rented" ? (
                               <div>
-                                <div className="text-xs font-medium text-white">
+                                <div className="text-xs font-medium text-text">
                                   {rental
                                     .customer
                                     ?.name ||
                                     "Customer"}
                                 </div>
 
-                                <div className="mt-1 flex items-center gap-1.5 text-[10px] text-zinc-600">
+                                <div className="mt-1 flex items-center gap-1.5 text-[10px] text-muted">
                                   <span>
                                     {formatDate(
                                       rental.date_order
@@ -2024,7 +2024,7 @@ export default function FleetPage() {
                                 car.active
                               ) ===
                               "cleaning" ? (
-                              <span className="text-xs text-blue-400">
+                              <span className="text-xs text-[var(--status-cleaning-text)]">
                                 En nettoyage
                               </span>
                             ) : getFleetStatus(
@@ -2032,22 +2032,22 @@ export default function FleetPage() {
                                 car.active
                               ) ===
                               "maintenance" ? (
-                              <span className="text-xs text-violet-400">
+                              <span className="text-xs text-[var(--status-maintenance-text)]">
                                 Maintenance
                               </span>
                             ) : (
-                              <span className="text-xs text-zinc-700">
+                              <span className="text-xs text-muted">
                                 —
                               </span>
                             )}
                           </td>
 
-                          <td className="px-5 py-4 text-xs text-zinc-500">
+                          <td className="px-5 py-4 text-xs text-muted">
                             {car.location ||
                               "—"}
                           </td>
 
-                          <td className="px-5 py-4 text-right font-mono text-xs text-zinc-600">
+                          <td className="px-5 py-4 text-right font-mono text-xs text-muted">
                             #{car.id}
                           </td>
                         </tr>

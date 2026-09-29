@@ -225,7 +225,7 @@ export default function CustomerDetailPage() {
     return (
       <main className="mx-auto max-w-[1500px] p-5 sm:p-8">
         <div className="flex min-h-[400px] items-center justify-center">
-          <div className="text-xs text-[#71717A]">
+          <div className="text-xs text-muted">
             Loading customer...
           </div>
         </div>
@@ -244,18 +244,18 @@ export default function CustomerDetailPage() {
           onClick={() =>
             router.push("/dashboard/customers")
           }
-          className="mb-6 flex items-center gap-2 text-xs text-[#71717A] transition hover:text-white"
+          className="mb-6 flex items-center gap-2 text-xs text-muted transition hover:text-text"
         >
           <ArrowLeft size={14} />
           Back to customers
         </button>
 
-        <div className="rounded-xl border border-[#2B2B30] bg-[#111113] p-10 text-center">
+        <div className="rounded-xl border border-border bg-surface p-10 text-center">
           <div className="text-sm font-medium">
             {error || "Customer not found."}
           </div>
 
-          <p className="mt-2 text-xs text-[#71717A]">
+          <p className="mt-2 text-xs text-muted">
             This customer may no longer be
             connected to CRM.
           </p>
@@ -279,7 +279,7 @@ export default function CustomerDetailPage() {
         onClick={() =>
           router.push("/dashboard/customers")
         }
-        className="mb-5 flex items-center gap-2 text-xs text-[#71717A] transition hover:text-white"
+        className="mb-5 flex items-center gap-2 text-xs text-muted transition hover:text-text"
       >
         <ArrowLeft size={14} />
         Customers
@@ -289,7 +289,7 @@ export default function CustomerDetailPage() {
           HEADER
       ======================================================== */}
 
-      <section className="rounded-xl border border-[#2B2B30] bg-[#111113]/80 p-5 sm:p-6">
+      <section className="rounded-xl border border-border bg-surface/80 p-5 sm:p-6">
 
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
 
@@ -315,13 +315,13 @@ export default function CustomerDetailPage() {
 
               </div>
 
-              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-[#71717A]">
+              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted">
 
                 <span>
                   Contact #{customer.partner_id}
                 </span>
 
-                <span className="text-[#3F3F46]">
+                <span className="text-muted">
                   /
                 </span>
 
@@ -331,7 +331,7 @@ export default function CustomerDetailPage() {
 
                 {customer.vat && (
                   <>
-                    <span className="text-[#3F3F46]">
+                    <span className="text-muted">
                       /
                     </span>
 
@@ -354,7 +354,7 @@ export default function CustomerDetailPage() {
             />
 
             {customer.salesperson && (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-[#2B2B30] bg-[#17171A] px-2.5 py-1 text-[9px] text-[#A1A1AA]">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface-secondary px-2.5 py-1 text-[9px] text-text-secondary">
                 <UserRound size={11} />
                 {customer.salesperson}
               </span>
@@ -437,7 +437,7 @@ export default function CustomerDetailPage() {
               CRM
           ==================================================== */}
 
-          <section className="overflow-hidden rounded-xl border border-[#2B2B30] bg-[#111113]/80">
+          <section className="overflow-hidden rounded-xl border border-border bg-surface/80">
 
             <SectionHeader
               icon={<BriefcaseBusiness size={14} />}
@@ -494,13 +494,13 @@ export default function CustomerDetailPage() {
             </div>
 
             {customer.description && (
-              <div className="border-t border-[#2B2B30] p-4">
+              <div className="border-t border-border p-4">
 
-                <div className="mb-2 text-[10px] uppercase tracking-wider text-[#71717A]">
+                <div className="mb-2 text-[10px] uppercase tracking-wider text-muted">
                   Description
                 </div>
 
-                <p className="whitespace-pre-wrap text-xs leading-5 text-[#A1A1AA]">
+                <p className="whitespace-pre-wrap text-xs leading-5 text-text-secondary">
                   {customer.description}
                 </p>
 
@@ -513,7 +513,7 @@ export default function CustomerDetailPage() {
               SALES ORDERS
           ==================================================== */}
 
-          <section className="overflow-hidden rounded-xl border border-[#2B2B30] bg-[#111113]/80">
+          <section className="overflow-hidden rounded-xl border border-border bg-surface/80">
 
             <SectionHeader
               icon={<BriefcaseBusiness size={14} />}
@@ -529,21 +529,21 @@ export default function CustomerDetailPage() {
             0 ? (
               <EmptyState text="No sales orders." />
             ) : (
-              <div className="divide-y divide-[#2B2B30]">
+              <div className="divide-y divide-border">
 
                 {customer.sales_orders.map(
                   (order) => (
                     <Link
                       key={order.id}
                       href={`/dashboard/rentals/${order.id}`}
-                      className="flex items-center justify-between gap-4 px-4 py-4 transition hover:bg-[#17171A]/40"
+                      className="flex items-center justify-between gap-4 px-4 py-4 transition hover:bg-surface-secondary/40"
                     >
 
                       <div>
 
                         <div className="flex items-center gap-2">
 
-                          <span className="text-xs font-medium text-white">
+                          <span className="text-xs font-medium text-text">
                             {order.name}
                           </span>
 
@@ -555,7 +555,7 @@ export default function CustomerDetailPage() {
 
                         </div>
 
-                        <div className="mt-1 text-[10px] text-[#71717A]">
+                        <div className="mt-1 text-[10px] text-muted">
                           {formatDate(
                             order.date_order
                           )}
@@ -575,7 +575,7 @@ export default function CustomerDetailPage() {
 
                       <div className="text-right">
 
-                        <div className="text-xs font-medium text-white">
+                        <div className="text-xs font-medium text-text">
                           {formatCurrency(
                             order.amount_total
                           )}
@@ -583,7 +583,7 @@ export default function CustomerDetailPage() {
 
                         <ChevronRight
                           size={14}
-                          className="ml-auto mt-1 text-[#52525B]"
+                          className="ml-auto mt-1 text-muted"
                         />
 
                       </div>
@@ -601,7 +601,7 @@ export default function CustomerDetailPage() {
               INVOICES
           ==================================================== */}
 
-          <section className="overflow-hidden rounded-xl border border-[#2B2B30] bg-[#111113]/80">
+          <section className="overflow-hidden rounded-xl border border-border bg-surface/80">
 
             <SectionHeader
               icon={<Receipt size={14} />}
@@ -617,20 +617,20 @@ export default function CustomerDetailPage() {
             0 ? (
               <EmptyState text="No invoices." />
             ) : (
-              <div className="divide-y divide-[#2B2B30]">
+              <div className="divide-y divide-border">
 
                 {customer.invoices.map(
                   (invoice) => (
                     <div
                       key={invoice.id}
-                      className="flex items-center justify-between gap-4 px-4 py-4 transition hover:bg-[#17171A]/40"
+                      className="flex items-center justify-between gap-4 px-4 py-4 transition hover:bg-surface-secondary/40"
                     >
 
                       <div>
 
                         <div className="flex items-center gap-2">
 
-                          <span className="text-xs font-medium text-white">
+                          <span className="text-xs font-medium text-text">
                             {invoice.name ||
                               `Invoice #${invoice.id}`}
                           </span>
@@ -643,7 +643,7 @@ export default function CustomerDetailPage() {
 
                         </div>
 
-                        <div className="mt-1 text-[10px] text-[#71717A]">
+                        <div className="mt-1 text-[10px] text-muted">
 
                           {invoice.invoice_date
                             ? formatDate(
@@ -667,7 +667,7 @@ export default function CustomerDetailPage() {
 
                       <div className="text-right">
 
-                        <div className="text-xs font-medium text-white">
+                        <div className="text-xs font-medium text-text">
                           {formatCurrency(
                             invoice.amount_total
                           )}
@@ -706,7 +706,7 @@ export default function CustomerDetailPage() {
               CONTACT
           ==================================================== */}
 
-          <section className="overflow-hidden rounded-xl border border-[#2B2B30] bg-[#111113]/80">
+          <section className="overflow-hidden rounded-xl border border-border bg-surface/80">
 
             <SectionHeader
               icon={<User size={14} />}
@@ -782,9 +782,9 @@ export default function CustomerDetailPage() {
               RENTAL STATUS
           ==================================================== */}
 
-          <section className="rounded-xl border border-[#2B2B30] bg-[#111113]/80 p-5">
+          <section className="rounded-xl border border-border bg-surface/80 p-5">
 
-            <div className="flex items-center gap-2 text-[11px] text-[#71717A]">
+            <div className="flex items-center gap-2 text-[11px] text-muted">
 
               <CalendarDays
                 size={14}
@@ -804,7 +804,7 @@ export default function CustomerDetailPage() {
                   }
                 />
               ) : (
-                <div className="text-xs text-[#52525B]">
+                <div className="text-xs text-muted">
                   No active rental status.
                 </div>
               )}
@@ -817,9 +817,9 @@ export default function CustomerDetailPage() {
               PAYMENT SUMMARY
           ==================================================== */}
 
-          <section className="rounded-xl border border-[#2B2B30] bg-[#111113]/80 p-5">
+          <section className="rounded-xl border border-border bg-surface/80 p-5">
 
-            <div className="flex items-center gap-2 text-[11px] text-[#71717A]">
+            <div className="flex items-center gap-2 text-[11px] text-muted">
 
               <Receipt
                 size={14}
@@ -849,7 +849,7 @@ export default function CustomerDetailPage() {
                 value={customer.unpaid_invoices.toString()}
               />
 
-              <div className="border-t border-[#2B2B30] pt-4">
+              <div className="border-t border-border pt-4">
 
                 <SummaryRow
                   label="Outstanding"
@@ -872,7 +872,7 @@ export default function CustomerDetailPage() {
               CRM HISTORY
           ==================================================== */}
 
-          <section className="overflow-hidden rounded-xl border border-[#2B2B30] bg-[#111113]/80">
+          <section className="overflow-hidden rounded-xl border border-border bg-surface/80">
 
             <SectionHeader
               icon={<CalendarDays size={14} />}
@@ -889,25 +889,25 @@ export default function CustomerDetailPage() {
             0 ? (
               <EmptyState text="No prospect history." />
             ) : (
-              <div className="divide-y divide-[#2B2B30]">
+              <div className="divide-y divide-border">
 
                 {customer.lead_history.map(
                   (lead) => (
                     <Link
                       key={lead.id}
                       href={`/crm/leads/${lead.id}`}
-                      className="block p-4 transition hover:bg-[#17171A]/40"
+                      className="block p-4 transition hover:bg-surface-secondary/40"
                     >
 
                       <div className="flex items-start justify-between gap-3">
 
                         <div>
 
-                          <div className="text-xs font-medium text-white">
+                          <div className="text-xs font-medium text-text">
                             {lead.name}
                           </div>
 
-                          <div className="mt-1 text-[10px] text-[#71717A]">
+                          <div className="mt-1 text-[10px] text-muted">
                             {formatDate(
                               lead.created
                             )}
@@ -924,7 +924,7 @@ export default function CustomerDetailPage() {
                       </div>
 
                       {lead.salesperson && (
-                        <div className="mt-3 flex items-center gap-2 text-[10px] text-[#71717A]">
+                        <div className="mt-3 flex items-center gap-2 text-[10px] text-muted">
                           <UserRound
                             size={11}
                           />
@@ -935,7 +935,7 @@ export default function CustomerDetailPage() {
                       )}
 
                       {lead.description && (
-                        <p className="mt-3 text-[10px] leading-4 text-[#71717A]">
+                        <p className="mt-3 text-[10px] leading-4 text-muted">
                           {
                             lead.description
                           }
@@ -973,7 +973,7 @@ function SectionHeader({
   subtitle: string;
 }) {
   return (
-    <div className="flex items-center justify-between border-b border-[#2B2B30] px-4 py-4">
+    <div className="flex items-center justify-between border-b border-border px-4 py-4">
 
       <div className="flex items-center gap-2">
 
@@ -987,7 +987,7 @@ function SectionHeader({
             {title}
           </h2>
 
-          <p className="mt-0.5 text-[10px] text-[#71717A]">
+          <p className="mt-0.5 text-[10px] text-muted">
             {subtitle}
           </p>
 
@@ -1013,13 +1013,13 @@ function InfoItem({
   badge?: boolean;
 }) {
   return (
-    <div className="border-b border-[#2B2B30] px-4 py-4">
+    <div className="border-b border-border px-4 py-4">
 
-      <div className="text-[9px] uppercase tracking-wider text-[#52525B]">
+      <div className="text-[9px] uppercase tracking-wider text-muted">
         {label}
       </div>
 
-      <div className="mt-1.5 text-xs text-[#A1A1AA]">
+      <div className="mt-1.5 text-xs text-text-secondary">
 
         {badge ? (
           <CRMStageBadge stage={value} />
@@ -1063,16 +1063,16 @@ function ContactRow({
   const editable = Boolean(onEdit);
 
   return (
-    <div className="flex gap-3 border-b border-[#2B2B30] py-3 last:border-b-0">
+    <div className="flex gap-3 border-b border-border py-3 last:border-b-0">
 
-      <div className="mt-0.5 text-[#71717A]">
+      <div className="mt-0.5 text-muted">
         {icon}
       </div>
 
       <div className="min-w-0 flex-1">
 
         <div className="flex items-center justify-between gap-2">
-          <div className="text-[9px] uppercase tracking-wider text-[#52525B]">
+          <div className="text-[9px] uppercase tracking-wider text-muted">
             {label}
           </div>
           {editable && !editing && (
@@ -1089,17 +1089,17 @@ function ContactRow({
               value={draft}
               onChange={(event) => onDraftChange?.(event.target.value)}
               onKeyDown={(event) => { if (event.key === "Enter") onSave?.(); if (event.key === "Escape") onCancel?.(); }}
-              className="h-7 w-full rounded-md border border-[#2B2B30] bg-[#0B0B0D] px-2 text-xs text-white outline-none focus:border-[#C8F065]"
+              className="h-7 w-full rounded-md border border-border bg-background px-2 text-xs text-text outline-none focus:border-[#C8F065]"
             />
             <button type="button" disabled={saving} onClick={onSave} className="shrink-0 text-[10px] font-medium text-[#C8F065] disabled:opacity-50">
               {saving ? "…" : "Save"}
             </button>
-            <button type="button" onClick={onCancel} className="shrink-0 text-[10px] text-[#71717A]">
+            <button type="button" onClick={onCancel} className="shrink-0 text-[10px] text-muted">
               Cancel
             </button>
           </div>
         ) : (
-          <div className="mt-1 break-words text-xs text-[#A1A1AA]">
+          <div className="mt-1 break-words text-xs text-text-secondary">
             {value}
           </div>
         )}
@@ -1126,7 +1126,7 @@ function SummaryRow({
   return (
     <div className="flex items-center justify-between gap-4">
 
-      <span className="text-[10px] text-[#71717A]">
+      <span className="text-[10px] text-muted">
         {label}
       </span>
 
@@ -1134,7 +1134,7 @@ function SummaryRow({
         className={`text-xs font-medium ${
           highlight
             ? "text-[#F06AAA]"
-            : "text-[#A1A1AA]"
+            : "text-text-secondary"
         }`}
       >
         {value}
@@ -1155,7 +1155,7 @@ function CRMStageBadge({
 }) {
   if (!stage) {
     return (
-      <span className="inline-flex rounded-full border border-[#2B2B30] bg-[#17171A] px-2.5 py-1 text-[9px] font-medium text-[#71717A]">
+      <span className="inline-flex rounded-full border border-border bg-surface-secondary px-2.5 py-1 text-[9px] font-medium text-muted">
         No stage
       </span>
     );
@@ -1164,7 +1164,7 @@ function CRMStageBadge({
   const value = stage.toLowerCase();
 
   let className =
-    "border-[#2B2B30] bg-[#17171A] text-[#A1A1AA]";
+    "border-border bg-surface-secondary text-text-secondary";
 
   if (value.includes("contact")) {
     className =
@@ -1216,7 +1216,7 @@ function RentalStatusBadge({
   if (status === "Réservé") {
     return (
       <span className="inline-flex rounded-full border border-[#C8F065]/20 bg-[#C8F065]/10 px-2.5 py-1 text-[9px] font-medium text-[#C8F065]">
-        Réservé
+        Reserved
       </span>
     );
   }
@@ -1224,7 +1224,7 @@ function RentalStatusBadge({
   if (status === "Loué") {
     return (
       <span className="inline-flex rounded-full border border-[#F06AAA]/20 bg-[#F06AAA]/10 px-2.5 py-1 text-[9px] font-medium text-[#F06AAA]">
-        Loué
+        Rented
       </span>
     );
   }
@@ -1255,10 +1255,10 @@ function RentalStatusLarge({
         <div>
 
           <div className="text-sm font-medium text-[#C8F065]">
-            Réservé
+            Reserved
           </div>
 
-          <div className="mt-0.5 text-[10px] text-[#71717A]">
+          <div className="mt-0.5 text-[10px] text-muted">
             Vehicle reservation confirmed
           </div>
 
@@ -1282,10 +1282,10 @@ function RentalStatusLarge({
         <div>
 
           <div className="text-sm font-medium text-[#F06AAA]">
-            Loué
+            Rented
           </div>
 
-          <div className="mt-0.5 text-[10px] text-[#71717A]">
+          <div className="mt-0.5 text-[10px] text-muted">
             Vehicle has been handed over
           </div>
 
@@ -1335,7 +1335,7 @@ function PaymentBadge({
   }
 
   return (
-    <span className="inline-flex rounded-full border border-[#2B2B30] bg-[#17171A] px-2 py-1 text-[8px] text-[#71717A]">
+    <span className="inline-flex rounded-full border border-border bg-surface-secondary px-2 py-1 text-[8px] text-muted">
       {status}
     </span>
   );
@@ -1363,7 +1363,7 @@ function OrderStatusBadge({
   };
 
   return (
-    <span className="rounded-full border border-[#2B2B30] bg-[#17171A] px-2 py-0.5 text-[8px] text-[#71717A]">
+    <span className="rounded-full border border-border bg-surface-secondary px-2 py-0.5 text-[8px] text-muted">
       {labels[status] || status}
     </span>
   );
@@ -1379,7 +1379,7 @@ function EmptyState({
   text: string;
 }) {
   return (
-    <div className="p-8 text-center text-xs text-[#52525B]">
+    <div className="p-8 text-center text-xs text-muted">
       {text}
     </div>
   );

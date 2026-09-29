@@ -438,13 +438,13 @@ export default function AddLeadModal({
         }
       }}
     >
-      <div className="flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-[#2B2B30] bg-[#111113] shadow-[0_30px_100px_rgba(0,0,0,.55)]">
+      <div className="flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_30px_100px_rgba(0,0,0,.55)]">
 
         {/* ======================================================
             HEADER
         ====================================================== */}
 
-        <div className="flex shrink-0 items-center justify-between border-b border-[#2B2B30] px-5 py-4">
+        <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-4">
 
           <div className="flex items-center gap-2">
 
@@ -453,11 +453,11 @@ export default function AddLeadModal({
             </div>
 
             <div>
-              <h2 className="font-[Syne] text-sm font-semibold text-white">
+              <h2 className="font-[Syne] text-sm font-semibold text-text">
                 Add Lead
               </h2>
 
-              <p className="mt-0.5 text-[10px] text-[#71717A]">
+              <p className="mt-0.5 text-[10px] text-muted">
                 Create a new prospect
               </p>
             </div>
@@ -468,7 +468,7 @@ export default function AddLeadModal({
             type="button"
             onClick={handleClose}
             disabled={saving}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-[#71717A] transition hover:bg-[#17171A] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted transition hover:bg-surface-secondary hover:text-text disabled:cursor-not-allowed disabled:opacity-40"
           >
             <X size={16} />
           </button>
@@ -494,11 +494,11 @@ export default function AddLeadModal({
 
               <div className="mb-3">
 
-                <h3 className="text-xs font-semibold text-white">
+                <h3 className="text-xs font-semibold text-text">
                   Contact
                 </h3>
 
-                <p className="mt-0.5 text-[10px] text-[#52525B]">
+                <p className="mt-0.5 text-[10px] text-muted">
                   Lead and customer information
                 </p>
 
@@ -508,7 +508,7 @@ export default function AddLeadModal({
 
               <div className="relative">
 
-                <label className="mb-1.5 block text-[11px] font-medium text-[#A1A1AA]">
+                <label className="mb-1.5 block text-[11px] font-medium text-text-secondary">
                   Lead name
                   <span className="ml-1 text-[#F06AAA]">
                     *
@@ -519,7 +519,7 @@ export default function AddLeadModal({
 
                   <Search
                     size={14}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-[#52525B]"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-muted"
                   />
 
                   <input
@@ -551,13 +551,13 @@ export default function AddLeadModal({
                       }
                     }}
                     placeholder="e.g. Ahmed Ben Ali"
-                    className="h-10 w-full rounded-lg border border-[#2B2B30] bg-[#09090B] pl-9 pr-10 text-sm text-white outline-none placeholder:text-[#52525B] transition focus:border-[#C8F065]/50"
+                    className="h-10 w-full rounded-lg border border-border bg-background pl-9 pr-10 text-sm text-text outline-none placeholder:text-muted transition focus:border-[#C8F065]/50"
                   />
 
                   {searchingCustomers && (
                     <Loader2
                       size={14}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-[#71717A]"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-muted"
                     />
                   )}
 
@@ -568,15 +568,15 @@ export default function AddLeadModal({
                 {showSuggestions &&
                   !selectedCustomer &&
                   matches.length > 0 && (
-                    <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-30 overflow-hidden rounded-xl border border-[#2B2B30] bg-[#111113] shadow-[0_20px_50px_rgba(0,0,0,.45)]">
+                    <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-30 overflow-hidden rounded-xl border border-border bg-surface shadow-[0_20px_50px_rgba(0,0,0,.45)]">
 
-                      <div className="border-b border-[#2B2B30] px-3 py-2">
+                      <div className="border-b border-border px-3 py-2">
 
-                        <div className="text-[10px] font-medium uppercase tracking-wider text-[#71717A]">
+                        <div className="text-[10px] font-medium uppercase tracking-wider text-muted">
                           Existing contacts
                         </div>
 
-                        <div className="mt-0.5 text-[10px] text-[#52525B]">
+                        <div className="mt-0.5 text-[10px] text-muted">
                           Select a contact to link this new lead
                         </div>
 
@@ -611,7 +611,7 @@ export default function AddLeadModal({
                                     customer
                                   )
                                 }
-                                className="w-full border-b border-[#2B2B30] px-3 py-3 text-left transition last:border-0 hover:bg-[#17171A]"
+                                className="w-full border-b border-border px-3 py-3 text-left transition last:border-0 hover:bg-surface-secondary"
                               >
 
                                 <div className="flex items-start gap-3">
@@ -628,7 +628,7 @@ export default function AddLeadModal({
 
                                     <div className="flex items-center gap-2">
 
-                                      <span className="truncate text-sm font-medium text-white">
+                                      <span className="truncate text-sm font-medium text-text">
                                         {
                                           customer.name
                                         }
@@ -642,7 +642,7 @@ export default function AddLeadModal({
 
                                     </div>
 
-                                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-[#71717A]">
+                                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-muted">
 
                                       {customer.phone && (
                                         <span>
@@ -669,7 +669,7 @@ export default function AddLeadModal({
                                           Existing CRM customer
                                         </span>
                                       ) : (
-                                        <span className="text-[9px] text-[#71717A]">
+                                        <span className="text-[9px] text-muted">
                                           Existing contact
                                         </span>
                                       )}
@@ -687,9 +687,9 @@ export default function AddLeadModal({
 
                       </div>
 
-                      <div className="border-t border-[#2B2B30] bg-[#09090B] px-3 py-2">
+                      <div className="border-t border-border bg-background px-3 py-2">
 
-                        <div className="text-[9px] text-[#52525B]">
+                        <div className="text-[9px] text-muted">
                           Selecting a contact creates a new lead linked
                           to the existing customer.
                         </div>
@@ -716,13 +716,13 @@ export default function AddLeadModal({
                           Linked to existing customer
                         </div>
 
-                        <div className="mt-1 truncate text-sm font-medium text-white">
+                        <div className="mt-1 truncate text-sm font-medium text-text">
                           {
                             selectedCustomer.name
                           }
                         </div>
 
-                        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-[#71717A]">
+                        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-muted">
 
                           {selectedCustomer.phone && (
                             <span>
@@ -755,7 +755,7 @@ export default function AddLeadModal({
                           setEmail("");
                         }}
                         disabled={saving}
-                        className="shrink-0 text-[10px] text-[#71717A] transition hover:text-white"
+                        className="shrink-0 text-[10px] text-muted transition hover:text-text"
                       >
                         Change
                       </button>
@@ -773,7 +773,7 @@ export default function AddLeadModal({
 
                 <div>
 
-                  <label className="mb-1.5 block text-[11px] font-medium text-[#A1A1AA]">
+                  <label className="mb-1.5 block text-[11px] font-medium text-text-secondary">
                     Phone
                   </label>
 
@@ -781,7 +781,7 @@ export default function AddLeadModal({
 
                     <Phone
                       size={14}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 text-[#52525B]"
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-muted"
                     />
 
                     <input
@@ -792,7 +792,7 @@ export default function AddLeadModal({
                         )
                       }
                       placeholder="+216 ..."
-                      className="h-10 w-full rounded-lg border border-[#2B2B30] bg-[#09090B] pl-9 pr-3 text-sm text-white outline-none placeholder:text-[#52525B] transition focus:border-[#C8F065]/50"
+                      className="h-10 w-full rounded-lg border border-border bg-background pl-9 pr-3 text-sm text-text outline-none placeholder:text-muted transition focus:border-[#C8F065]/50"
                     />
 
                   </div>
@@ -801,7 +801,7 @@ export default function AddLeadModal({
 
                 <div>
 
-                  <label className="mb-1.5 block text-[11px] font-medium text-[#A1A1AA]">
+                  <label className="mb-1.5 block text-[11px] font-medium text-text-secondary">
                     Email
                   </label>
 
@@ -809,7 +809,7 @@ export default function AddLeadModal({
 
                     <Mail
                       size={14}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 text-[#52525B]"
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-muted"
                     />
 
                     <input
@@ -821,7 +821,7 @@ export default function AddLeadModal({
                         )
                       }
                       placeholder="client@email.com"
-                      className="h-10 w-full rounded-lg border border-[#2B2B30] bg-[#09090B] pl-9 pr-3 text-sm text-white outline-none placeholder:text-[#52525B] transition focus:border-[#C8F065]/50"
+                      className="h-10 w-full rounded-lg border border-border bg-background pl-9 pr-3 text-sm text-text outline-none placeholder:text-muted transition focus:border-[#C8F065]/50"
                     />
 
                   </div>
@@ -836,7 +836,7 @@ export default function AddLeadModal({
                 RENTAL REQUIREMENTS
             ================================================== */}
 
-            <section className="rounded-xl border border-[#2B2B30] bg-[#09090B] p-4">
+            <section className="rounded-xl border border-border bg-background p-4">
 
               <div className="mb-4">
 
@@ -847,17 +847,17 @@ export default function AddLeadModal({
                     className="text-[#C8F065]"
                   />
 
-                  <h3 className="text-xs font-semibold text-white">
+                  <h3 className="text-xs font-semibold text-text">
                     Rental requirements
                   </h3>
 
-                  <span className="rounded-md bg-[#17171A] px-1.5 py-0.5 text-[9px] text-[#71717A]">
+                  <span className="rounded-md bg-surface-secondary px-1.5 py-0.5 text-[9px] text-muted">
                     Optional
                   </span>
 
                 </div>
 
-                <p className="mt-1 text-[10px] text-[#52525B]">
+                <p className="mt-1 text-[10px] text-muted">
                   Capture the customer's initial rental needs.
                   These can be refined later.
                 </p>
@@ -870,7 +870,7 @@ export default function AddLeadModal({
 
                 <div>
 
-                  <label className="mb-1.5 block text-[11px] font-medium text-[#A1A1AA]">
+                  <label className="mb-1.5 block text-[11px] font-medium text-text-secondary">
                     Reservation start
                   </label>
 
@@ -884,14 +884,14 @@ export default function AddLeadModal({
                         event.target.value
                       )
                     }
-                    className="h-10 w-full rounded-lg border border-[#2B2B30] bg-[#111113] px-3 text-sm text-white outline-none transition focus:border-[#C8F065]/50"
+                    className="h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-text outline-none transition focus:border-[#C8F065]/50"
                   />
 
                 </div>
 
                 <div>
 
-                  <label className="mb-1.5 block text-[11px] font-medium text-[#A1A1AA]">
+                  <label className="mb-1.5 block text-[11px] font-medium text-text-secondary">
                     Reservation end
                   </label>
 
@@ -907,7 +907,7 @@ export default function AddLeadModal({
                         event.target.value
                       )
                     }
-                    className="h-10 w-full rounded-lg border border-[#2B2B30] bg-[#111113] px-3 text-sm text-white outline-none transition focus:border-[#C8F065]/50"
+                    className="h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-text outline-none transition focus:border-[#C8F065]/50"
                   />
 
                 </div>
@@ -922,7 +922,7 @@ export default function AddLeadModal({
 
                 <div>
 
-                  <label className="mb-1.5 block text-[11px] font-medium text-[#A1A1AA]">
+                  <label className="mb-1.5 block text-[11px] font-medium text-text-secondary">
                     Vehicle type
                   </label>
 
@@ -947,12 +947,12 @@ export default function AddLeadModal({
                       disabled={
                         loadingOptions
                       }
-                      className="h-10 w-full appearance-none rounded-lg border border-[#2B2B30] bg-[#111113] px-3 pr-9 text-sm text-white outline-none transition focus:border-[#C8F065]/50 disabled:opacity-50"
+                      className="h-10 w-full appearance-none rounded-lg border border-border bg-surface px-3 pr-9 text-sm text-text outline-none transition focus:border-[#C8F065]/50 disabled:opacity-50"
                     >
 
                       <option
                         value=""
-                        className="bg-[#111113]"
+                        className="bg-surface"
                       >
                         Any vehicle type
                       </option>
@@ -966,7 +966,7 @@ export default function AddLeadModal({
                             value={
                               type.id
                             }
-                            className="bg-[#111113]"
+                            className="bg-surface"
                           >
                             {type.name}
                           </option>
@@ -977,7 +977,7 @@ export default function AddLeadModal({
 
                     <ChevronDown
                       size={14}
-                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#52525B]"
+                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted"
                     />
 
                   </div>
@@ -988,7 +988,7 @@ export default function AddLeadModal({
 
                 <div>
 
-                  <label className="mb-1.5 block text-[11px] font-medium text-[#A1A1AA]">
+                  <label className="mb-1.5 block text-[11px] font-medium text-text-secondary">
                     Vehicle brand
                   </label>
 
@@ -1013,12 +1013,12 @@ export default function AddLeadModal({
                       disabled={
                         loadingOptions
                       }
-                      className="h-10 w-full appearance-none rounded-lg border border-[#2B2B30] bg-[#111113] px-3 pr-9 text-sm text-white outline-none transition focus:border-[#C8F065]/50 disabled:opacity-50"
+                      className="h-10 w-full appearance-none rounded-lg border border-border bg-surface px-3 pr-9 text-sm text-text outline-none transition focus:border-[#C8F065]/50 disabled:opacity-50"
                     >
 
                       <option
                         value=""
-                        className="bg-[#111113]"
+                        className="bg-surface"
                       >
                         Any brand
                       </option>
@@ -1032,7 +1032,7 @@ export default function AddLeadModal({
                             value={
                               brand.id
                             }
-                            className="bg-[#111113]"
+                            className="bg-surface"
                           >
                             {brand.name}
                           </option>
@@ -1043,7 +1043,7 @@ export default function AddLeadModal({
 
                     <ChevronDown
                       size={14}
-                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#52525B]"
+                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted"
                     />
 
                   </div>
@@ -1053,7 +1053,7 @@ export default function AddLeadModal({
               </div>
 
               {loadingOptions && (
-                <div className="mt-3 flex items-center gap-2 text-[10px] text-[#52525B]">
+                <div className="mt-3 flex items-center gap-2 text-[10px] text-muted">
 
                   <Loader2
                     size={12}
@@ -1073,7 +1073,7 @@ export default function AddLeadModal({
 
             <section>
 
-              <label className="mb-1.5 block text-[11px] font-medium text-[#A1A1AA]">
+              <label className="mb-1.5 block text-[11px] font-medium text-text-secondary">
                 Notes
               </label>
 
@@ -1086,7 +1086,7 @@ export default function AddLeadModal({
                 }
                 placeholder="Rental requirements, source, follow-up notes..."
                 rows={4}
-                className="w-full resize-none rounded-lg border border-[#2B2B30] bg-[#09090B] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#52525B] transition focus:border-[#C8F065]/50"
+                className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-text outline-none placeholder:text-muted transition focus:border-[#C8F065]/50"
               />
 
             </section>
@@ -1107,13 +1107,13 @@ export default function AddLeadModal({
               FOOTER
           ==================================================== */}
 
-          <div className="flex shrink-0 items-center justify-end gap-2 border-t border-[#2B2B30] px-5 py-4">
+          <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border px-5 py-4">
 
             <button
               type="button"
               onClick={handleClose}
               disabled={saving}
-              className="h-9 rounded-lg border border-[#2B2B30] bg-[#17171A] px-4 text-xs font-medium text-[#A1A1AA] transition hover:text-white disabled:opacity-40"
+              className="h-9 rounded-lg border border-border bg-surface-secondary px-4 text-xs font-medium text-text-secondary transition hover:text-text disabled:opacity-40"
             >
               Cancel
             </button>
