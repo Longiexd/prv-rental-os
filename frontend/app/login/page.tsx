@@ -161,7 +161,7 @@ export default function LoginPage() {
                 autoComplete="username"
                 value={username}
                 onChange={(event) => setUsername(event.target.value)}
-                placeholder="admin"
+                placeholder="company.username"
                 className="
                   h-10
                   w-full

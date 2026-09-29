@@ -89,12 +89,14 @@ export default function OSLayout({
 
   const { due } = useReminders();
 
-  const handleLogout = () => {
-    document.cookie =
-      "klynx_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
-
-    router.replace("/login");
-    router.refresh();
+  const handleLogout = async () => {
+    try {
+      const response = await fetch("/api/auth", { method: "DELETE" });
+      if (!response.ok) throw new Error("Sign out failed");
+      window.location.assign("/login");
+    } catch {
+      window.alert("Could not finish signing out. Please retry.");
+    }
   };
 
   const isActive = (href: string) =>

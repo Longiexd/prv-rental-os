@@ -4,12 +4,6 @@ from urllib.parse import urlparse
 
 load_dotenv()
 
-ODOO_URL = os.getenv("ODOO_URL")
-ODOO_DB = os.getenv("ODOO_DB")
-ODOO_USERNAME = os.getenv("ODOO_USERNAME")
-ODOO_PASSWORD = os.getenv("ODOO_PASSWORD")
-
-
 def get_cors_allowed_origins() -> list[str]:
     raw_origins = os.getenv("CORS_ALLOWED_ORIGINS", "")
     origins = [

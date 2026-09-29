@@ -49,7 +49,7 @@ case "$environment" in
     service_name="backend-staging"
     compose_project="klynx-rental-os-staging"
     env_filename=".env.staging"
-    health_url="http://127.0.0.1:8001/"
+    health_url="http://127.0.0.1:8001/ready"
     compose_env_file="deploy/staging.compose.env"
     ;;
   production)
@@ -57,7 +57,7 @@ case "$environment" in
     service_name="backend-production"
     compose_project="klynx-rental-os-production"
     env_filename=".env.production"
-    health_url="http://127.0.0.1:8000/"
+    health_url="http://127.0.0.1:8000/ready"
     compose_env_file="deploy/production.compose.env"
     ;;
   *)
@@ -77,13 +77,21 @@ fi
 
 mkdir -p "$release_dir"
 tar -xzf "$archive_path" -C "$release_dir"
-install -m 600 "$backend_env_path" "$release_dir/backend/$env_filename"
+install -d -m 700 "$release_dir/runtime"
+install -m 600 "$backend_env_path" "$release_dir/runtime/backend.env"
+
+# First rollout must be bootstrapped explicitly. Never silently create an empty registry.
+test -f "/var/lib/klynx/$environment/control/control.sqlite3"
+test -s "/etc/klynx/$environment/session.key"
+test -s "/etc/klynx/$environment/proxy.key"
+admin_python="/opt/klynx-admin/venv/bin/python"
+test -x "$admin_python"
 
 cd "$release_dir"
 docker compose --project-name "$compose_project" --env-file "$compose_env_file" -f "$compose_file" config --quiet
-docker compose --project-name "$compose_project" --env-file "$compose_env_file" -f "$compose_file" up -d --build "$service_name"
-
 healthy=false
+if docker compose --project-name "$compose_project" --env-file "$compose_env_file" -f "$compose_file" up -d --build "$service_name" &&
+   "$admin_python" "$release_dir/deploy/admin.py" --environment "$environment" attach-api; then
 for _ in {1..30}; do
   if curl --fail --silent --show-error --max-time 5 "$health_url" >/dev/null; then
     healthy=true
@@ -91,12 +99,16 @@ for _ in {1..30}; do
   fi
   sleep 2
 done
+fi
 
 if [[ "$healthy" != "true" ]]; then
   echo "$environment health check failed; attempting to restore the previous release" >&2
-  if [[ -n "$previous_release" && -d "$previous_release" ]]; then
+  if [[ -n "$previous_release" && -f "$previous_release/backend/app/control.py" ]]; then
     cd "$previous_release"
     docker compose --project-name "$compose_project" --env-file "$compose_env_file" -f "$compose_file" up -d --build "$service_name"
+    "$admin_python" "$previous_release/deploy/admin.py" --environment "$environment" attach-api
+  else
+    echo "Refusing rollback to the old unauthenticated API. Keep traffic gated and fix this release." >&2
   fi
   exit 1
 fi

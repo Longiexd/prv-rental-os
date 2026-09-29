@@ -4,3 +4,9 @@ work/
 .pytest_cache/
 __pycache__/
 *.py[cod]
+.venv/
+.npm-cache/
+*.log
+*.sqlite3*
+*.key
+runtime/

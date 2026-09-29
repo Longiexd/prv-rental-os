@@ -1,8 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
-from urllib.parse import urljoin
+from fastapi.responses import Response
 
-from app.config import ODOO_URL
 
 from app.odoo_client import odoo
 from app.routes.calendar import QUOTATION_TAG, rental_vehicle_id, booking_status
@@ -416,8 +415,14 @@ def create_invoice(order_id: int, request: InvoiceCreate | None = None):
 @router.get("/{order_id}/print-link")
 def quotation_print_link(order_id: int):
     sale_record(order_id)
-    path = odoo.execute("sale.order", "get_portal_url", [[order_id]], {"report_type": "pdf", "download": True})
-    return {"url": urljoin(ODOO_URL or "", path)}
+    return {"url": f"/api/backend/sales/{order_id}/document"}
+
+
+@router.get("/{order_id}/document")
+def quotation_document(order_id: int):
+    sale_record(order_id)
+    return Response(odoo.document("sale.report_saleorder", order_id), media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="quotation-{order_id}.pdf"'})
 
 
 @router.post("/{order_id}/send")
