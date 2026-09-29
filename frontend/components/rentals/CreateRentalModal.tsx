@@ -1061,7 +1061,7 @@ export default function CreateRentalModal({
         ) : !options ? (
           <div className="p-6">
             {error && (
-              <div className="rounded-xl border border-red-900/40 bg-red-950/20 px-4 py-3 text-sm text-red-300">
+              <div className="rounded-xl border border-red-900/40 bg-red-950/20 px-4 py-3 text-sm text-danger">
                 {error}
               </div>
             )}
@@ -1820,7 +1820,7 @@ export default function CreateRentalModal({
             ================================================== */}
 
             {error && (
-              <div className="mt-5 rounded-xl border border-red-900/40 bg-red-950/20 px-4 py-3 text-sm text-red-300">
+              <div className="mt-5 rounded-xl border border-red-900/40 bg-red-950/20 px-4 py-3 text-sm text-danger">
                 {error}
               </div>
             )}

@@ -382,7 +382,7 @@ export const fr: Record<string, string> = {
   "Call prospect": "Appeler le prospect",
   "Choose an item...": "Choisir un article...",
   "Close vehicle details": "Fermer les détails du véhicule",
-  "Completing the call moves an earlier prospect to Contacté when that stage is configured.": "Terminer l’appel fait passer un prospect antérieur à Contacté lorsque cette étape est configurée.",
+  "Completing the call moves an earlier prospect to Contacted when that stage is configured.": "Terminer l’appel fait passer un prospect antérieur à Contacté lorsque cette étape est configurée.",
   "Confirm quotation": "Confirmer le devis",
   "Continue from quotation to invoice and payment in the booking card.": "Continuez du devis vers la facture et le paiement depuis la fiche de réservation.",
   "Continue to payment →": "Continuer vers le paiement →",

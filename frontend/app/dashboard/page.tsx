@@ -332,7 +332,7 @@ export default function DashboardPage() {
       {/* QUICK METRICS — glance-only, each links to where the action happens */}
       <section aria-label="Overview metrics" className="mt-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
         <Link href="/dashboard/fleet" className="rounded-xl"><StatCard icon={<Car size={15} />} label="Available vehicles" value={availableCars.toString()} detail={`of ${cars.length} in fleet`} loading={loading} /></Link>
-        <a href="#attention" className="rounded-xl"><StatCard icon={<AlertTriangle size={15} />} label="Needs attention" value={overdue.length.toString()} detail="overdue for return" tone={overdue.length ? "danger" : undefined} loading={loading} /></a>
+        <a href="#attention" className="rounded-xl"><StatCard icon={<span className={overdue.length ? "klynx-attention-flicker inline-flex" : "inline-flex"}><AlertTriangle size={15} /></span>} label="Needs attention" value={overdue.length.toString()} detail="overdue for return" tone={overdue.length ? "danger" : undefined} loading={loading} /></a>
         <Link href="/dashboard/customers" className="rounded-xl"><StatCard icon={<Users size={15} />} label="Customers" value={customers.length.toString()} detail="customer records" tone="pink" loading={loading} /></Link>
         <Link href="/dashboard/rentals" className="rounded-xl"><StatCard icon={<ArrowUpRight size={15} />} label="Outstanding" value={formatCurrency(outstandingAmount)} detail="posted invoices to collect" tone="danger" loading={loading} /></Link>
       </section>

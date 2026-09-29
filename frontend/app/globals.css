@@ -125,3 +125,42 @@ html[data-theme="light"] .os-shell .text-pink { color: var(--pink-ink); }
 html[data-theme="light"] .os-shell .bg-surface { box-shadow: 0 1px 1px rgba(17,17,19,.015); }
 html[data-theme="light"] .os-shell .border-border { border-color: var(--border); }
 html[data-theme="light"] .os-shell header { box-shadow: 0 1px 0 rgba(17,17,19,.02); }
+
+
+/* Accessible to-do/attention styling shared by dark and light modes. */
+.klynx-todo-selected {
+  border: 1px solid var(--todo-border);
+  background: var(--todo-bg);
+  color: var(--todo-text);
+  font-weight: 650;
+}
+.klynx-todo-soft {
+  border-color: var(--todo-border);
+  background: var(--todo-bg-soft);
+  color: var(--todo-text);
+}
+.klynx-todo-link { color: var(--todo-text); }
+.klynx-todo-fill { background: var(--todo-fill); color: var(--todo-fill-text); }
+
+/* Subtle operational attention cue — brief double shimmer, then a long rest. */
+@keyframes klynx-soft-attention {
+  0%, 72%, 100% { opacity: 1; transform: scale(1); filter: none; }
+  76% { opacity: .70; transform: scale(.97); }
+  79% { opacity: 1; transform: scale(1.035); filter: drop-shadow(0 0 5px color-mix(in srgb, var(--notification-red) 45%, transparent)); }
+  82% { opacity: .78; transform: scale(.99); }
+  86% { opacity: 1; transform: scale(1); filter: none; }
+}
+.klynx-attention-flicker {
+  color: var(--notification-red);
+  animation: klynx-soft-attention 4.8s ease-in-out infinite;
+  transform-origin: center;
+}
+.klynx-notification-flicker {
+  animation: klynx-soft-attention 5.2s ease-in-out infinite;
+  border-color: color-mix(in srgb, var(--notification-red) 28%, var(--border));
+}
+.klynx-notification-badge { background: var(--notification-red); color: #fff; }
+
+@media (prefers-reduced-motion: reduce) {
+  .klynx-attention-flicker, .klynx-notification-flicker { animation: none !important; }
+}

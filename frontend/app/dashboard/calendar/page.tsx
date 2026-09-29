@@ -513,7 +513,7 @@ function getStatusMeta(
 // ============================================================
 
 function getRentalState(sale: Sale) {
-  if (sale.activity) return { className: "border-purple-400/50 bg-purple-400/25 text-purple-100", dot: "bg-purple-400" };
+  if (sale.activity) return { className: "border-[var(--todo-border)] bg-[var(--todo-bg)] text-[var(--todo-text)]", dot: "bg-[var(--todo-text)]" };
   const meta = sale.booking_status === "confirmed" ? { tone: "pink" as const } : rentalStateMeta(classifyRentalState(sale));
   const classes = toneClasses(meta.tone);
 
@@ -963,213 +963,137 @@ function MonthView({
 }: {
   month: Date;
   sales: Sale[];
-  vehicleMap: Map<
-    number,
-    Vehicle
-  >;
-  onRentalClick: (
-    rental: Sale
-  ) => void;
+  vehicleMap: Map<number, Vehicle>;
+  onRentalClick: (rental: Sale) => void;
 }) {
-  const weeks =
-    getMonthWeeks(month);
+  const weeks = getMonthWeeks(month);
 
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-surface">
-
       {/* WEEKDAY HEADER */}
-
       <div className="grid grid-cols-7 border-b border-border">
-        {[
-          "Mon",
-          "Tue",
-          "Wed",
-          "Thu",
-          "Fri",
-          "Sat",
-          "Sun",
-        ].map(
-          (day) => (
-            <div
-              key={day}
-              className="flex h-11 items-center justify-center border-r border-border text-[9px] font-semibold uppercase tracking-[0.14em] text-muted last:border-r-0"
-            >
-              {day}
-            </div>
-          )
-        )}
+        {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
+          <div
+            key={day}
+            className="flex h-11 items-center justify-center border-r border-border text-[9px] font-semibold uppercase tracking-[0.14em] text-muted last:border-r-0"
+          >
+            {day}
+          </div>
+        ))}
       </div>
 
       {/* WEEK ROWS */}
+      {weeks.map((week, weekIndex) => {
+        const weekStart = startOfDay(week[0]);
+        const weekEnd = endOfDay(week[6]);
+        const weekSales = sales.filter((sale) => rentalOverlapsRange(sale, weekStart, weekEnd));
+        const today = new Date();
 
-      {weeks.map(
-        (
-          week,
-          weekIndex
-        ) => {
+        // Build collision-free lanes for this week. A rental only shares a lane
+        // when its visible date span does not overlap the previous item in it.
+        // The week row grows with the number of lanes, so bars never spill into
+        // the following week or visually detach from their dates.
+        const segments = weekSales
+          .map((rental) => {
+            const start = parseDate(rental.date_order);
+            const end = parseDate(rental.commitment_date);
+            if (!start || !end) return null;
 
-          const weekStart =
-            startOfDay(
-              week[0]
+            const visibleStart = start < weekStart ? weekStart : startOfDay(start);
+            const visibleEnd = end > weekEnd ? weekEnd : endOfDay(end);
+            const startIndex = Math.max(
+              0,
+              Math.min(6, Math.floor((visibleStart.getTime() - weekStart.getTime()) / 86400000))
+            );
+            const endIndex = Math.max(
+              startIndex,
+              Math.min(6, Math.floor((visibleEnd.getTime() - weekStart.getTime()) / 86400000))
             );
 
-          const weekEnd =
-            endOfDay(
-              week[6]
-            );
+            return { rental, startIndex, endIndex };
+          })
+          .filter((item): item is { rental: Sale; startIndex: number; endIndex: number } => item !== null)
+          .sort((a, b) => a.startIndex - b.startIndex || b.endIndex - a.endIndex || a.rental.id - b.rental.id);
 
-          const weekSales =
-            sales.filter(
-              (sale) =>
-                rentalOverlapsRange(
-                  sale,
-                  weekStart,
-                  weekEnd
-                )
-            );
+        const laneEnds: number[] = [];
+        const laidOut = segments.map((segment) => {
+          let lane = laneEnds.findIndex((lastEnd) => lastEnd < segment.startIndex);
+          if (lane === -1) lane = laneEnds.length;
+          laneEnds[lane] = segment.endIndex;
+          return { ...segment, lane };
+        });
 
-          const today =
-            new Date();
+        const laneCount = Math.max(1, laneEnds.length);
+        const rowHeight = Math.max(150, 52 + laneCount * 38);
 
-          return (
-            <div
-              key={`week-${weekIndex}`}
-              className="relative border-b border-border last:border-b-0"
-            >
+        return (
+          <div
+            key={`week-${weekIndex}`}
+            className="relative border-b border-border last:border-b-0"
+          >
+            {/* DAY CELLS */}
+            <div className="grid grid-cols-7">
+              {week.map((day) => {
+                const inMonth = day.getMonth() === month.getMonth();
+                const daySales = weekSales.filter((sale) => rentalOverlapsDay(sale, day));
 
-              {/* DAY CELLS */}
-
-              <div className="grid grid-cols-7">
-                {week.map(
-                  (day) => {
-                    const inMonth =
-                      day.getMonth() ===
-                      month.getMonth();
-
-                    const daySales =
-                      weekSales.filter(
-                        (sale) =>
-                          rentalOverlapsDay(
-                            sale,
-                            day
-                          )
-                      );
-
-                    return (
-                      <div
-                        key={dateKey(
-                          day
-                        )}
-                        className={`min-h-[150px] border-r border-border p-2 last:border-r-0 ${
-                          inMonth
-                            ? "bg-surface"
-                            : "bg-background"
-                        } ${
-                          isSameDay(
-                            day,
-                            today
-                          )
-                            ? "bg-[var(--status-available-text)]/[0.025]"
-                            : ""
+                return (
+                  <div
+                    key={dateKey(day)}
+                    style={{ minHeight: `${rowHeight}px` }}
+                    className={`border-r border-border p-2 last:border-r-0 ${
+                      inMonth ? "bg-surface" : "bg-background"
+                    } ${
+                      isSameDay(day, today)
+                        ? "bg-[var(--status-available-text)]/[0.025]"
+                        : ""
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span
+                        className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-semibold ${
+                          isSameDay(day, today)
+                            ? "bg-[var(--status-available-text)] text-black"
+                            : inMonth
+                              ? "text-text"
+                              : "text-muted"
                         }`}
                       >
-                        <div className="flex items-center justify-between">
-                          <span
-                            className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-semibold ${
-                              isSameDay(
-                                day,
-                                today
-                              )
-                                ? "bg-[var(--status-available-text)] text-black"
-                                : inMonth
-                                  ? "text-text"
-                                  : "text-muted"
-                            }`}
-                          >
-                            {day.getDate()}
-                          </span>
+                        {day.getDate()}
+                      </span>
 
-                          {daySales.length >
-                            0 && (
-                            <span className="text-[9px] text-muted">
-                              {
-                                daySales.length
-                              }
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  }
-                )}
-              </div>
-
-              {/* CONTINUOUS RENTAL LAYER */}
-
-              <div className="pointer-events-none absolute inset-x-0 top-[43px] h-[100px]">
-
-                {weekSales
-                  .slice(
-                    0,
-                    8
-                  )
-                  .map(
-                    (
-                      rental,
-                      index
-                    ) => (
-                      <div
-                        key={
-                          rental.id
-                        }
-                        className="pointer-events-auto"
-                        style={{
-                          top: `${index * 43}px`,
-                          left: 0,
-                          right: 0,
-                          position:
-                            "absolute",
-                        }}
-                      >
-                        <MonthRentalBar
-                          rental={
-                            rental
-                          }
-                          vehicle={
-                            rental.vehicle_id
-                              ? vehicleMap.get(
-                                  rental.vehicle_id
-                                ) ||
-                                null
-                              : null
-                          }
-                          week={
-                            week
-                          }
-                          onClick={() =>
-                            onRentalClick(
-                              rental
-                            )
-                          }
-                        />
-                      </div>
-                    )
-                  )}
-
-                {weekSales.length >
-                  8 && (
-                  <div className="absolute bottom-0 left-2 text-[9px] text-muted">
-                    +
-                    {weekSales.length -
-                      8}{" "}
-                    more rentals
+                      {daySales.length > 0 && (
+                        <span className="text-[9px] font-medium text-muted">{daySales.length}</span>
+                      )}
+                    </div>
                   </div>
-                )}
-              </div>
+                );
+              })}
             </div>
-          );
-        }
-      )}
+
+            {/* CONTINUOUS RENTAL LAYER */}
+            <div
+              className="pointer-events-none absolute inset-x-0 top-[43px]"
+              style={{ height: `${Math.max(96, rowHeight - 43)}px` }}
+            >
+              {laidOut.map(({ rental, lane }) => (
+                <div
+                  key={rental.id}
+                  className="pointer-events-auto absolute inset-x-0"
+                  style={{ top: `${lane * 38}px` }}
+                >
+                  <MonthRentalBar
+                    rental={rental}
+                    vehicle={rental.vehicle_id ? vehicleMap.get(rental.vehicle_id) || null : null}
+                    week={week}
+                    onClick={() => onRentalClick(rental)}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -2168,7 +2092,7 @@ export default function CalendarPage() {
       <div className="min-h-screen bg-background p-6 text-text">
         <div className="mx-auto max-w-[1900px]">
           <div className="rounded-2xl border border-red-400/20 bg-red-400/5 p-6">
-            <div className="text-sm font-semibold text-red-300">
+            <div className="text-sm font-semibold text-danger">
               Unable to load calendar
             </div>
 
@@ -2456,13 +2380,13 @@ export default function CalendarPage() {
           </div>
 
           <div className="flex gap-2" aria-label="Calendar event filters">
-            {[["all", "All"], ["rentals", "Bookings"], ["todo", "To do"]].map(([value, label]) => <button key={value} onClick={() => setEventFilter(value)} aria-pressed={eventFilter === value} className={`rounded-lg px-3 py-2 text-sm ${eventFilter === value ? "bg-purple-400/20 text-purple-200" : "text-text-secondary"}`}>{label}</button>)}
+            {[["all", "All"], ["rentals", "Bookings"], ["todo", "To do"]].map(([value, label]) => <button key={value} onClick={() => setEventFilter(value)} aria-pressed={eventFilter === value} className={`rounded-lg border px-3 py-2 text-sm transition ${eventFilter === value ? "klynx-todo-selected" : "border-transparent text-text-secondary hover:bg-surface-secondary hover:text-text"}`}>{label}</button>)}
           </div>
           {activityError && <p role="alert" className="text-sm text-danger">{activityError}</p>}
           {/* LEGEND */}
 
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            <span className="text-sm text-purple-300">● To do</span>
+            <span className="text-sm font-medium text-[var(--todo-text)]">● To do</span>
             <span className="text-sm text-text">● Quotation</span>
 
             <div className="flex items-center gap-1.5 text-[9px] text-muted">
@@ -2491,9 +2415,9 @@ export default function CalendarPage() {
           </div>
         </div>
 
-        {eventFilter !== "rentals" && view === "timeline" && <section className="mt-4 space-y-2 rounded-xl border border-purple-400/25 p-4">
-          <h2 className="font-semibold text-purple-200">To do this month</h2>
-          {activities.filter(item => item.date_deadline.startsWith(`${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}`)).map(item => <Link key={item.id} href={activityHref(item)} className="block rounded-lg bg-purple-400/10 p-3 text-sm text-purple-100"><strong>{item.date_deadline} · {item.summary || "Follow up"} · {item.res_name}</strong><p className="mt-1 line-clamp-2">{noteText(item.note)}</p></Link>)}
+        {eventFilter !== "rentals" && view === "timeline" && <section className="mt-4 space-y-2 rounded-xl border border-[var(--todo-border)] bg-[var(--todo-bg-soft)] p-4">
+          <h2 className="font-semibold text-[var(--todo-text)]">To do this month</h2>
+          {activities.filter(item => item.date_deadline.startsWith(`${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}`)).map(item => <Link key={item.id} href={activityHref(item)} className="block rounded-lg border border-[var(--todo-border)] bg-surface p-3 text-sm text-[var(--todo-text)] transition hover:bg-surface-secondary"><strong>{item.date_deadline} · {item.summary || "Follow up"} · {item.res_name}</strong><p className="mt-1 line-clamp-2">{noteText(item.note)}</p></Link>)}
         </section>}
 
         {/* ====================================================

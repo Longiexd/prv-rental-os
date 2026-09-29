@@ -48,7 +48,7 @@ export default function ProspectPage() {
 
   return <main className="mx-auto max-w-[1400px] space-y-6 p-5 sm:p-8">
     <Link href="/crm/leads" className="text-sm text-text-secondary hover:text-text">← All prospects</Link>
-    {error && <p role="alert" className="text-red-300">{error}</p>}
+    {error && <p role="alert" className="text-danger">{error}</p>}
     {!lead ? <p className="text-text-secondary">{error ? "Prospect unavailable." : "Loading prospect…"}</p> : <>
       <PageHeader breadcrumb="Prospects" title={lead.name} subtitle={lead.stage_id ? lead.stage_id[1] : "No stage"} action={<button onClick={() => setCreatingBooking(true)} className="rounded-lg bg-lime px-4 py-2 text-sm font-medium text-[#111113]">Prepare quotation</button>} />
       <section className="grid gap-5 rounded-2xl border border-border bg-surface p-5 sm:grid-cols-3">

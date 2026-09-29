@@ -14,6 +14,15 @@ html[data-theme="dark"] {
   --orange-ink: #FB923C;
   --red-ink: #EF4444;
 
+  /* To-do / attention accents */
+  --todo-bg: rgba(192, 132, 252, 0.16);
+  --todo-bg-soft: rgba(192, 132, 252, 0.08);
+  --todo-border: rgba(192, 132, 252, 0.38);
+  --todo-text: #E9D5FF;
+  --todo-fill: #C4B5FD;
+  --todo-fill-text: #111113;
+  --notification-red: #EF4444;
+
   /* Dark UI */
   --background: #0E0E10;
   --surface: #151517;
@@ -71,7 +80,7 @@ html[data-theme="light"] {
   /* Brand stays identical in both modes */
   --lime: #C8F065;
   --lime-dark: #A8D84A;
-  --lime-ink: #4D6800;
+  --lime-ink: #365000;
   --pink: #F06AAA;
   --pink-dark: #B93878;
   --pink-ink: #B93878;
@@ -80,20 +89,29 @@ html[data-theme="light"] {
   --orange-ink: #925000;
   --red-ink: #B91C1C;
 
+  /* Higher-contrast to-do / attention palette for light mode */
+  --todo-bg: #EEE7FF;
+  --todo-bg-soft: #F6F2FF;
+  --todo-border: #C4B5FD;
+  --todo-text: #5B21B6;
+  --todo-fill: #6D28D9;
+  --todo-fill-text: #FFFFFF;
+  --notification-red: #D92D36;
+
   /* Klynx light palette — warm off-white canvas, crisp white surfaces.
      The slightly darker canvas gives cards/sidebar real separation without
      turning light mode grey or changing the product identity. */
-  --background: #F0F0E9;
+  --background: #ECECE5;
   --surface: #FFFFFF;
-  --surface-secondary: #F7F7F1;
-  --border: #D9D9D0;
-  --border-strong: #C8C8BE;
+  --surface-secondary: #F6F6F0;
+  --border: #D5D5CC;
+  --border-strong: #C3C3B9;
   --text: #111113;
   --text-secondary: #515662;
-  --muted: #707581;
+  --muted: #666B77;
 
-  --stage: #E7E7DF;
-  --shell-border: #CFCFC5;
+  --stage: #E2E2DA;
+  --shell-border: #C8C8BE;
   --chrome-bg: #FFFFFF;
   --row-hover: #F4F4ED;
   --sidebar-active: #EEF8D7;

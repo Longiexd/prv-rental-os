@@ -293,12 +293,12 @@ export default function OSLayout({
                   onClick={() =>
                     setBellOpen((value) => !value)
                   }
-                  className="relative flex h-9 w-9 items-center justify-center rounded-full border border-border text-text-secondary transition hover:text-text"
+                  className={`relative flex h-9 w-9 items-center justify-center rounded-full border border-border text-text-secondary transition hover:text-text ${due.length > 0 ? "klynx-notification-flicker" : ""}`}
                 >
                   <Bell size={16} />
 
                   {due.length > 0 && (
-                    <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-pink px-1 text-[9px] font-semibold text-background">
+                    <span className="klynx-notification-badge absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-semibold">
                       {due.length}
                     </span>
                   )}

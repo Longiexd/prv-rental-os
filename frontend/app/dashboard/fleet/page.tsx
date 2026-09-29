@@ -545,7 +545,7 @@ function VehicleCard({
                     onClick={() =>
                       onAction(car.id, "return", "Nettoyage")
                     }
-                    className="rounded-lg border border-blue-400/30 bg-[var(--status-cleaning-text)]/10 py-1.5 text-[11px] font-medium text-blue-300 transition hover:bg-[var(--status-cleaning-text)]/20"
+                    className="rounded-lg border border-blue-400/30 bg-[var(--status-cleaning-text)]/10 py-1.5 text-[11px] font-medium text-[var(--status-cleaning-text)] transition hover:bg-[var(--status-cleaning-text)]/20"
                   >
                     Cleaning
                   </button>
@@ -565,7 +565,7 @@ function VehicleCard({
                     onClick={() =>
                       onAction(car.id, "return", "Maintenance")
                     }
-                    className="rounded-lg border border-violet-400/30 bg-[var(--status-maintenance-text)]/10 py-1.5 text-[11px] font-medium text-violet-300 transition hover:bg-[var(--status-maintenance-text)]/20"
+                    className="rounded-lg border border-violet-400/30 bg-[var(--status-maintenance-text)]/10 py-1.5 text-[11px] font-medium text-[var(--status-maintenance-text)] transition hover:bg-[var(--status-maintenance-text)]/20"
                   >
                     Maintenance
                   </button>
@@ -999,7 +999,7 @@ function VehicleModal({
                     onClick={() =>
                       onAction(car.id, "return", "Nettoyage")
                     }
-                    className="flex-1 rounded-lg border border-blue-400/30 bg-[var(--status-cleaning-text)]/10 py-2 text-xs font-medium text-blue-300 transition hover:bg-[var(--status-cleaning-text)]/20"
+                    className="flex-1 rounded-lg border border-blue-400/30 bg-[var(--status-cleaning-text)]/10 py-2 text-xs font-medium text-[var(--status-cleaning-text)] transition hover:bg-[var(--status-cleaning-text)]/20"
                   >
                     Cleaning
                   </button>
@@ -1017,7 +1017,7 @@ function VehicleModal({
                     onClick={() =>
                       onAction(car.id, "return", "Maintenance")
                     }
-                    className="flex-1 rounded-lg border border-violet-400/30 bg-[var(--status-maintenance-text)]/10 py-2 text-xs font-medium text-violet-300 transition hover:bg-[var(--status-maintenance-text)]/20"
+                    className="flex-1 rounded-lg border border-violet-400/30 bg-[var(--status-maintenance-text)]/10 py-2 text-xs font-medium text-[var(--status-maintenance-text)] transition hover:bg-[var(--status-maintenance-text)]/20"
                   >
                     Maintenance
                   </button>
@@ -1048,7 +1048,7 @@ function VehicleModal({
                         "needs-diagnosis"
                       )
                     }
-                    className="flex-1 rounded-lg border border-violet-400/30 bg-[var(--status-maintenance-text)]/10 py-2 text-xs font-medium text-violet-300 transition hover:bg-[var(--status-maintenance-text)]/20"
+                    className="flex-1 rounded-lg border border-violet-400/30 bg-[var(--status-maintenance-text)]/10 py-2 text-xs font-medium text-[var(--status-maintenance-text)] transition hover:bg-[var(--status-maintenance-text)]/20"
                   >
                     Needs diagnosis — Maintenance
                   </button>
