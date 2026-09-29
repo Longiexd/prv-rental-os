@@ -306,7 +306,7 @@ export default function DashboardPage() {
           <button
             type="button"
             onClick={() => setBookingOpen(true)}
-            className="flex h-11 items-center gap-2 rounded-xl bg-lime px-5 text-sm font-semibold text-background shadow-glow-lime transition hover:bg-lime-dark"
+            className="flex h-11 items-center gap-2 rounded-xl bg-lime px-5 text-sm font-semibold text-[#111113] shadow-glow-lime transition hover:bg-lime-dark"
           >
             <Plus size={16} />
             New rental
@@ -332,7 +332,7 @@ export default function DashboardPage() {
       {/* QUICK METRICS — glance-only, each links to where the action happens */}
       <section aria-label="Overview metrics" className="mt-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
         <Link href="/dashboard/fleet" className="rounded-xl"><StatCard icon={<Car size={15} />} label="Available vehicles" value={availableCars.toString()} detail={`of ${cars.length} in fleet`} loading={loading} /></Link>
-        <a href="#attention" className="rounded-xl"><StatCard icon={<AlertTriangle size={15} />} label="Needs attention" value={overdue.length.toString()} detail="overdue for return" tone={overdue.length ? "danger" : undefined} loading={loading} /></a>
+        <a href="#attention" className="rounded-xl"><StatCard icon={<span className={overdue.length ? "klynx-attention-flicker inline-flex" : "inline-flex"}><AlertTriangle size={15} /></span>} label="Needs attention" value={overdue.length.toString()} detail="overdue for return" tone={overdue.length ? "danger" : undefined} loading={loading} /></a>
         <Link href="/dashboard/customers" className="rounded-xl"><StatCard icon={<Users size={15} />} label="Customers" value={customers.length.toString()} detail="customer records" tone="pink" loading={loading} /></Link>
         <Link href="/dashboard/rentals" className="rounded-xl"><StatCard icon={<ArrowUpRight size={15} />} label="Outstanding" value={formatCurrency(outstandingAmount)} detail="posted invoices to collect" tone="danger" loading={loading} /></Link>
       </section>
@@ -403,12 +403,12 @@ export default function DashboardPage() {
 
       {/* 4. RECENT RENTALS — last: quick history, not the day's priority */}
       <section className="mt-4"><Card>
-        <CardHeader title="Recent rentals" subtitle="Quotations first, then in progress, then closed" action={<Link href="/dashboard/rentals" className="rounded-lg border border-border px-3 py-2 text-xs text-text-secondary transition hover:text-lime">View all →</Link>} />
+        <CardHeader title="Recent rentals" subtitle="Quotations first, then in progress, then closed" action={<Link href="/dashboard/rentals" className="rounded-lg border border-border px-3 py-2 text-xs text-text-secondary transition hover:text-lime-ink">View all →</Link>} />
         <div className="overflow-x-auto"><table className="w-full min-w-[660px] text-left text-sm"><thead className="border-b border-border text-[10px] uppercase tracking-wider text-muted"><tr><th className="px-5 py-3 font-normal">Customer</th><th className="px-4 py-3 font-normal">Vehicle</th><th className="px-4 py-3 font-normal">Pickup</th><th className="px-4 py-3 font-normal">Return</th><th className="px-5 py-3 font-normal">Status</th></tr></thead><tbody className="divide-y divide-border">
           {loading ? <tr><td colSpan={5} className="p-5 text-muted">Loading rentals…</td></tr> : !recentRentals.length ? <tr><td colSpan={5} className="p-5 text-muted">No rentals yet. Create your first booking above.</td></tr> : recentRentals.map(sale => (
             <tr key={sale.id} onClick={() => router.push(`/dashboard/rentals/${sale.id}`)} className="cursor-pointer hover:bg-white/[0.02]">
               <td className="max-w-64 truncate px-5 py-4 font-medium">{displayValue(sale.customer) || sale.name}</td>
-              <td className="max-w-64 truncate px-4 py-4 text-text-secondary">{sale.vehicle_id ? <Link href={`/dashboard/calendar?vehicle=${sale.vehicle_id}`} onClick={(event) => event.stopPropagation()} className="hover:text-lime">{vehicleLabel(sale)}</Link> : "Not assigned"}</td>
+              <td className="max-w-64 truncate px-4 py-4 text-text-secondary">{sale.vehicle_id ? <Link href={`/dashboard/calendar?vehicle=${sale.vehicle_id}`} onClick={(event) => event.stopPropagation()} className="hover:text-lime-ink">{vehicleLabel(sale)}</Link> : "Not assigned"}</td>
               <td className="whitespace-nowrap px-4 py-4 text-xs text-text-secondary">{formatDateShort(sale.date_order)}</td>
               <td className="whitespace-nowrap px-4 py-4 text-xs text-text-secondary">{formatDateShort(sale.commitment_date)}</td>
               <td className="px-5 py-4"><StatusBadge meta={rentalStateMeta(getRentalState(sale))} withDot={false} className="normal-case tracking-normal" /></td>
@@ -453,7 +453,7 @@ function ScheduleRow({
   // "View rental" inside the menu is what navigates through.
   return (
     <div className={`flex items-center gap-3 rounded-lg px-2 py-2.5 transition ${urgent ? "hover:bg-danger/10" : "hover:bg-surface-secondary/50"}`}>
-      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${urgent ? "bg-danger/10 text-danger" : "bg-lime/10 text-lime"}`}>
+      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${urgent ? "bg-danger/10 text-danger" : "bg-lime/10 text-lime-ink"}`}>
         {icon}
       </div>
 

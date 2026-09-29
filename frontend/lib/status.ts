@@ -11,7 +11,7 @@
 // every badge in the app at once.
 // ============================================================
 
-export type StatusTone = "lime" | "pink" | "danger" | "muted" | "amber" | "blue";
+export type StatusTone = "lime" | "pink" | "danger" | "muted" | "amber" | "blue" | "violet";
 
 export type StatusMeta = {
   label: string;
@@ -23,22 +23,22 @@ const TONE_CLASSES: Record<
   { bg: string; text: string; border: string; dot: string }
 > = {
   lime: {
-    bg: "bg-lime/10",
-    text: "text-lime",
-    border: "border-lime/20",
-    dot: "bg-lime",
+    bg: "bg-[var(--status-available-bg)]",
+    text: "text-[var(--status-available-text)]",
+    border: "border-[var(--status-available-border)]",
+    dot: "bg-[var(--status-available-text)]",
   },
   pink: {
-    bg: "bg-pink/10",
-    text: "text-pink",
-    border: "border-pink/20",
-    dot: "bg-pink",
+    bg: "bg-[var(--status-rented-bg)]",
+    text: "text-[var(--status-rented-text)]",
+    border: "border-[var(--status-rented-border)]",
+    dot: "bg-[var(--status-rented-text)]",
   },
   danger: {
-    bg: "bg-danger/10",
-    text: "text-danger",
-    border: "border-danger/20",
-    dot: "bg-danger",
+    bg: "bg-[var(--status-danger-bg)]",
+    text: "text-[var(--status-danger-text)]",
+    border: "border-[var(--status-danger-border)]",
+    dot: "bg-[var(--status-danger-text)]",
   },
   muted: {
     bg: "bg-surface-secondary",
@@ -47,16 +47,22 @@ const TONE_CLASSES: Record<
     dot: "bg-muted",
   },
   amber: {
-    bg: "bg-amber-400/10",
-    text: "text-amber-400",
-    border: "border-amber-400/20",
-    dot: "bg-amber-400",
+    bg: "bg-[var(--status-reserved-bg)]",
+    text: "text-[var(--status-reserved-text)]",
+    border: "border-[var(--status-reserved-border)]",
+    dot: "bg-[var(--status-reserved-text)]",
   },
   blue: {
-    bg: "bg-blue-400/10",
-    text: "text-blue-400",
-    border: "border-blue-400/20",
-    dot: "bg-blue-400",
+    bg: "bg-[var(--status-cleaning-bg)]",
+    text: "text-[var(--status-cleaning-text)]",
+    border: "border-[var(--status-cleaning-border)]",
+    dot: "bg-[var(--status-cleaning-text)]",
+  },
+  violet: {
+    bg: "bg-[var(--status-maintenance-bg)]",
+    text: "text-[var(--status-maintenance-text)]",
+    border: "border-[var(--status-maintenance-border)]",
+    dot: "bg-[var(--status-maintenance-text)]",
   },
 };
 
@@ -143,7 +149,7 @@ const FLEET_STATUS_META: Record<FleetStatus, StatusMeta> = {
   returnDue: { label: "Return due", tone: "danger" },
   rented: { label: "Rented", tone: "pink" },
   cleaning: { label: "Cleaning", tone: "blue" },
-  maintenance: { label: "Maintenance", tone: "danger" },
+  maintenance: { label: "Maintenance", tone: "violet" },
   unavailable: { label: "Unavailable", tone: "danger" },
   inactive: { label: "Inactive", tone: "muted" },
   unknown: { label: "Unknown", tone: "muted" },

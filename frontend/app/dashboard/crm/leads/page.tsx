@@ -69,9 +69,9 @@ function getStageColors(stageName: string | null) {
   ) {
     return {
       dot: "bg-[#F06AAA]",
-      text: "text-[#F06AAA]",
+      text: "text-pink-ink",
       tag: "border-[#F06AAA]/30 bg-[#F06AAA]/10",
-      count: "bg-[#F06AAA]/10 text-[#F06AAA]",
+      count: "bg-[#F06AAA]/10 text-pink-ink",
     };
   }
 
@@ -86,9 +86,9 @@ function getStageColors(stageName: string | null) {
   ) {
     return {
       dot: "bg-[#A78BFA]",
-      text: "text-[#A78BFA]",
+      text: "text-violet-ink",
       tag: "border-[#A78BFA]/30 bg-[#A78BFA]/10",
-      count: "bg-[#A78BFA]/10 text-[#A78BFA]",
+      count: "bg-[#A78BFA]/10 text-violet-ink",
     };
   }
 
@@ -103,9 +103,9 @@ function getStageColors(stageName: string | null) {
   ) {
     return {
       dot: "bg-[#FB923C]",
-      text: "text-[#FB923C]",
+      text: "text-orange-ink",
       tag: "border-[#FB923C]/30 bg-[#FB923C]/10",
-      count: "bg-[#FB923C]/10 text-[#FB923C]",
+      count: "bg-[#FB923C]/10 text-orange-ink",
     };
   }
 
@@ -120,10 +120,10 @@ function getStageColors(stageName: string | null) {
     stage === "reservation confirmed"
   ) {
     return {
-      dot: "bg-[#C8F065]",
-      text: "text-[#C8F065]",
+      dot: "bg-lime-ink",
+      text: "text-lime-ink",
       tag: "border-[#C8F065]/30 bg-[#C8F065]/10",
-      count: "bg-[#C8F065]/10 text-[#C8F065]",
+      count: "bg-[#C8F065]/10 text-lime-ink",
     };
   }
 
@@ -138,9 +138,9 @@ function getStageColors(stageName: string | null) {
   ) {
     return {
       dot: "bg-[#60A5FA]",
-      text: "text-[#60A5FA]",
+      text: "text-blue-ink",
       tag: "border-[#60A5FA]/30 bg-[#60A5FA]/10",
-      count: "bg-[#60A5FA]/10 text-[#60A5FA]",
+      count: "bg-[#60A5FA]/10 text-blue-ink",
     };
   }
 
@@ -154,10 +154,10 @@ function getStageColors(stageName: string | null) {
     stage === "gagne"
   ) {
     return {
-      dot: "bg-[#C8F065]",
-      text: "text-[#C8F065]",
+      dot: "bg-lime-ink",
+      text: "text-lime-ink",
       tag: "border-[#C8F065]/30 bg-[#C8F065]/10",
-      count: "bg-[#C8F065]/10 text-[#C8F065]",
+      count: "bg-[#C8F065]/10 text-lime-ink",
     };
   }
 
@@ -171,9 +171,9 @@ function getStageColors(stageName: string | null) {
   ) {
     return {
       dot: "bg-[#EF4444]",
-      text: "text-[#EF4444]",
+      text: "text-red-ink",
       tag: "border-[#EF4444]/30 bg-[#EF4444]/10",
-      count: "bg-[#EF4444]/10 text-[#EF4444]",
+      count: "bg-[#EF4444]/10 text-red-ink",
     };
   }
 
@@ -182,10 +182,10 @@ function getStageColors(stageName: string | null) {
   // =========================================================
 
   return {
-    dot: "bg-[#A1A1AA]",
-    text: "text-[#A1A1AA]",
-    tag: "border-[#2B2B30] bg-[#17171A]",
-    count: "bg-[#17171A] text-[#71717A]",
+    dot: "bg-muted",
+    text: "text-text-secondary",
+    tag: "border-border bg-surface-secondary",
+    count: "bg-surface-secondary text-muted",
   };
 }
 
@@ -461,7 +461,7 @@ export default function LeadsPage() {
           <button
             type="button"
             onClick={() => setBookingOpen(true)}
-            className="flex h-9 items-center justify-center gap-2 rounded-lg bg-lime px-4 text-xs font-medium text-background shadow-glow-lime transition hover:bg-lime-dark"
+            className="flex h-9 items-center justify-center gap-2 rounded-lg bg-lime px-4 text-xs font-medium text-[#111113] shadow-glow-lime transition hover:bg-lime-dark"
           >
             <Plus size={14} />
             New booking
@@ -477,28 +477,28 @@ export default function LeadsPage() {
 
         {/* TOTAL */}
 
-        <div className="rounded-2xl border border-[#2B2B30] bg-[#111113] p-5">
+        <div className="rounded-2xl border border-border bg-surface p-5">
 
           <div className="mb-4 flex items-center justify-between">
 
-            <span className="text-sm text-[#71717A]">
+            <span className="text-sm text-muted">
               Total Leads
             </span>
 
             <TrendingUp
               size={18}
-              className="text-[#C8F065]"
+              className="text-lime-ink"
             />
 
           </div>
 
-          <div className="text-3xl font-semibold text-white">
+          <div className="text-3xl font-semibold text-text">
             {loading
               ? "—"
               : leads.length}
           </div>
 
-          <div className="mt-1 text-xs text-[#52525B]">
+          <div className="mt-1 text-xs text-muted">
             Prospect opportunities
           </div>
 
@@ -506,28 +506,28 @@ export default function LeadsPage() {
 
         {/* ACTIVE */}
 
-        <div className="rounded-2xl border border-[#2B2B30] bg-[#111113] p-5">
+        <div className="rounded-2xl border border-border bg-surface p-5">
 
           <div className="mb-4 flex items-center justify-between">
 
-            <span className="text-sm text-[#71717A]">
+            <span className="text-sm text-muted">
               Active Leads
             </span>
 
             <UserRound
               size={18}
-              className="text-[#F06AAA]"
+              className="text-pink-ink"
             />
 
           </div>
 
-          <div className="text-3xl font-semibold text-white">
+          <div className="text-3xl font-semibold text-text">
             {loading
               ? "—"
               : activeLeads}
           </div>
 
-          <div className="mt-1 text-xs text-[#52525B]">
+          <div className="mt-1 text-xs text-muted">
             Open opportunities
           </div>
 
@@ -535,28 +535,28 @@ export default function LeadsPage() {
 
         {/* REVENUE */}
 
-        <div className="rounded-2xl border border-[#2B2B30] bg-[#111113] p-5">
+        <div className="rounded-2xl border border-border bg-surface p-5">
 
           <div className="mb-4 flex items-center justify-between">
 
-            <span className="text-sm text-[#71717A]">
+            <span className="text-sm text-muted">
               Expected Revenue
             </span>
 
             <ArrowUpRight
               size={18}
-              className="text-[#C8F065]"
+              className="text-lime-ink"
             />
 
           </div>
 
-          <div className="text-3xl font-semibold text-white">
+          <div className="text-3xl font-semibold text-text">
             {loading
               ? "—"
               : `${totalRevenue.toLocaleString()} TND`}
           </div>
 
-          <div className="mt-1 text-xs text-[#52525B]">
+          <div className="mt-1 text-xs text-muted">
             Total pipeline value
           </div>
 
@@ -574,7 +574,7 @@ export default function LeadsPage() {
 
           <Search
             size={17}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-[#52525B]"
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted"
           />
 
           <input
@@ -585,12 +585,12 @@ export default function LeadsPage() {
               )
             }
             placeholder="Search leads..."
-            className="h-10 w-full rounded-xl border border-[#2B2B30] bg-[#111113] pl-10 pr-4 text-sm text-white outline-none placeholder:text-[#52525B] focus:border-[#C8F065]/50"
+            className="h-10 w-full rounded-xl border border-border bg-surface pl-10 pr-4 text-sm text-text outline-none placeholder:text-muted focus:border-[#C8F065]/50"
           />
 
         </div>
 
-        <div className="flex h-10 items-center rounded-xl border border-[#2B2B30] bg-[#111113] p-1">
+        <div className="flex h-10 items-center rounded-xl border border-border bg-surface p-1">
 
           <button
             type="button"
@@ -600,7 +600,7 @@ export default function LeadsPage() {
             className={`flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-medium transition ${
               view === "list"
                 ? "bg-[#C8F065] text-black"
-                : "text-[#71717A] hover:text-white"
+                : "text-muted hover:text-text"
             }`}
           >
             <List size={14} />
@@ -615,7 +615,7 @@ export default function LeadsPage() {
             className={`flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-medium transition ${
               view === "kanban"
                 ? "bg-[#C8F065] text-black"
-                : "text-[#71717A] hover:text-white"
+                : "text-muted hover:text-text"
             }`}
           >
             <LayoutGrid size={14} />
@@ -631,7 +631,7 @@ export default function LeadsPage() {
       ===================================================== */}
 
       {error && (
-        <div className="mb-4 rounded-xl border border-[#F06AAA]/30 bg-[#F06AAA]/5 px-4 py-3 text-sm text-[#F06AAA]">
+        <div className="mb-4 rounded-xl border border-[#F06AAA]/30 bg-[#F06AAA]/5 px-4 py-3 text-sm text-pink-ink">
           {error}
         </div>
       )}
@@ -693,7 +693,7 @@ function LeadsTable({
   onSort: (key: LeadSortKey) => void;
 }) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-[#2B2B30] bg-[#111113]">
+    <div className="overflow-hidden rounded-2xl border border-border bg-surface">
 
       <div className="overflow-x-auto">
 
@@ -701,7 +701,7 @@ function LeadsTable({
 
           <thead>
 
-            <tr className="border-b border-[#2B2B30] text-left text-xs uppercase tracking-wider text-[#52525B]">
+            <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted">
 
               <SortableHeader
                 label="Lead"
@@ -751,7 +751,7 @@ function LeadsTable({
               <tr>
                 <td
                   colSpan={5}
-                  className="px-5 py-12 text-center text-sm text-[#52525B]"
+                  className="px-5 py-12 text-center text-sm text-muted"
                 >
                   Loading leads...
                 </td>
@@ -762,7 +762,7 @@ function LeadsTable({
               <tr>
                 <td
                   colSpan={5}
-                  className="px-5 py-12 text-center text-sm text-[#52525B]"
+                  className="px-5 py-12 text-center text-sm text-muted"
                 >
                   No leads found.
                 </td>
@@ -780,18 +780,18 @@ function LeadsTable({
                 return (
                   <tr
                     key={lead.id}
-                    className="border-b border-[#2B2B30] last:border-0 transition hover:bg-[#17171A]"
+                    className="border-b border-border last:border-0 transition hover:bg-surface-secondary"
                   >
 
                     {/* LEAD */}
 
                     <td className="px-5 py-4">
 
-                      <Link href={`/crm/leads/${lead.id}`} className="font-medium text-white hover:text-[#C8F065]">
+                      <Link href={`/crm/leads/${lead.id}`} className="font-medium text-text hover:text-lime-ink">
                         {lead.name}
                       </Link>
 
-                      <div className="mt-1 text-xs text-[#52525B]">
+                      <div className="mt-1 text-xs text-muted">
                         #{lead.id}
                       </div>
 
@@ -799,7 +799,7 @@ function LeadsTable({
 
                     {/* CUSTOMER */}
 
-                    <td className="px-5 py-4 text-sm text-[#A1A1AA]">
+                    <td className="px-5 py-4 text-sm text-text-secondary">
                       {lead.customer?.name ||
                         "—"}
                     </td>
@@ -809,7 +809,7 @@ function LeadsTable({
                     <td className="px-5 py-4">
 
                       {lead.phone && (
-                        <div className="flex items-center gap-2 text-xs text-[#A1A1AA]">
+                        <div className="flex items-center gap-2 text-xs text-text-secondary">
 
                           <Phone size={13} />
 
@@ -819,7 +819,7 @@ function LeadsTable({
                       )}
 
                       {lead.email && (
-                        <div className="mt-1 flex items-center gap-2 text-xs text-[#71717A]">
+                        <div className="mt-1 flex items-center gap-2 text-xs text-muted">
 
                           <Mail size={13} />
 
@@ -830,7 +830,7 @@ function LeadsTable({
 
                       {!lead.phone &&
                         !lead.email && (
-                          <span className="text-xs text-[#52525B]">
+                          <span className="text-xs text-muted">
                             —
                           </span>
                         )}
@@ -858,7 +858,7 @@ function LeadsTable({
 
                     {/* REVENUE */}
 
-                    <td className="px-5 py-4 text-right text-sm font-medium text-white">
+                    <td className="px-5 py-4 text-right text-sm font-medium text-text">
 
                       {(
                         lead.expected_revenue ||
@@ -968,7 +968,7 @@ function LeadsKanban({
 
   if (loading) {
     return (
-      <div className="rounded-2xl border border-[#2B2B30] bg-[#111113] px-5 py-16 text-center text-sm text-[#52525B]">
+      <div className="rounded-2xl border border-border bg-surface px-5 py-16 text-center text-sm text-muted">
         Loading pipeline...
       </div>
     );
@@ -980,7 +980,7 @@ function LeadsKanban({
 
   if (stages.length === 0) {
     return (
-      <div className="rounded-2xl border border-[#2B2B30] bg-[#111113] px-5 py-16 text-center text-sm text-[#52525B]">
+      <div className="rounded-2xl border border-border bg-surface px-5 py-16 text-center text-sm text-muted">
         No prospect stages configured yet.
       </div>
     );
@@ -1012,10 +1012,10 @@ function LeadsKanban({
         return (
           <div
             key={stage.id}
-            className={`w-[300px] shrink-0 rounded-2xl border bg-[#111113] transition ${
+            className={`w-[300px] shrink-0 rounded-2xl border bg-surface transition ${
               isDragOver
                 ? "border-[#C8F065]/50 bg-[#C8F065]/[0.03]"
-                : "border-[#2B2B30]"
+                : "border-border"
             }`}
             onDragOver={(event) => {
               event.preventDefault();
@@ -1058,7 +1058,7 @@ function LeadsKanban({
                 STAGE HEADER
             ================================================= */}
 
-            <div className="flex items-center justify-between border-b border-[#2B2B30] px-4 py-3">
+            <div className="flex items-center justify-between border-b border-border px-4 py-3">
 
               <div className="flex items-center gap-2">
 
@@ -1090,7 +1090,7 @@ function LeadsKanban({
 
               {stageLeads.length === 0 ? (
 
-                <div className="flex min-h-[140px] items-center justify-center rounded-xl border border-dashed border-[#2B2B30] text-[11px] text-[#52525B]">
+                <div className="flex min-h-[140px] items-center justify-center rounded-xl border border-dashed border-border text-[11px] text-muted">
                   Drop leads here
                 </div>
 
@@ -1116,7 +1116,7 @@ function LeadsKanban({
                           null
                         );
                       }}
-                      className={`cursor-grab rounded-xl border border-[#2B2B30] bg-[#17171A] p-4 transition hover:border-[#3b3b42] active:cursor-grabbing ${
+                      className={`cursor-grab rounded-xl border border-border bg-surface-secondary p-4 transition hover:border-strong active:cursor-grabbing ${
                         dragLeadId ===
                         lead.id
                           ? "opacity-50"
@@ -1126,13 +1126,13 @@ function LeadsKanban({
 
                       {/* LEAD NAME */}
 
-                      <Link href={`/crm/leads/${lead.id}`} className="text-sm font-medium text-white hover:text-[#C8F065]">
+                      <Link href={`/crm/leads/${lead.id}`} className="text-sm font-medium text-text hover:text-lime-ink">
                         {lead.name}
                       </Link>
 
                       {/* CUSTOMER */}
 
-                      <div className="mt-1 text-[11px] text-[#71717A]">
+                      <div className="mt-1 text-[11px] text-muted">
                         {lead.customer
                           ?.name ||
                           "No customer"}
@@ -1160,11 +1160,11 @@ function LeadsKanban({
 
                       <div className="mt-3 flex items-center justify-between">
 
-                        <span className="text-[10px] text-[#52525B]">
+                        <span className="text-[10px] text-muted">
                           #{lead.id}
                         </span>
 
-                        <span className="text-[10px] font-medium text-[#C8F065]">
+                        <span className="text-[10px] font-medium text-lime-ink">
                           {(
                             lead.expected_revenue ||
                             0

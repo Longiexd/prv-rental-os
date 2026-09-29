@@ -397,51 +397,51 @@ function getStatusMeta(
   switch (status) {
     case "available":
       return {
-        label: "Disponible",
+        label: "Available",
         className:
-          "border-[#C8F065]/20 bg-[#C8F065]/10 text-[#C8F065]",
+          "border-[var(--status-available-border)] bg-[var(--status-available-bg)] text-[var(--status-available-text)]",
         text:
-          "text-[#C8F065]",
+          "text-[var(--status-available-text)]",
         dot:
-          "bg-[#C8F065]",
+          "bg-[var(--status-available-text)]",
         border:
-          "border-[#C8F065]/20",
+          "border-[var(--status-available-border)]",
         soft:
-          "bg-[#C8F065]/5",
+          "bg-[var(--status-available-text)]/5",
         unavailable:
           false,
       };
 
     case "rented":
       return {
-        label: "Loué",
+        label: "Rented",
         className:
-          "border-[#F06AAA]/20 bg-[#F06AAA]/10 text-[#F06AAA]",
+          "border-[var(--status-rented-border)] bg-[var(--status-rented-bg)] text-[var(--status-rented-text)]",
         text:
-          "text-[#F06AAA]",
+          "text-[var(--status-rented-text)]",
         dot:
-          "bg-[#F06AAA]",
+          "bg-[var(--status-rented-text)]",
         border:
-          "border-[#F06AAA]/20",
+          "border-[var(--status-rented-border)]",
         soft:
-          "bg-[#F06AAA]/5",
+          "bg-[var(--status-rented-text)]/5",
         unavailable:
           true,
       };
 
     case "cleaning":
       return {
-        label: "Nettoyage",
+        label: "Cleaning",
         className:
-          "border-blue-400/20 bg-blue-500/10 text-blue-400",
+          "border-[var(--status-cleaning-border)] bg-[var(--status-cleaning-bg)] text-[var(--status-cleaning-text)]",
         text:
-          "text-blue-400",
+          "text-[var(--status-cleaning-text)]",
         dot:
-          "bg-blue-400",
+          "bg-[var(--status-cleaning-text)]",
         border:
-          "border-blue-400/20",
+          "border-[var(--status-cleaning-border)]",
         soft:
-          "bg-blue-400/5",
+          "bg-[var(--status-cleaning-text)]/5",
         unavailable:
           true,
       };
@@ -450,15 +450,15 @@ function getStatusMeta(
       return {
         label: "Maintenance",
         className:
-          "border-violet-400/20 bg-violet-500/10 text-violet-400",
+          "border-[var(--status-maintenance-border)] bg-[var(--status-maintenance-bg)] text-[var(--status-maintenance-text)]",
         text:
-          "text-violet-400",
+          "text-[var(--status-maintenance-text)]",
         dot:
-          "bg-violet-400",
+          "bg-[var(--status-maintenance-text)]",
         border:
-          "border-violet-400/20",
+          "border-[var(--status-maintenance-border)]",
         soft:
-          "bg-violet-400/5",
+          "bg-[var(--status-maintenance-text)]/5",
         unavailable:
           true,
       };
@@ -467,9 +467,9 @@ function getStatusMeta(
       return {
         label: "Inactive",
         className:
-          "border-zinc-600/30 bg-zinc-700/20 text-zinc-500",
+          "border-zinc-600/30 bg-zinc-700/20 text-muted",
         text:
-          "text-zinc-500",
+          "text-muted",
         dot:
           "bg-zinc-600",
         border:
@@ -484,17 +484,17 @@ function getStatusMeta(
       return {
         label:
           originalStatus ||
-          "Non défini",
+          "Undefined",
         className:
-          "border-[#2B2B30] bg-[#17171A] text-[#A1A1AA]",
+          "border-border bg-surface-secondary text-text-secondary",
         text:
-          "text-[#A1A1AA]",
+          "text-text-secondary",
         dot:
           "bg-zinc-600",
         border:
-          "border-[#2B2B30]",
+          "border-border",
         soft:
-          "bg-[#17171A]",
+          "bg-surface-secondary",
         unavailable:
           false,
       };
@@ -513,7 +513,7 @@ function getStatusMeta(
 // ============================================================
 
 function getRentalState(sale: Sale) {
-  if (sale.activity) return { className: "border-purple-400/50 bg-purple-400/25 text-purple-100", dot: "bg-purple-400" };
+  if (sale.activity) return { className: "border-[var(--todo-border)] bg-[var(--todo-bg)] text-[var(--todo-text)]", dot: "bg-[var(--todo-text)]" };
   const meta = sale.booking_status === "confirmed" ? { tone: "pink" as const } : rentalStateMeta(classifyRentalState(sale));
   const classes = toneClasses(meta.tone);
 
@@ -615,15 +615,15 @@ function RentalModal({
         className="absolute inset-0 bg-black/75 backdrop-blur-md"
       />
 
-      <div className="relative z-10 max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-[#2B2B30] bg-[#0D0D0F] shadow-2xl shadow-black/60">
+      <div className="relative z-10 max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-border bg-background shadow-2xl shadow-black/60">
 
-        <div className="flex items-center justify-between border-b border-[#2B2B30] px-5 py-4">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <div>
-            <div className="text-sm font-semibold text-white">
+            <div className="text-sm font-semibold text-text">
               Rental details
             </div>
 
-            <div className="mt-1 font-mono text-[10px] text-zinc-700">
+            <div className="mt-1 font-mono text-[10px] text-muted">
               {rental.name}
             </div>
           </div>
@@ -631,7 +631,7 @@ function RentalModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#2B2B30] bg-[#111113] text-zinc-500 hover:text-white"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-surface text-muted hover:text-text"
           >
             <X size={16} />
           </button>
@@ -652,15 +652,15 @@ function RentalModal({
                   : "Quotation"}
             </span>
 
-            <span className="font-mono text-[10px] text-zinc-700">
+            <span className="font-mono text-[10px] text-muted">
               Booking #{rental.id}
             </span>
           </div>
 
           {/* VEHICLE */}
 
-          <div className="rounded-2xl border border-[#2B2B30] bg-[#111113] p-5">
-            <div className="text-[9px] uppercase tracking-[0.14em] text-zinc-700">
+          <div className="rounded-2xl border border-border bg-surface p-5">
+            <div className="text-[9px] uppercase tracking-[0.14em] text-muted">
               Vehicle
             </div>
 
@@ -670,20 +670,20 @@ function RentalModal({
                 onClick={onClose}
                 className="mt-3 flex items-center gap-3"
               >
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-[#2B2B30] bg-[#17171A]">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-surface-secondary">
                   <Car
                     size={17}
-                    className="text-zinc-400"
+                    className="text-text-secondary"
                   />
                 </div>
 
                 <div>
-                  <div className="text-sm font-semibold text-white hover:text-[#C8F065]">
+                  <div className="text-sm font-semibold text-text hover:text-[var(--status-available-text)]">
                     {vehicle.model ||
                       vehicle.name}
                   </div>
 
-                  <div className="mt-1 text-xs text-zinc-600">
+                  <div className="mt-1 text-xs text-muted">
                     {vehicle.name}
 
                     {vehicle.license_plate && (
@@ -701,7 +701,7 @@ function RentalModal({
                 </div>
               </Link>
             ) : (
-              <div className="mt-3 text-sm text-zinc-600">
+              <div className="mt-3 text-sm text-muted">
                 Vehicle not linked
               </div>
             )}
@@ -709,8 +709,8 @@ function RentalModal({
 
           {/* CUSTOMER */}
 
-          <div className="rounded-2xl border border-[#2B2B30] bg-[#111113] p-5">
-            <div className="text-[9px] uppercase tracking-[0.14em] text-zinc-700">
+          <div className="rounded-2xl border border-border bg-surface p-5">
+            <div className="text-[9px] uppercase tracking-[0.14em] text-muted">
               Customer
             </div>
 
@@ -720,14 +720,14 @@ function RentalModal({
                 onClick={onClose}
                 className="mt-3 flex items-center gap-3"
               >
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#F06AAA]/20 bg-[#F06AAA]/10">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--status-rented-border)] bg-[var(--status-rented-text)]/10">
                   <UserRound
                     size={16}
-                    className="text-[#F06AAA]"
+                    className="text-[var(--status-rented-text)]"
                   />
                 </div>
 
-                <div className="text-sm font-semibold text-white hover:text-[#C8F065]">
+                <div className="text-sm font-semibold text-text hover:text-[var(--status-available-text)]">
                   {
                     rental.customer
                       .name
@@ -735,7 +735,7 @@ function RentalModal({
                 </div>
               </Link>
             ) : (
-              <div className="mt-3 text-sm text-zinc-600">
+              <div className="mt-3 text-sm text-muted">
                 No customer linked
               </div>
             )}
@@ -745,15 +745,15 @@ function RentalModal({
 
           <div className="grid grid-cols-2 gap-3">
 
-            <div className="rounded-2xl border border-[#2B2B30] bg-[#111113] p-5">
-              <div className="text-[9px] uppercase tracking-[0.14em] text-zinc-700">
+            <div className="rounded-2xl border border-border bg-surface p-5">
+              <div className="text-[9px] uppercase tracking-[0.14em] text-muted">
                 Pickup
               </div>
 
-              <div className="mt-2 flex items-center gap-2 text-sm font-semibold text-white">
+              <div className="mt-2 flex items-center gap-2 text-sm font-semibold text-text">
                 <CalendarDays
                   size={14}
-                  className="text-zinc-600"
+                  className="text-muted"
                 />
 
                 {formatDate(
@@ -762,15 +762,15 @@ function RentalModal({
               </div>
             </div>
 
-            <div className="rounded-2xl border border-[#2B2B30] bg-[#111113] p-5">
-              <div className="text-[9px] uppercase tracking-[0.14em] text-zinc-700">
+            <div className="rounded-2xl border border-border bg-surface p-5">
+              <div className="text-[9px] uppercase tracking-[0.14em] text-muted">
                 Return
               </div>
 
-              <div className="mt-2 flex items-center gap-2 text-sm font-semibold text-white">
+              <div className="mt-2 flex items-center gap-2 text-sm font-semibold text-text">
                 <Clock3
                   size={14}
-                  className="text-zinc-600"
+                  className="text-muted"
                 />
 
                 {formatDate(
@@ -783,12 +783,12 @@ function RentalModal({
 
           {start &&
             end && (
-              <div className="rounded-2xl border border-[#2B2B30] bg-[#111113] p-5">
-                <div className="text-[9px] uppercase tracking-[0.14em] text-zinc-700">
+              <div className="rounded-2xl border border-border bg-surface p-5">
+                <div className="text-[9px] uppercase tracking-[0.14em] text-muted">
                   Rental period
                 </div>
 
-                <div className="mt-2 text-sm font-semibold text-white">
+                <div className="mt-2 text-sm font-semibold text-text">
                   {daysBetween(
                     start,
                     end
@@ -806,7 +806,7 @@ function RentalModal({
           <Link
             href={`/dashboard/rentals/${rental.id}`}
             onClick={onClose}
-            className="flex h-11 items-center justify-between rounded-xl bg-[#C8F065] px-4 text-xs font-semibold text-black hover:bg-[#d7ff80]"
+            className="flex h-11 items-center justify-between rounded-xl bg-lime px-4 text-xs font-semibold text-black hover:bg-lime-dark"
           >
             View rentals
             <ArrowRight
@@ -963,213 +963,137 @@ function MonthView({
 }: {
   month: Date;
   sales: Sale[];
-  vehicleMap: Map<
-    number,
-    Vehicle
-  >;
-  onRentalClick: (
-    rental: Sale
-  ) => void;
+  vehicleMap: Map<number, Vehicle>;
+  onRentalClick: (rental: Sale) => void;
 }) {
-  const weeks =
-    getMonthWeeks(month);
+  const weeks = getMonthWeeks(month);
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-[#2B2B30] bg-[#111113]">
-
+    <div className="overflow-hidden rounded-2xl border border-border bg-surface">
       {/* WEEKDAY HEADER */}
-
-      <div className="grid grid-cols-7 border-b border-[#2B2B30]">
-        {[
-          "Mon",
-          "Tue",
-          "Wed",
-          "Thu",
-          "Fri",
-          "Sat",
-          "Sun",
-        ].map(
-          (day) => (
-            <div
-              key={day}
-              className="flex h-11 items-center justify-center border-r border-[#2B2B30] text-[9px] font-semibold uppercase tracking-[0.14em] text-zinc-600 last:border-r-0"
-            >
-              {day}
-            </div>
-          )
-        )}
+      <div className="grid grid-cols-7 border-b border-border">
+        {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
+          <div
+            key={day}
+            className="flex h-11 items-center justify-center border-r border-border text-[9px] font-semibold uppercase tracking-[0.14em] text-muted last:border-r-0"
+          >
+            {day}
+          </div>
+        ))}
       </div>
 
       {/* WEEK ROWS */}
+      {weeks.map((week, weekIndex) => {
+        const weekStart = startOfDay(week[0]);
+        const weekEnd = endOfDay(week[6]);
+        const weekSales = sales.filter((sale) => rentalOverlapsRange(sale, weekStart, weekEnd));
+        const today = new Date();
 
-      {weeks.map(
-        (
-          week,
-          weekIndex
-        ) => {
+        // Build collision-free lanes for this week. A rental only shares a lane
+        // when its visible date span does not overlap the previous item in it.
+        // The week row grows with the number of lanes, so bars never spill into
+        // the following week or visually detach from their dates.
+        const segments = weekSales
+          .map((rental) => {
+            const start = parseDate(rental.date_order);
+            const end = parseDate(rental.commitment_date);
+            if (!start || !end) return null;
 
-          const weekStart =
-            startOfDay(
-              week[0]
+            const visibleStart = start < weekStart ? weekStart : startOfDay(start);
+            const visibleEnd = end > weekEnd ? weekEnd : endOfDay(end);
+            const startIndex = Math.max(
+              0,
+              Math.min(6, Math.floor((visibleStart.getTime() - weekStart.getTime()) / 86400000))
+            );
+            const endIndex = Math.max(
+              startIndex,
+              Math.min(6, Math.floor((visibleEnd.getTime() - weekStart.getTime()) / 86400000))
             );
 
-          const weekEnd =
-            endOfDay(
-              week[6]
-            );
+            return { rental, startIndex, endIndex };
+          })
+          .filter((item): item is { rental: Sale; startIndex: number; endIndex: number } => item !== null)
+          .sort((a, b) => a.startIndex - b.startIndex || b.endIndex - a.endIndex || a.rental.id - b.rental.id);
 
-          const weekSales =
-            sales.filter(
-              (sale) =>
-                rentalOverlapsRange(
-                  sale,
-                  weekStart,
-                  weekEnd
-                )
-            );
+        const laneEnds: number[] = [];
+        const laidOut = segments.map((segment) => {
+          let lane = laneEnds.findIndex((lastEnd) => lastEnd < segment.startIndex);
+          if (lane === -1) lane = laneEnds.length;
+          laneEnds[lane] = segment.endIndex;
+          return { ...segment, lane };
+        });
 
-          const today =
-            new Date();
+        const laneCount = Math.max(1, laneEnds.length);
+        const rowHeight = Math.max(150, 52 + laneCount * 38);
 
-          return (
-            <div
-              key={`week-${weekIndex}`}
-              className="relative border-b border-[#2B2B30] last:border-b-0"
-            >
+        return (
+          <div
+            key={`week-${weekIndex}`}
+            className="relative border-b border-border last:border-b-0"
+          >
+            {/* DAY CELLS */}
+            <div className="grid grid-cols-7">
+              {week.map((day) => {
+                const inMonth = day.getMonth() === month.getMonth();
+                const daySales = weekSales.filter((sale) => rentalOverlapsDay(sale, day));
 
-              {/* DAY CELLS */}
-
-              <div className="grid grid-cols-7">
-                {week.map(
-                  (day) => {
-                    const inMonth =
-                      day.getMonth() ===
-                      month.getMonth();
-
-                    const daySales =
-                      weekSales.filter(
-                        (sale) =>
-                          rentalOverlapsDay(
-                            sale,
-                            day
-                          )
-                      );
-
-                    return (
-                      <div
-                        key={dateKey(
-                          day
-                        )}
-                        className={`min-h-[150px] border-r border-[#2B2B30] p-2 last:border-r-0 ${
-                          inMonth
-                            ? "bg-[#111113]"
-                            : "bg-[#0D0D0F]"
-                        } ${
-                          isSameDay(
-                            day,
-                            today
-                          )
-                            ? "bg-[#C8F065]/[0.025]"
-                            : ""
+                return (
+                  <div
+                    key={dateKey(day)}
+                    style={{ minHeight: `${rowHeight}px` }}
+                    className={`border-r border-border p-2 last:border-r-0 ${
+                      inMonth ? "bg-surface" : "bg-background"
+                    } ${
+                      isSameDay(day, today)
+                        ? "bg-[var(--status-available-text)]/[0.025]"
+                        : ""
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span
+                        className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-semibold ${
+                          isSameDay(day, today)
+                            ? "bg-lime text-black"
+                            : inMonth
+                              ? "text-text"
+                              : "text-muted"
                         }`}
                       >
-                        <div className="flex items-center justify-between">
-                          <span
-                            className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-semibold ${
-                              isSameDay(
-                                day,
-                                today
-                              )
-                                ? "bg-[#C8F065] text-black"
-                                : inMonth
-                                  ? "text-zinc-300"
-                                  : "text-zinc-700"
-                            }`}
-                          >
-                            {day.getDate()}
-                          </span>
+                        {day.getDate()}
+                      </span>
 
-                          {daySales.length >
-                            0 && (
-                            <span className="text-[9px] text-zinc-700">
-                              {
-                                daySales.length
-                              }
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  }
-                )}
-              </div>
-
-              {/* CONTINUOUS RENTAL LAYER */}
-
-              <div className="pointer-events-none absolute inset-x-0 top-[43px] h-[100px]">
-
-                {weekSales
-                  .slice(
-                    0,
-                    8
-                  )
-                  .map(
-                    (
-                      rental,
-                      index
-                    ) => (
-                      <div
-                        key={
-                          rental.id
-                        }
-                        className="pointer-events-auto"
-                        style={{
-                          top: `${index * 43}px`,
-                          left: 0,
-                          right: 0,
-                          position:
-                            "absolute",
-                        }}
-                      >
-                        <MonthRentalBar
-                          rental={
-                            rental
-                          }
-                          vehicle={
-                            rental.vehicle_id
-                              ? vehicleMap.get(
-                                  rental.vehicle_id
-                                ) ||
-                                null
-                              : null
-                          }
-                          week={
-                            week
-                          }
-                          onClick={() =>
-                            onRentalClick(
-                              rental
-                            )
-                          }
-                        />
-                      </div>
-                    )
-                  )}
-
-                {weekSales.length >
-                  8 && (
-                  <div className="absolute bottom-0 left-2 text-[9px] text-zinc-600">
-                    +
-                    {weekSales.length -
-                      8}{" "}
-                    more rentals
+                      {daySales.length > 0 && (
+                        <span className="text-[9px] font-medium text-muted">{daySales.length}</span>
+                      )}
+                    </div>
                   </div>
-                )}
-              </div>
+                );
+              })}
             </div>
-          );
-        }
-      )}
+
+            {/* CONTINUOUS RENTAL LAYER */}
+            <div
+              className="pointer-events-none absolute inset-x-0 top-[43px]"
+              style={{ height: `${Math.max(96, rowHeight - 43)}px` }}
+            >
+              {laidOut.map(({ rental, lane }) => (
+                <div
+                  key={rental.id}
+                  className="pointer-events-auto absolute inset-x-0"
+                  style={{ top: `${lane * 38}px` }}
+                >
+                  <MonthRentalBar
+                    rental={rental}
+                    vehicle={rental.vehicle_id ? vehicleMap.get(rental.vehicle_id) || null : null}
+                    week={week}
+                    onClick={() => onRentalClick(rental)}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -1218,7 +1142,7 @@ function TimelineView({
     );
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-[#2B2B30] bg-[#111113]">
+    <div className="overflow-hidden rounded-2xl border border-border bg-surface">
 
       <div className="overflow-x-auto">
 
@@ -1234,15 +1158,15 @@ function TimelineView({
 
           {/* HEADER */}
 
-          <div className="flex border-b border-[#2B2B30]">
+          <div className="flex border-b border-border">
 
-            <div className="sticky left-0 z-30 flex h-14 w-[240px] shrink-0 items-center border-r border-[#2B2B30] bg-[#111113] px-5">
+            <div className="sticky left-0 z-30 flex h-14 w-[240px] shrink-0 items-center border-r border-border bg-surface px-5">
               <div>
-                <div className="text-[9px] uppercase tracking-[0.14em] text-zinc-700">
+                <div className="text-[9px] uppercase tracking-[0.14em] text-muted">
                   Fleet
                 </div>
 
-                <div className="mt-1 text-xs font-semibold text-white">
+                <div className="mt-1 text-xs font-semibold text-text">
                   Vehicle
                 </div>
               </div>
@@ -1255,16 +1179,16 @@ function TimelineView({
                     key={dateKey(
                       day
                     )}
-                    className={`flex h-14 w-[72px] shrink-0 flex-col items-center justify-center border-r border-[#2B2B30] ${
+                    className={`flex h-14 w-[72px] shrink-0 flex-col items-center justify-center border-r border-border ${
                       isSameDay(
                         day,
                         new Date()
                       )
-                        ? "bg-[#C8F065]/[0.04]"
+                        ? "bg-[var(--status-available-text)]/[0.04]"
                         : ""
                     }`}
                   >
-                    <span className="text-[8px] uppercase text-zinc-700">
+                    <span className="text-[8px] uppercase text-muted">
                       {day.toLocaleDateString(
                         "en-US",
                         {
@@ -1280,8 +1204,8 @@ function TimelineView({
                           day,
                           new Date()
                         )
-                          ? "text-[#C8F065]"
-                          : "text-zinc-400"
+                          ? "text-[var(--status-available-text)]"
+                          : "text-text-secondary"
                       }`}
                     >
                       {day.getDate()}
@@ -1323,16 +1247,16 @@ function TimelineView({
                   key={
                     vehicle.id
                   }
-                  className="flex h-[82px] border-b border-[#2B2B30]"
+                  className="flex h-[82px] border-b border-border"
                 >
 
                   {/* VEHICLE */}
 
                   <Link
                     href={`/dashboard/fleet?vehicle=${vehicle.id}`}
-                    className="sticky left-0 z-20 flex w-[240px] shrink-0 items-center gap-3 border-r border-[#2B2B30] bg-[#111113] px-5 hover:bg-[#17171A]"
+                    className="sticky left-0 z-20 flex w-[240px] shrink-0 items-center gap-3 border-r border-border bg-surface px-5 hover:bg-surface-secondary"
                   >
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#2B2B30] bg-[#17171A]">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border bg-surface-secondary">
                       <Car
                         size={15}
                         className={
@@ -1342,12 +1266,12 @@ function TimelineView({
                     </div>
 
                     <div className="min-w-0">
-                      <div className="truncate text-xs font-semibold text-white">
+                      <div className="truncate text-xs font-semibold text-text">
                         {vehicle.model ||
                           vehicle.name}
                       </div>
 
-                      <div className="mt-1 truncate font-mono text-[9px] text-zinc-600">
+                      <div className="mt-1 truncate font-mono text-[9px] text-muted">
                         {vehicle.license_plate ||
                           vehicle.name}
                       </div>
@@ -1372,12 +1296,12 @@ function TimelineView({
                             key={dateKey(
                               day
                             )}
-                            className={`h-full w-[72px] shrink-0 border-r border-[#2B2B30]/60 ${
+                            className={`h-full w-[72px] shrink-0 border-r border-border/60 ${
                               isSameDay(
                                 day,
                                 new Date()
                               )
-                                ? "bg-[#C8F065]/[0.025]"
+                                ? "bg-[var(--status-available-text)]/[0.025]"
                                 : ""
                             }`}
                           />
@@ -1526,7 +1450,7 @@ function TimelineView({
 
                         {meta.unavailable && (
                           <span className="ml-2 rounded-full border border-red-400/20 bg-red-400/10 px-1.5 py-0.5 text-[7px] font-semibold uppercase tracking-wider text-red-400">
-                            Indisponible
+                            Unavailable
                           </span>
                         )}
                       </div>
@@ -1539,7 +1463,7 @@ function TimelineView({
 
           {vehicles.length ===
             0 && (
-            <div className="flex h-72 items-center justify-center text-sm text-zinc-600">
+            <div className="flex h-72 items-center justify-center text-sm text-muted">
               No vehicles found.
             </div>
           )}
@@ -1656,12 +1580,12 @@ function YearView({
                   monthIndex
                 )
               }
-              className="group rounded-2xl border border-[#2B2B30] bg-[#111113] p-4 text-left transition hover:border-zinc-600 hover:bg-[#141416]"
+              className="group rounded-2xl border border-border bg-surface p-4 text-left transition hover:border-zinc-600 hover:bg-surface"
             >
 
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-sm font-semibold text-white">
+                  <div className="text-sm font-semibold text-text">
                     {month.toLocaleDateString(
                       "en-US",
                       {
@@ -1671,7 +1595,7 @@ function YearView({
                     )}
                   </div>
 
-                  <div className="mt-1 text-[9px] text-zinc-700">
+                  <div className="mt-1 text-[9px] text-muted">
                     {
                       monthSales.length
                     }{" "}
@@ -1681,7 +1605,7 @@ function YearView({
 
                 <ChevronRight
                   size={15}
-                  className="text-zinc-700 transition group-hover:text-zinc-400"
+                  className="text-muted transition group-hover:text-text-secondary"
                 />
               </div>
 
@@ -1704,7 +1628,7 @@ function YearView({
                   ) => (
                     <div
                       key={`${day}-${index}`}
-                      className="flex h-5 items-center justify-center text-[7px] font-semibold text-zinc-700"
+                      className="flex h-5 items-center justify-center text-[7px] font-semibold text-muted"
                     >
                       {day}
                     </div>
@@ -1737,20 +1661,20 @@ function YearView({
                         )}
                         className={`relative flex h-7 items-center justify-center rounded-md text-[8px] ${
                           inMonth
-                            ? "text-zinc-500"
-                            : "text-zinc-800"
+                            ? "text-muted"
+                            : "text-muted"
                         } ${
                           count >
                           0
-                            ? "bg-[#F06AAA]/10"
-                            : "bg-[#17171A]/50"
+                            ? "bg-[var(--status-rented-text)]/10"
+                            : "bg-surface-secondary/50"
                         }`}
                       >
                         {day.getDate()}
 
                         {count >
                           0 && (
-                          <span className="absolute bottom-1 h-0.5 w-0.5 rounded-full bg-[#F06AAA]" />
+                          <span className="absolute bottom-1 h-0.5 w-0.5 rounded-full bg-[var(--status-rented-text)]" />
                         )}
                       </div>
                     );
@@ -1762,36 +1686,36 @@ function YearView({
 
               <div className="mt-4 grid grid-cols-3 gap-2">
 
-                <div className="rounded-xl border border-[#2B2B30] bg-[#0D0D0F] p-2.5">
-                  <div className="text-[8px] uppercase tracking-wider text-zinc-700">
+                <div className="rounded-xl border border-border bg-background p-2.5">
+                  <div className="text-[8px] uppercase tracking-wider text-muted">
                     Rentals
                   </div>
 
-                  <div className="mt-1 text-sm font-semibold text-[#F06AAA]">
+                  <div className="mt-1 text-sm font-semibold text-[var(--status-rented-text)]">
                     {
                       monthSales.length
                     }
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-[#2B2B30] bg-[#0D0D0F] p-2.5">
-                  <div className="text-[8px] uppercase tracking-wider text-zinc-700">
+                <div className="rounded-xl border border-border bg-background p-2.5">
+                  <div className="text-[8px] uppercase tracking-wider text-muted">
                     Cars
                   </div>
 
-                  <div className="mt-1 text-sm font-semibold text-white">
+                  <div className="mt-1 text-sm font-semibold text-text">
                     {
                       rentedVehicleIds.size
                     }
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-[#2B2B30] bg-[#0D0D0F] p-2.5">
-                  <div className="text-[8px] uppercase tracking-wider text-zinc-700">
+                <div className="rounded-xl border border-border bg-background p-2.5">
+                  <div className="text-[8px] uppercase tracking-wider text-muted">
                     Days
                   </div>
 
-                  <div className="mt-1 text-sm font-semibold text-white">
+                  <div className="mt-1 text-sm font-semibold text-text">
                     {
                       daysInMonth
                     }
@@ -2149,11 +2073,11 @@ export default function CalendarPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#09090B] p-6 text-white">
+      <div className="min-h-screen bg-background p-6 text-text">
         <div className="mx-auto max-w-[1900px]">
-          <div className="h-8 w-56 animate-pulse rounded-lg bg-[#17171A]" />
+          <div className="h-8 w-56 animate-pulse rounded-lg bg-surface-secondary" />
 
-          <div className="mt-6 h-[720px] animate-pulse rounded-2xl border border-[#2B2B30] bg-[#111113]" />
+          <div className="mt-6 h-[720px] animate-pulse rounded-2xl border border-border bg-surface" />
         </div>
       </div>
     );
@@ -2165,14 +2089,14 @@ export default function CalendarPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-[#09090B] p-6 text-white">
+      <div className="min-h-screen bg-background p-6 text-text">
         <div className="mx-auto max-w-[1900px]">
           <div className="rounded-2xl border border-red-400/20 bg-red-400/5 p-6">
-            <div className="text-sm font-semibold text-red-300">
+            <div className="text-sm font-semibold text-danger">
               Unable to load calendar
             </div>
 
-            <div className="mt-2 text-xs text-zinc-600">
+            <div className="mt-2 text-xs text-muted">
               {error}
             </div>
           </div>
@@ -2186,7 +2110,7 @@ export default function CalendarPage() {
   // ==========================================================
 
   return (
-    <div className="min-h-screen bg-[#09090B] text-white">
+    <div className="min-h-screen bg-background text-text">
 
       <div className="mx-auto max-w-[1900px] p-4 sm:p-6 lg:p-8">
 
@@ -2197,18 +2121,18 @@ export default function CalendarPage() {
         <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
 
           <div>
-            <div className="flex items-center gap-2 text-[9px] uppercase tracking-[0.16em] text-zinc-700">
+            <div className="flex items-center gap-2 text-[9px] uppercase tracking-[0.16em] text-muted">
               <CalendarDays
                 size={13}
               />
               Operations
             </div>
 
-            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-text sm:text-3xl">
               Rental Calendar
             </h1>
 
-            <p className="mt-2 max-w-xl text-sm text-zinc-500">
+            <p className="mt-2 max-w-xl text-sm text-muted">
               Plan rentals, follow vehicle
               availability and see your fleet
               at a glance.
@@ -2227,7 +2151,7 @@ export default function CalendarPage() {
                   onClick={
                     goToday
                   }
-                  className="h-10 rounded-xl border border-[#2B2B30] bg-[#111113] px-4 text-xs font-medium text-zinc-400 hover:border-zinc-600 hover:text-white"
+                  className="h-10 rounded-xl border border-border bg-surface px-4 text-xs font-medium text-text-secondary hover:border-zinc-600 hover:text-text"
                 >
                   Today
                 </button>
@@ -2237,14 +2161,14 @@ export default function CalendarPage() {
                   onClick={
                     previousMonth
                   }
-                  className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#2B2B30] bg-[#111113] text-zinc-500 hover:border-zinc-600 hover:text-white"
+                  className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-surface text-muted hover:border-zinc-600 hover:text-text"
                 >
                   <ChevronLeft
                     size={16}
                   />
                 </button>
 
-                <div className="flex h-10 min-w-[175px] items-center justify-center rounded-xl border border-[#2B2B30] bg-[#111113] px-4 text-sm font-semibold">
+                <div className="flex h-10 min-w-[175px] items-center justify-center rounded-xl border border-border bg-surface px-4 text-sm font-semibold">
                   {formatMonth(
                     month
                   )}
@@ -2255,7 +2179,7 @@ export default function CalendarPage() {
                   onClick={
                     nextMonth
                   }
-                  className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#2B2B30] bg-[#111113] text-zinc-500 hover:border-zinc-600 hover:text-white"
+                  className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-surface text-muted hover:border-zinc-600 hover:text-text"
                 >
                   <ChevronRight
                     size={16}
@@ -2266,7 +2190,7 @@ export default function CalendarPage() {
 
             {view ===
               "year" && (
-              <div className="flex h-10 items-center rounded-xl border border-[#2B2B30] bg-[#111113] px-5 text-sm font-semibold">
+              <div className="flex h-10 items-center rounded-xl border border-border bg-surface px-5 text-sm font-semibold">
                 {formatYear(
                   month
                 )}
@@ -2285,7 +2209,7 @@ export default function CalendarPage() {
                     .value
                 )
               }
-              className="h-10 max-w-[190px] rounded-xl border border-[#2B2B30] bg-[#111113] px-3 text-xs font-medium text-zinc-300 outline-none hover:border-zinc-600"
+              className="h-10 max-w-[190px] rounded-xl border border-border bg-surface px-3 text-xs font-medium text-text outline-none hover:border-zinc-600"
             >
               <option value="all">
                 All vehicles
@@ -2315,8 +2239,8 @@ export default function CalendarPage() {
 
         <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
 
-          <div className="rounded-2xl border border-[#2B2B30] bg-[#111113] p-4">
-            <div className="text-[9px] uppercase tracking-[0.14em] text-zinc-700">
+          <div className="rounded-2xl border border-border bg-surface p-4">
+            <div className="text-[9px] uppercase tracking-[0.14em] text-muted">
               Fleet
             </div>
 
@@ -2325,56 +2249,56 @@ export default function CalendarPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-[#C8F065]/10 bg-[#C8F065]/[0.025] p-4">
-            <div className="text-[9px] uppercase tracking-[0.14em] text-[#C8F065]/60">
-              Disponible
+          <div className="rounded-2xl border border-[#C8F065]/10 bg-[var(--status-available-text)]/[0.025] p-4">
+            <div className="text-[9px] uppercase tracking-[0.14em] text-[var(--status-available-text)]/60">
+              Available
             </div>
 
-            <div className="mt-2 text-xl font-semibold text-[#C8F065]">
+            <div className="mt-2 text-xl font-semibold text-[var(--status-available-text)]">
               {
                 fleetStats.available
               }
             </div>
           </div>
 
-          <div className="rounded-2xl border border-[#F06AAA]/10 bg-[#F06AAA]/[0.025] p-4">
-            <div className="text-[9px] uppercase tracking-[0.14em] text-[#F06AAA]/60">
-              Loué
+          <div className="rounded-2xl border border-[#F06AAA]/10 bg-[var(--status-rented-text)]/[0.025] p-4">
+            <div className="text-[9px] uppercase tracking-[0.14em] text-[var(--status-rented-text)]/60">
+              Rented
             </div>
 
-            <div className="mt-2 text-xl font-semibold text-[#F06AAA]">
+            <div className="mt-2 text-xl font-semibold text-[var(--status-rented-text)]">
               {
                 fleetStats.rented
               }
             </div>
           </div>
 
-          <div className="rounded-2xl border border-blue-400/10 bg-blue-400/[0.025] p-4">
-            <div className="text-[9px] uppercase tracking-[0.14em] text-blue-400/60">
-              Nettoyage
+          <div className="rounded-2xl border border-blue-400/10 bg-[var(--status-cleaning-text)]/[0.025] p-4">
+            <div className="text-[9px] uppercase tracking-[0.14em] text-[var(--status-cleaning-text)]/60">
+              Cleaning
             </div>
 
-            <div className="mt-2 text-xl font-semibold text-blue-400">
+            <div className="mt-2 text-xl font-semibold text-[var(--status-cleaning-text)]">
               {
                 fleetStats.cleaning
               }
             </div>
           </div>
 
-          <div className="rounded-2xl border border-violet-400/10 bg-violet-400/[0.025] p-4">
-            <div className="text-[9px] uppercase tracking-[0.14em] text-violet-400/60">
+          <div className="rounded-2xl border border-violet-400/10 bg-[var(--status-maintenance-text)]/[0.025] p-4">
+            <div className="text-[9px] uppercase tracking-[0.14em] text-[var(--status-maintenance-text)]/60">
               Maintenance
             </div>
 
-            <div className="mt-2 text-xl font-semibold text-violet-400">
+            <div className="mt-2 text-xl font-semibold text-[var(--status-maintenance-text)]">
               {
                 fleetStats.maintenance
               }
             </div>
           </div>
 
-          <div className="rounded-2xl border border-[#2B2B30] bg-[#111113] p-4">
-            <div className="text-[9px] uppercase tracking-[0.14em] text-zinc-700">
+          <div className="rounded-2xl border border-border bg-surface p-4">
+            <div className="text-[9px] uppercase tracking-[0.14em] text-muted">
               Rentals
             </div>
 
@@ -2392,7 +2316,7 @@ export default function CalendarPage() {
 
         <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 
-          <div className="flex w-fit rounded-xl border border-[#2B2B30] bg-[#111113] p-1">
+          <div className="flex w-fit rounded-xl border border-border bg-surface p-1">
 
             <button
               type="button"
@@ -2404,8 +2328,8 @@ export default function CalendarPage() {
               className={`flex h-9 items-center gap-2 rounded-lg px-4 text-xs font-medium transition ${
                 view ===
                 "month"
-                  ? "bg-[#17171A] text-white shadow-sm"
-                  : "text-zinc-600 hover:text-zinc-300"
+                  ? "bg-surface-secondary text-text shadow-sm"
+                  : "text-muted hover:text-text"
               }`}
             >
               <CalendarDays
@@ -2424,8 +2348,8 @@ export default function CalendarPage() {
               className={`flex h-9 items-center gap-2 rounded-lg px-4 text-xs font-medium transition ${
                 view ===
                 "timeline"
-                  ? "bg-[#17171A] text-white shadow-sm"
-                  : "text-zinc-600 hover:text-zinc-300"
+                  ? "bg-surface-secondary text-text shadow-sm"
+                  : "text-muted hover:text-text"
               }`}
             >
               <Clock3
@@ -2444,8 +2368,8 @@ export default function CalendarPage() {
               className={`flex h-9 items-center gap-2 rounded-lg px-4 text-xs font-medium transition ${
                 view ===
                 "year"
-                  ? "bg-[#17171A] text-white shadow-sm"
-                  : "text-zinc-600 hover:text-zinc-300"
+                  ? "bg-surface-secondary text-text shadow-sm"
+                  : "text-muted hover:text-text"
               }`}
             >
               <CalendarDays
@@ -2456,44 +2380,44 @@ export default function CalendarPage() {
           </div>
 
           <div className="flex gap-2" aria-label="Calendar event filters">
-            {[["all", "All"], ["rentals", "Bookings"], ["todo", "To do"]].map(([value, label]) => <button key={value} onClick={() => setEventFilter(value)} aria-pressed={eventFilter === value} className={`rounded-lg px-3 py-2 text-sm ${eventFilter === value ? "bg-purple-400/20 text-purple-200" : "text-text-secondary"}`}>{label}</button>)}
+            {[["all", "All"], ["rentals", "Bookings"], ["todo", "To do"]].map(([value, label]) => <button key={value} onClick={() => setEventFilter(value)} aria-pressed={eventFilter === value} className={`rounded-lg border px-3 py-2 text-sm transition ${eventFilter === value ? "klynx-todo-selected" : "border-transparent text-text-secondary hover:bg-surface-secondary hover:text-text"}`}>{label}</button>)}
           </div>
           {activityError && <p role="alert" className="text-sm text-danger">{activityError}</p>}
           {/* LEGEND */}
 
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            <span className="text-sm text-purple-300">● To do</span>
-            <span className="text-sm text-zinc-300">● Quotation</span>
+            <span className="text-sm font-medium text-[var(--todo-text)]">● To do</span>
+            <span className="text-sm text-text">● Quotation</span>
 
-            <div className="flex items-center gap-1.5 text-[9px] text-zinc-600">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#C8F065]" />
-              Disponible
+            <div className="flex items-center gap-1.5 text-[9px] text-muted">
+              <span className="h-1.5 w-1.5 rounded-full bg-[var(--status-available-text)]" />
+              Available
             </div>
 
-            <div className="flex items-center gap-1.5 text-[9px] text-zinc-600">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#F06AAA]" />
-              Loué
+            <div className="flex items-center gap-1.5 text-[9px] text-muted">
+              <span className="h-1.5 w-1.5 rounded-full bg-[var(--status-rented-text)]" />
+              Rented
             </div>
 
-            <div className="flex items-center gap-1.5 text-[9px] text-zinc-600">
-              <span className="h-1.5 w-1.5 rounded-full bg-blue-400" />
-              Nettoyage
+            <div className="flex items-center gap-1.5 text-[9px] text-muted">
+              <span className="h-1.5 w-1.5 rounded-full bg-[var(--status-cleaning-text)]" />
+              Cleaning
             </div>
 
-            <div className="flex items-center gap-1.5 text-[9px] text-zinc-600">
-              <span className="h-1.5 w-1.5 rounded-full bg-violet-400" />
+            <div className="flex items-center gap-1.5 text-[9px] text-muted">
+              <span className="h-1.5 w-1.5 rounded-full bg-[var(--status-maintenance-text)]" />
               Maintenance
             </div>
 
             <span className="rounded-full border border-red-400/20 bg-red-400/10 px-2 py-0.5 text-[7px] font-semibold uppercase tracking-wider text-red-400">
-              Indisponible
+              Unavailable
             </span>
           </div>
         </div>
 
-        {eventFilter !== "rentals" && view === "timeline" && <section className="mt-4 space-y-2 rounded-xl border border-purple-400/25 p-4">
-          <h2 className="font-semibold text-purple-200">To do this month</h2>
-          {activities.filter(item => item.date_deadline.startsWith(`${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}`)).map(item => <Link key={item.id} href={activityHref(item)} className="block rounded-lg bg-purple-400/10 p-3 text-sm text-purple-100"><strong>{item.date_deadline} · {item.summary || "Follow up"} · {item.res_name}</strong><p className="mt-1 line-clamp-2">{noteText(item.note)}</p></Link>)}
+        {eventFilter !== "rentals" && view === "timeline" && <section className="mt-4 space-y-2 rounded-xl border border-[var(--todo-border)] bg-[var(--todo-bg-soft)] p-4">
+          <h2 className="font-semibold text-[var(--todo-text)]">To do this month</h2>
+          {activities.filter(item => item.date_deadline.startsWith(`${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}`)).map(item => <Link key={item.id} href={activityHref(item)} className="block rounded-lg border border-[var(--todo-border)] bg-surface p-3 text-sm text-[var(--todo-text)] transition hover:bg-surface-secondary"><strong>{item.date_deadline} · {item.summary || "Follow up"} · {item.res_name}</strong><p className="mt-1 line-clamp-2">{noteText(item.note)}</p></Link>)}
         </section>}
 
         {/* ====================================================
@@ -2591,7 +2515,7 @@ export default function CalendarPage() {
             FOOTER
         ==================================================== */}
 
-        <div className="mt-4 flex items-center justify-between px-1 text-[9px] text-zinc-700">
+        <div className="mt-4 flex items-center justify-between px-1 text-[9px] text-muted">
           <span>
             Live fleet & rental data
           </span>

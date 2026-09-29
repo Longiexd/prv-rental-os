@@ -27,9 +27,9 @@ export default function KlynxLogo({
     <span
       className={`inline-flex items-center font-syne font-semibold tracking-tight ${textSize}`}
     >
-      <span className="text-white">Klyn</span>
-      <span className="text-[#C8F065]">x</span>
-      <span className="text-[#F06AAA]">OS</span>
+      <span className="text-text">KLYN</span>
+      <span className="bg-gradient-to-r from-[#C8F065] from-50% to-[#F06AAA] to-50% bg-clip-text text-transparent">X</span>
+      <span className="ml-0.5 text-[0.72em] font-medium text-pink-ink">OS</span>
     </span>
   );
 

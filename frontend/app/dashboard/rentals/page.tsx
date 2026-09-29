@@ -533,7 +533,7 @@ export default function RentalsPage() {
           <button
             type="button"
             onClick={() => openCreateForm()}
-            className="flex h-9 items-center justify-center gap-2 rounded-lg bg-lime px-4 text-xs font-medium text-background shadow-glow-lime transition hover:bg-lime-dark"
+            className="flex h-9 items-center justify-center gap-2 rounded-lg bg-lime px-4 text-xs font-medium text-[#111113] shadow-glow-lime transition hover:bg-lime-dark"
           >
             <CalendarDays size={14} />
             New booking
@@ -547,7 +547,7 @@ export default function RentalsPage() {
       ===================================================== */}
 
       <section className="mt-5 grid gap-3 sm:grid-cols-4" aria-label="Filter bookings">
-        {[["all", "All", sales.length], ["draft", "Quotations", sales.filter(sale => classifyRentalState(sale) === "draft").length], ["confirmed", "Confirmed", confirmed], ["cancelled", "Cancelled", sales.filter(sale => classifyRentalState(sale) === "cancelled").length]].map(([value, label, count]) => <button key={value} onClick={() => setBookingFilter(String(value))} aria-pressed={bookingFilter === value} className={`rounded-xl border p-4 text-left ${bookingFilter === value ? "border-lime/50 bg-lime/5" : "border-border bg-surface"}`}><span className={value === "confirmed" ? "text-lime" : value === "cancelled" ? "text-danger" : "text-text-secondary"}>{label}</span><strong className="mt-2 block text-2xl text-text">{loading ? "—" : count}</strong></button>)}
+        {[["all", "All", sales.length], ["draft", "Quotations", sales.filter(sale => classifyRentalState(sale) === "draft").length], ["confirmed", "Confirmed", confirmed], ["cancelled", "Cancelled", sales.filter(sale => classifyRentalState(sale) === "cancelled").length]].map(([value, label, count]) => <button key={value} onClick={() => setBookingFilter(String(value))} aria-pressed={bookingFilter === value} className={`rounded-xl border p-4 text-left ${bookingFilter === value ? "border-lime/50 bg-lime/5" : "border-border bg-surface"}`}><span className={value === "confirmed" ? "text-lime-ink" : value === "cancelled" ? "text-danger" : "text-text-secondary"}>{label}</span><strong className="mt-2 block text-2xl text-text">{loading ? "—" : count}</strong></button>)}
       </section>
 
       <section
@@ -563,8 +563,8 @@ export default function RentalsPage() {
           className="
             rounded-2xl
             border
-            border-[#2B2B30]
-            bg-[#111113]
+            border-border
+            bg-surface
             p-5
           "
         >
@@ -580,7 +580,7 @@ export default function RentalsPage() {
             <span
               className="
                 text-xs
-                text-zinc-500
+                text-muted
               "
             >
               Rentals
@@ -589,7 +589,7 @@ export default function RentalsPage() {
             <Car
               size={16}
               className="
-                text-[#C8F065]
+                text-lime-ink
               "
             />
 
@@ -601,7 +601,7 @@ export default function RentalsPage() {
               mt-3
               text-3xl
               font-semibold
-              text-white
+              text-text
             "
           >
             {loading
@@ -614,7 +614,7 @@ export default function RentalsPage() {
             className="
               mt-1
               text-xs
-              text-zinc-600
+              text-muted
             "
           >
             confirmed orders
@@ -627,8 +627,8 @@ export default function RentalsPage() {
           className="
             rounded-2xl
             border
-            border-[#2B2B30]
-            bg-[#111113]
+            border-border
+            bg-surface
             p-5
           "
         >
@@ -644,7 +644,7 @@ export default function RentalsPage() {
             <span
               className="
                 text-xs
-                text-zinc-500
+                text-muted
               "
             >
               Rental Value
@@ -653,7 +653,7 @@ export default function RentalsPage() {
             <CircleDollarSign
               size={16}
               className="
-                text-[#C8F065]
+                text-lime-ink
               "
             />
 
@@ -665,7 +665,7 @@ export default function RentalsPage() {
               mt-3
               text-3xl
               font-semibold
-              text-white
+              text-text
             "
           >
             {loading
@@ -678,7 +678,7 @@ export default function RentalsPage() {
             className="
               mt-1
               text-xs
-              text-zinc-600
+              text-muted
             "
           >
             sales total
@@ -729,7 +729,7 @@ export default function RentalsPage() {
               mt-3
               text-3xl
               font-semibold
-              text-white
+              text-text
             "
           >
             {loading
@@ -768,7 +768,7 @@ export default function RentalsPage() {
               left-3
               top-1/2
               -translate-y-1/2
-              text-zinc-600
+              text-muted
             "
           />
 
@@ -787,14 +787,14 @@ export default function RentalsPage() {
               w-full
               rounded-xl
               border
-              border-[#2B2B30]
-              bg-[#111113]
+              border-border
+              bg-surface
               pl-10
               pr-4
               text-sm
-              text-white
+              text-text
               outline-none
-              placeholder:text-zinc-600
+              placeholder:text-muted
               focus:border-[#C8F065]/50
             "
           />
@@ -846,13 +846,13 @@ export default function RentalsPage() {
             className="
               rounded-2xl
               border
-              border-[#2B2B30]
-              bg-[#111113]
+              border-border
+              bg-surface
               px-5
               py-14
               text-center
               text-sm
-              text-zinc-600
+              text-muted
             "
           >
             Loading rentals...
@@ -865,13 +865,13 @@ export default function RentalsPage() {
             className="
               rounded-2xl
               border
-              border-[#2B2B30]
-              bg-[#111113]
+              border-border
+              bg-surface
               px-5
               py-14
               text-center
               text-sm
-              text-zinc-600
+              text-muted
             "
           >
             No rentals found.
@@ -918,12 +918,12 @@ export default function RentalsPage() {
                     cursor-pointer
                     rounded-2xl
                     border
-                    border-[#2B2B30]
-                    bg-[#111113]
+                    border-border
+                    bg-surface
                     p-5
                     transition
-                    hover:border-[#3A3A40]
-                    hover:bg-[#151517]
+                    hover:border-strong
+                    hover:bg-surface
                   "
                 >
 
@@ -961,15 +961,15 @@ export default function RentalsPage() {
                           justify-center
                           rounded-xl
                           border
-                          border-[#2B2B30]
-                          bg-[#17171A]
+                          border-border
+                          bg-surface-secondary
                         "
                       >
 
                         <Car
                           size={19}
                           className="
-                            text-zinc-400
+                            text-text-secondary
                           "
                         />
 
@@ -997,8 +997,8 @@ export default function RentalsPage() {
                               font-mono
                               text-sm
                               font-medium
-                              text-white
-                              hover:text-[#C8F065]
+                              text-text
+                              hover:text-lime-ink
                             "
                           >
                             {sale.name}
@@ -1037,8 +1037,8 @@ export default function RentalsPage() {
                               mt-1
                               block
                               text-sm
-                              text-zinc-300
-                              hover:text-[#C8F065]
+                              text-text
+                              hover:text-lime-ink
                             "
                           >
                             {
@@ -1052,7 +1052,7 @@ export default function RentalsPage() {
                             className="
                               mt-1
                               text-sm
-                              text-zinc-300
+                              text-text
                             "
                           >
                             Unknown customer
@@ -1065,7 +1065,7 @@ export default function RentalsPage() {
                           className="
                             mt-1
                             text-xs
-                            text-zinc-600
+                            text-muted
                           "
                         >
                           {
@@ -1101,7 +1101,7 @@ export default function RentalsPage() {
                             text-[10px]
                             uppercase
                             tracking-wider
-                            text-zinc-600
+                            text-muted
                           "
                         >
                           Rental Start
@@ -1110,7 +1110,7 @@ export default function RentalsPage() {
                         <div
                           className="
                             mt-1
-                            text-zinc-300
+                            text-text
                           "
                         >
                           {
@@ -1130,7 +1130,7 @@ export default function RentalsPage() {
                             text-[10px]
                             uppercase
                             tracking-wider
-                            text-zinc-600
+                            text-muted
                           "
                         >
                           Vehicle
@@ -1139,7 +1139,7 @@ export default function RentalsPage() {
                         <div
                           className="
                             mt-1
-                            text-zinc-400
+                            text-text-secondary
                           "
                         >
                           {
@@ -1158,7 +1158,7 @@ export default function RentalsPage() {
                             text-[10px]
                             uppercase
                             tracking-wider
-                            text-zinc-600
+                            text-muted
                           "
                         >
                           Invoice
@@ -1173,7 +1173,7 @@ export default function RentalsPage() {
                                 invoice.payment_state ===
                                 "paid"
 
-                                  ? "text-[#C8F065]"
+                                  ? "text-lime-ink"
 
                                   : "text-orange-300"
                               }
@@ -1192,7 +1192,7 @@ export default function RentalsPage() {
 
                             <span
                               className="
-                                text-zinc-500
+                                text-muted
                               "
                             >
                               No invoice
@@ -1216,7 +1216,7 @@ export default function RentalsPage() {
                             text-[10px]
                             uppercase
                             tracking-wider
-                            text-zinc-600
+                            text-muted
                           "
                         >
                           Total
@@ -1226,7 +1226,7 @@ export default function RentalsPage() {
                           className="
                             mt-1
                             font-medium
-                            text-white
+                            text-text
                           "
                         >
                           {
@@ -1255,7 +1255,7 @@ export default function RentalsPage() {
                       justify-between
                       gap-3
                       border-t
-                      border-[#2B2B30]
+                      border-border
                       pt-4
                     "
                   >
@@ -1266,7 +1266,7 @@ export default function RentalsPage() {
                         items-center
                         gap-2
                         text-xs
-                        text-zinc-600
+                        text-muted
                       "
                     >
 
@@ -1290,7 +1290,7 @@ export default function RentalsPage() {
 
                           <span
                             className="
-                              text-zinc-400
+                              text-text-secondary
                             "
                           >
                             Return{" "}
@@ -1309,14 +1309,14 @@ export default function RentalsPage() {
                     <div
                       className="
                         text-xs
-                        text-zinc-600
+                        text-muted
                       "
                     >
                       Invoice status:{" "}
 
                       <span
                         className="
-                          text-zinc-400
+                          text-text-secondary
                         "
                       >
                         {
