@@ -2,13 +2,14 @@ import importlib.util
 import json
 from pathlib import Path
 import sys
+import subprocess
 from unittest.mock import patch
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "deploy"))
 from tenant_compose import compose_document, names
-from admin import Admin
+from admin import Admin, command, repair_runtime_user
 from test_tenancy import control
 
 ODOO = "odoo@sha256:" + "a"*64
@@ -27,6 +28,7 @@ def test_stacks_have_separate_names_networks_and_storage():
         assert stack["services"]["postgres"]["networks"] == ["database"]
         assert stack["networks"]["database"]["internal"] is True
         assert "external" not in stack["volumes"]["postgres-data"]
+        assert stack["services"]["odoo"]["user"] == "odoo"
 
 
 @pytest.mark.parametrize("code", ["../atlas", "atlas;touch", "atlas_name", "A", "a"*100, "atlas\n"])
@@ -71,3 +73,58 @@ def test_reprovisioning_active_company_is_rejected(control):
     with patch.object(admin, "control", return_value=control), patch.object(admin, "compose") as compose:
         with pytest.raises(ValueError): admin.resume_company("atlas")
     compose.assert_not_called()
+
+
+def test_initialization_errors_are_useful_and_redact_all_supplied_secrets():
+    secret_values = ("database-secret-for-test", "master-secret-for-test", "postgres-secret-for-test")
+    result = subprocess.CompletedProcess(["docker"], 1,
+        stdout="config password=" + secret_values[0],
+        stderr="PermissionError: [Errno 13] Permission denied: '/var/lib/odoo/sessions'\n" + " ".join(secret_values[1:]))
+    with patch("admin.subprocess.run", return_value=result), pytest.raises(RuntimeError) as error:
+        command(["docker"], diagnostic_label="Odoo database initialization", redactions=secret_values)
+    message = str(error.value)
+    assert "exit 1" in message and "PermissionError" in message and "/var/lib/odoo/sessions" in message
+    assert "[REDACTED]" in message
+    assert all(value not in message for value in secret_values)
+
+
+def test_private_shell_output_is_withheld_even_when_diagnostics_requested():
+    result = subprocess.CompletedProcess(["docker"], 1, stdout="worker-password-in-stdin", stderr="worker-password-in-stdin")
+    with patch("admin.subprocess.run", return_value=result), pytest.raises(RuntimeError) as error:
+        command(["docker"], stdin="worker-password-in-stdin", diagnostic_label="Private operation")
+    assert "worker-password" not in str(error.value)
+    assert "withheld" in str(error.value)
+
+
+def test_unlabelled_command_does_not_expose_output():
+    result = subprocess.CompletedProcess(["docker"], 137, stdout="sensitive", stderr="sensitive")
+    with patch("admin.subprocess.run", return_value=result), pytest.raises(RuntimeError) as error:
+        command(["docker"])
+    assert "exit 137" in str(error.value) and "sensitive" not in str(error.value)
+
+
+def test_runtime_user_repair_preserves_stack_configuration_and_data(tmp_path):
+    document = compose_document("staging", "atlas", ODOO, POSTGRES)
+    document["services"]["odoo"]["user"] = "101:101"
+    path = tmp_path / "compose.json"
+    path.write_text(json.dumps(document))
+    data = tmp_path / "data-sentinel"
+    data.write_bytes(b"existing-company-data")
+    repair_runtime_user(tmp_path)
+    document["services"]["odoo"]["user"] = "odoo"
+    assert json.loads(path.read_text()) == document
+    before = path.read_bytes()
+    repair_runtime_user(tmp_path)
+    assert path.read_bytes() == before
+    assert data.read_bytes() == b"existing-company-data"
+
+
+def test_cannot_emit_diagnostic_output_when_secret_file_is_missing(tmp_path):
+    admin = Admin("staging")
+    admin.root = tmp_path
+    directory = admin.directory("atlas")
+    directory.mkdir(parents=True)
+    (directory / "odoo.conf").write_text("[options]\ndb_password=test-password\nadmin_passwd=test-master\n")
+    with patch("admin.command") as run, pytest.raises(FileNotFoundError):
+        admin.compose("atlas", "up", diagnostic_label="Bootstrap")
+    run.assert_not_called()

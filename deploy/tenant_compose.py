@@ -29,7 +29,7 @@ def compose_document(environment, code, odoo_image, postgres_image):
             },
             "odoo": {
                 "image": odoo_image, "entrypoint": ["odoo"], "command": ["--config=/etc/odoo/odoo.conf"],
-                "user": "101:101", "restart": "unless-stopped", "read_only": True,
+                "user": "odoo", "restart": "unless-stopped", "read_only": True,
                 "cap_drop": ["ALL"], "security_opt": ["no-new-privileges:true"],
                 "mem_limit": "1g", "cpus": 1, "pids_limit": 256, "logging": logging,
                 "tmpfs": ["/tmp:rw,nosuid,nodev,size=128m"],

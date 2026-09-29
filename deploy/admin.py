@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """Private Klynx host tool. Run as root over SSH; never expose as a web service."""
 import argparse
+import configparser
 from contextlib import contextmanager
 import getpass
 import json
 import os
 from pathlib import Path
+import re
 import secrets
 import subprocess
 import sys
+import tempfile
 import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
@@ -17,11 +20,26 @@ from app.control import CODE, LOGIN, Control, Settings
 from tenant_compose import compose_document, names
 
 
-def command(args, *, stdin=None, timeout=1200):
-    result = subprocess.run(args, input=stdin, text=True, capture_output=True, timeout=timeout)
+def command(args, *, stdin=None, timeout=1200, diagnostic_label=None, redactions=()):
+    label = diagnostic_label or "Private administration operation"
+    try:
+        result = subprocess.run(args, input=stdin, text=True, capture_output=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(f"{label} timed out after {timeout} seconds.") from None
     if result.returncode:
-        # Docker/Odoo tracebacks may echo stdin or configuration. Never print them automatically.
-        raise RuntimeError("Operation failed. Inspect the relevant container locally; credentials were not logged by this tool.")
+        message = f"{label} failed (exit {result.returncode})."
+        # Only opted-in bootstrap operations may expose bounded, redacted output.
+        # Odoo shell stdin can contain worker passwords and must never be printed.
+        if diagnostic_label and stdin is None:
+            output = (result.stdout or "") + "\n" + (result.stderr or "")
+            for value in sorted((value for value in redactions if value), key=len, reverse=True):
+                output = output.replace(value, "[REDACTED]")
+            output = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", output)
+            output = "".join(char for char in output if char >= " " or char in "\n\t")
+            message += "\n" + output.strip()[-6000:]
+        else:
+            message += " Output withheld because it may contain credentials."
+        raise RuntimeError(message)
     return result.stdout
 
 
@@ -29,6 +47,20 @@ def write_new(path, text, mode=0o600):
     with path.open("x", encoding="utf-8", newline="\n") as handle:
         handle.write(text)
     path.chmod(mode)
+
+
+def repair_runtime_user(directory):
+    """Upgrade only the known faulty user setting in an incomplete company's stack."""
+    path = directory / "compose.json"
+    document = json.loads(path.read_text())
+    if document["services"]["odoo"].get("user") != "101:101":
+        return
+    document["services"]["odoo"]["user"] = "odoo"
+    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=directory, delete=False) as handle:
+        json.dump(document, handle, indent=2)
+        temporary = Path(handle.name)
+    temporary.chmod(0o600)
+    temporary.replace(path)
 
 
 class AdminControl(Control):
@@ -100,8 +132,16 @@ class Admin:
         names(self.environment, code)
         return self.root / "companies" / code
 
-    def compose(self, code, *args, stdin=None):
-        return command(["docker", "compose", "--project-directory", str(self.directory(code)), "-f", str(self.directory(code) / "compose.json"), *args], stdin=stdin)
+    def compose(self, code, *args, stdin=None, diagnostic_label=None):
+        redactions = []
+        if diagnostic_label:
+            # Fail closed if the secret files cannot be read: do not emit unredacted logs.
+            config = configparser.ConfigParser(interpolation=None)
+            config.read_string((self.directory(code) / "odoo.conf").read_text())
+            redactions = [config["options"]["db_password"], config["options"]["admin_passwd"],
+                          (self.directory(code) / "postgres-password").read_text().strip()]
+        return command(["docker", "compose", "--project-directory", str(self.directory(code)), "-f", str(self.directory(code) / "compose.json"), *args],
+                       stdin=stdin, diagnostic_label=diagnostic_label, redactions=redactions)
 
     def shell(self, code, operation, data):
         script = (Path(__file__).parent / "odoo_admin.py").read_text()
@@ -177,10 +217,17 @@ log_level = warn
             with control.db(True) as db:
                 db.execute("INSERT INTO companies VALUES (?,?,?,?,?)", (code, data["name"], f"http://{host}:8069", database, "provisioning"))
         try:
+            repair_runtime_user(directory)
             self.compose(code, "config", "--quiet")
-            self.compose(code, "up", "-d", "--wait", "postgres")
+            self.compose(code, "up", "-d", "--wait", "postgres", diagnostic_label=f"PostgreSQL startup for {code}")
             if not (directory / "database-ready").exists():
-                self.compose(code, "run", "--rm", "-T", "--no-deps", "odoo", "--config=/etc/odoo/odoo.conf", "--stop-after-init", "-i", "base,crm,sale_management,fleet,account", "--without-demo=all")
+                print(f"{code}: checking Odoo user and writable data volume", flush=True)
+                self.compose(code, "run", "--rm", "-T", "--no-deps", "--entrypoint", "python3", "odoo", "-c",
+                             "import os,pwd,tempfile; assert os.geteuid()!=0 and pwd.getpwuid(os.geteuid()).pw_name=='odoo', 'Expected the image Odoo account'; f=tempfile.TemporaryFile(dir='/var/lib/odoo'); f.write(b'permission-check'); f.close()",
+                             diagnostic_label=f"Odoo data-volume permission check for {code}")
+                print(f"{code}: initializing Odoo database and business modules", flush=True)
+                self.compose(code, "run", "--rm", "-T", "--no-deps", "odoo", "--config=/etc/odoo/odoo.conf", "--stop-after-init", "-i", "base,crm,sale_management,fleet,account", "--without-demo=all",
+                             diagnostic_label=f"Odoo database initialization for {code}")
                 write_new(directory / "database-ready", "initialized\n")
             self.shell(code, "configure", data)
             self.compose(code, "up", "-d", "--wait", "odoo")
