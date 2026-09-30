@@ -1,12 +1,9 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 export default function LoginPage() {
-  const router = useRouter();
-
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
@@ -39,9 +36,9 @@ export default function LoginPage() {
         return;
       }
 
-     window.location.assign("/dashboard");
-     
-         } catch {
+      // Reload after login so no previous tenant's client state survives.
+      window.location.assign("/dashboard");
+    } catch {
       setError("Unable to sign in. Please try again.");
       setLoading(false);
     }
@@ -130,7 +127,7 @@ export default function LoginPage() {
             border-border
             bg-surface/90
             p-6
-            shadow-[0_30px_100px_rgba(0,0,0,.6)]
+            shadow-card
             backdrop-blur-xl
           "
         >
@@ -161,7 +158,7 @@ export default function LoginPage() {
                 autoComplete="username"
                 value={username}
                 onChange={(event) => setUsername(event.target.value)}
-                placeholder="admin"
+                placeholder="company.username"
                 className="
                   h-10
                   w-full
@@ -217,15 +214,16 @@ export default function LoginPage() {
 
             {error && (
               <div
+                role="alert"
                 className="
                   rounded-lg
                   border
-                  border-[#54273C]
-                  bg-[#54273C]/20
+                  border-[var(--status-danger-border)]
+                  bg-[var(--status-danger-bg)]
                   px-3
                   py-2
                   text-xs
-                  text-[#F06AAA]
+                  text-[var(--status-danger-text)]
                 "
               >
                 {error}

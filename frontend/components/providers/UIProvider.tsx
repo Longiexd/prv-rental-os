@@ -120,10 +120,18 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
   const [locale, setLocaleState] = useState<KlynxLocale>("en");
 
   useEffect(() => {
-    const storedTheme = window.localStorage.getItem(THEME_KEY);
-    const storedLocale = window.localStorage.getItem(LOCALE_KEY);
+    let storedTheme: string | null = null;
+    let storedLocale: string | null = null;
+    try {
+      storedTheme = window.localStorage.getItem(THEME_KEY);
+      storedLocale = window.localStorage.getItem(LOCALE_KEY);
+    } catch {
+      // Browser privacy settings may disable storage. Preferences still work in memory.
+    }
     const nextTheme: KlynxTheme = storedTheme === "light" ? "light" : "dark";
     const nextLocale: KlynxLocale = storedLocale === "fr" ? "fr" : "en";
+    // Match the server's first render, then restore browser-only preferences after hydration.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setThemeState(nextTheme);
     setLocaleState(nextLocale);
     document.documentElement.dataset.theme = nextTheme;
@@ -132,14 +140,14 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
 
   const setTheme = useCallback((nextTheme: KlynxTheme) => {
     setThemeState(nextTheme);
-    window.localStorage.setItem(THEME_KEY, nextTheme);
     document.documentElement.dataset.theme = nextTheme;
+    try { window.localStorage.setItem(THEME_KEY, nextTheme); } catch { /* Keep the in-memory preference. */ }
   }, []);
 
   const setLocale = useCallback((nextLocale: KlynxLocale) => {
     setLocaleState(nextLocale);
-    window.localStorage.setItem(LOCALE_KEY, nextLocale);
     document.documentElement.lang = nextLocale;
+    try { window.localStorage.setItem(LOCALE_KEY, nextLocale); } catch { /* Keep the in-memory preference. */ }
   }, []);
 
   const t = useCallback((english: string) => translateExact(english, locale), [locale]);

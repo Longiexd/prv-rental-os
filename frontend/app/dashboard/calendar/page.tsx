@@ -806,7 +806,7 @@ function RentalModal({
           <Link
             href={`/dashboard/rentals/${rental.id}`}
             onClick={onClose}
-            className="flex h-11 items-center justify-between rounded-xl bg-[var(--status-available-text)] px-4 text-xs font-semibold text-black hover:bg-[#d7ff80]"
+            className="flex h-11 items-center justify-between rounded-xl bg-lime px-4 text-xs font-semibold text-black hover:bg-lime-dark"
           >
             View rentals
             <ArrowRight
@@ -1053,7 +1053,7 @@ function MonthView({
                       <span
                         className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-semibold ${
                           isSameDay(day, today)
-                            ? "bg-[var(--status-available-text)] text-black"
+                            ? "bg-lime text-black"
                             : inMonth
                               ? "text-text"
                               : "text-muted"

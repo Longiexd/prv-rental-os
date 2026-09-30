@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type QuickAddAction = {
@@ -57,14 +57,16 @@ export function QuickAddMenu({
         }
         aria-expanded={open}
         aria-haspopup="menu"
-        className="flex h-9 items-center justify-center gap-2 rounded-lg bg-lime px-4 text-xs font-medium text-[#111113] shadow-glow-lime transition hover:bg-lime-dark"
+        aria-label={label}
+        className="flex h-9 min-w-9 items-center justify-center gap-2 rounded-lg bg-lime px-2 text-xs font-medium text-[#111113] shadow-glow-lime transition hover:bg-lime-dark sm:px-4"
       >
-        {label}
+        <Plus size={16} className="sm:hidden" aria-hidden="true" />
+        <span className="hidden sm:inline">{label}</span>
 
         <ChevronDown
           size={13}
           className={cn(
-            "transition-transform",
+            "hidden transition-transform sm:block",
             open && "rotate-180"
           )}
         />

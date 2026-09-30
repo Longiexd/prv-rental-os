@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   Bell,
   BarChart3,
@@ -85,7 +85,6 @@ export default function OSLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const router = useRouter();
   const { theme, locale, setTheme, setLocale, t } = useKlynxUI();
 
   const [addRentalOpen, setAddRentalOpen] = useState(false);
@@ -94,12 +93,14 @@ export default function OSLayout({
 
   const { due } = useReminders();
 
-  const handleLogout = () => {
-    document.cookie =
-      "klynx_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
-
-    router.replace("/login");
-    router.refresh();
+  const handleLogout = async () => {
+    try {
+      const response = await fetch("/api/auth", { method: "DELETE" });
+      if (!response.ok) throw new Error("Sign out failed");
+      window.location.assign("/login");
+    } catch {
+      window.alert("Could not finish signing out. Please retry.");
+    }
   };
 
   const isActive = (href: string) =>
@@ -213,7 +214,7 @@ export default function OSLayout({
         <div className="min-w-0 flex-1">
 
           {/* Header */}
-          <header className="flex h-[70px] items-center justify-between gap-3 border-b border-border bg-chrome px-4 sm:px-7">
+          <header className="flex min-h-[70px] flex-wrap items-center justify-between gap-3 border-b border-border bg-chrome px-4 py-3 sm:px-7 lg:h-[70px] lg:flex-nowrap lg:py-0">
 
             {/* Mobile Klynx logo */}
             <Link
@@ -257,11 +258,11 @@ export default function OSLayout({
                 {locale.toUpperCase()}
               </button>
 
-              <div className="klynx-control" aria-label="Theme">
-                <button type="button" data-active={theme === "light"} onClick={() => setTheme("light")} aria-label="Light mode" title="Light mode">
+              <div className="klynx-control inline-flex" aria-label="Theme">
+                <button type="button" data-active={theme === "light"} aria-pressed={theme === "light"} onClick={() => setTheme("light")} aria-label="Light mode" title="Light mode">
                   <Sun size={14} />
                 </button>
-                <button type="button" data-active={theme === "dark"} onClick={() => setTheme("dark")} aria-label="Dark mode" title="Dark mode">
+                <button type="button" data-active={theme === "dark"} aria-pressed={theme === "dark"} onClick={() => setTheme("dark")} aria-label="Dark mode" title="Dark mode">
                   <Moon size={14} />
                 </button>
               </div>

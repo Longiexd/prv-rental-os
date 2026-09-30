@@ -2,9 +2,8 @@ from datetime import date
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
-from urllib.parse import urljoin
+from fastapi.responses import Response
 
-from app.config import ODOO_URL
 
 from app.odoo_client import odoo
 
@@ -338,6 +337,11 @@ def post_invoice(invoice_id: int):
 @router.get("/{invoice_id}/print-link")
 def invoice_print_link(invoice_id: int):
     invoice_record(invoice_id)
-    path = odoo.execute("account.move", "get_portal_url", [[invoice_id]],
-                        {"report_type": "pdf", "download": True})
-    return {"url": urljoin(ODOO_URL or "", path)}
+    return {"url": f"/api/backend/invoices/{invoice_id}/document"}
+
+
+@router.get("/{invoice_id}/document")
+def invoice_document(invoice_id: int):
+    invoice_record(invoice_id)
+    return Response(odoo.document("account.report_invoice_with_payments", invoice_id), media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="invoice-{invoice_id}.pdf"'})
