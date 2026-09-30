@@ -52,7 +52,12 @@ def main():
                 except RuntimeError:
                     if attempt == 29: raise
                     time.sleep(1)
-            print(command(["docker", "exec", container, "python", "/checks/smoke.py"]))
+            # The smoke runner prints only phase names and HTTP status codes. Opt in to
+            # bounded diagnostics and still redact every secret available to this host.
+            redactions = [account["password"] for account in credentials]
+            redactions.extend((admin.keys / name).read_text().strip() for name in ("session.key", "proxy.key"))
+            print(command(["docker", "exec", container, "python", "/checks/smoke.py"],
+                          diagnostic_label="Two-company API smoke test", redactions=redactions))
             # A failed reset must stay disabled; successful resets must replace the Odoo password.
             admin.user("disable-user", codes[1], "sarah")
             assert admin.control().lookup(codes[1], "sarah") is None

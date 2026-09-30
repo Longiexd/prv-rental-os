@@ -19,38 +19,55 @@ def request(method, path, token=None, **kwargs):
     return response
 
 
-tokens = []
-for account in data:
-    response = request("POST", "/auth/login", json=account)
-    assert response.status_code == 200, f"Odoo login returned {response.status_code}"
-    tokens.append(response.json()["token"])
-assert request("POST", "/auth/login", json={"username": data[0]["username"], "password": data[1]["password"]}).status_code == 401
-assert requests.get(base+"/cars", timeout=10).status_code == 401
+def expect(response, status, operation):
+    """Report only the operation and HTTP status; response bodies can contain private data."""
+    if response.status_code != status:
+        raise RuntimeError(f"{operation}: expected HTTP {status}, got HTTP {response.status_code}")
 
+
+def phase(message):
+    print(f"smoke: {message}", flush=True)
+
+
+tokens = []
+phase("authenticating both isolated company users")
+for index, account in enumerate(data, start=1):
+    response = request("POST", "/auth/login", json=account)
+    expect(response, 200, f"company {index} login")
+    tokens.append(response.json()["token"])
+expect(request("POST", "/auth/login", json={"username": data[0]["username"], "password": data[1]["password"]}), 401, "cross-company password rejection")
+expect(requests.get(base+"/cars", timeout=10), 401, "request without proxy credentials")
+
+phase("creating tenant A data and checking tenant B isolation")
 created = request("POST", "/customers", tokens[0], json={"name": "Tenant A private customer", "phone": "123", "email": "test@example.invalid", "description": "CI isolation check"})
-assert created.status_code == 200, f"Customer creation returned {created.status_code}"
+expect(created, 200, "tenant A customer creation")
 for index, token in enumerate(tokens):
     response = request("GET", "/customers/search?q=Tenant%20A%20private%20customer&db=wrong", token)
-    assert response.status_code == 200
-    assert bool(response.json()["matches"]) == (index == 0), "Cross-company customer exposure"
+    expect(response, 200, f"company {index + 1} customer search")
+    if bool(response.json()["matches"]) != (index == 0):
+        raise RuntimeError(f"company {index + 1} customer isolation check failed")
+    phase(f"checking company {index + 1} business routes")
     for path in ("/cars", "/customers", "/crm/leads", "/sales", "/invoices", "/rentals/options", "/calendar", "/analytics", "/activities"):
         result = request("GET", path, token)
-        assert result.status_code == 200, f"Business role cannot access {path}: {result.status_code}"
-    assert request("POST", "/admin/users", token, json={}).status_code == 404
+        expect(result, 200, f"company {index + 1} business route {path}")
+    expect(request("POST", "/admin/users", token, json={}), 404, f"company {index + 1} private admin route")
 
 
 def sample(index):
     started = time.monotonic()
     response = request("GET", "/cars", tokens[index % 2])
-    assert response.status_code == 200
+    expect(response, 200, f"concurrent read {index + 1}")
     return time.monotonic()-started
 
 
+phase("checking bounded concurrent reads")
 with ThreadPoolExecutor(max_workers=4) as pool:
     samples = sorted(pool.map(sample, range(20)))
-assert samples[-1] < 15, "Small empty-company read exceeded the CI latency budget"
+if samples[-1] >= 15:
+    raise RuntimeError("Small empty-company read exceeded the CI latency budget")
 print(f"Concurrent two-company reads: median={statistics.median(samples):.3f}s p95={samples[18]:.3f}s")
-assert request("DELETE", "/auth/session", tokens[0]).status_code == 200
-assert request("GET", "/cars", tokens[0]).status_code == 401
-assert request("GET", "/cars", tokens[1]).status_code == 200
+phase("checking logout revocation and unaffected tenant session")
+expect(request("DELETE", "/auth/session", tokens[0]), 200, "company 1 logout")
+expect(request("GET", "/cars", tokens[0]), 401, "revoked company 1 session")
+expect(request("GET", "/cars", tokens[1]), 200, "unaffected company 2 session")
 print("Real Odoo login, business access, company separation, logout and bounded concurrency passed.")

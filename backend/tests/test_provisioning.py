@@ -111,6 +111,21 @@ def test_unlabelled_command_does_not_expose_output():
     assert "exit 137" in str(error.value) and "sensitive" not in str(error.value)
 
 
+def test_integration_smoke_diagnostics_are_bounded_and_redacted():
+    secret_values = ("worker-password-for-test", "session-key-for-test", "proxy-key-for-test")
+    result = subprocess.CompletedProcess(
+        ["docker"], 1,
+        stdout="smoke: authenticating both isolated company users\n",
+        stderr=f"RuntimeError: company 1 login: expected HTTP 200, got HTTP 502\n{secret_values[0]}",
+    )
+    with patch("admin.subprocess.run", return_value=result), pytest.raises(RuntimeError) as error:
+        command(["docker"], diagnostic_label="Two-company API smoke test", redactions=secret_values)
+    message = str(error.value)
+    assert "company 1 login: expected HTTP 200, got HTTP 502" in message
+    assert "smoke: authenticating both isolated company users" in message
+    assert all(value not in message for value in secret_values)
+
+
 def test_runtime_user_repair_preserves_stack_configuration_and_data(tmp_path):
     document = compose_document("staging", "atlas", ODOO, POSTGRES)
     document["services"]["odoo"]["user"] = "101:101"
