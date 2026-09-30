@@ -47,7 +47,7 @@ for index, token in enumerate(tokens):
     if bool(response.json()["matches"]) != (index == 0):
         raise RuntimeError(f"company {index + 1} customer isolation check failed")
     phase(f"checking company {index + 1} business routes")
-    for path in ("/cars", "/customers", "/crm/leads", "/sales", "/invoices", "/rentals/options", "/calendar", "/analytics", "/activities"):
+    for path in ("/cars", "/customers", "/crm/leads", "/sales", "/invoices", "/rentals/options", "/calendar?start=2026-01-01&end=2026-12-31", "/analytics", "/activities"):
         result = request("GET", path, token)
         expect(result, 200, f"company {index + 1} business route {path}")
     expect(request("POST", "/admin/users", token, json={}), 404, f"company {index + 1} private admin route")
