@@ -40,3 +40,6 @@ services:
 networks:
   api-staging:
     name: klynx-api-staging
+  odoo-staging:
+    external: true
+    name: klynx-odoo-staging
