@@ -18,15 +18,17 @@ const GLOW: Record<StatusTone, string> = {
   muted: "bg-muted/[0.10]",
   amber: "bg-amber-400/[0.10]",
   blue: "bg-blue-400/[0.10]",
+  violet: "bg-violet-400/[0.10]",
 };
 
 const ICON_COLOR: Record<StatusTone, string> = {
-  lime: "text-lime",
-  pink: "text-pink",
+  lime: "text-lime-ink",
+  pink: "text-pink-ink",
   danger: "text-danger",
   muted: "text-muted",
   amber: "text-amber-400",
   blue: "text-blue-400",
+  violet: "text-violet-400",
 };
 
 // The one KPI card definition for the whole app. Previously

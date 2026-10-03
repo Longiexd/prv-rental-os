@@ -10,13 +10,15 @@
     "dev:vinext": "vinext dev --port 3001",
     "build:vinext": "vinext build",
     "start:vinext": "wrangler dev --config dist/server/wrangler.json",
-    "deploy:vinext": "vinext build && vinext-cloudflare deploy --config dist/server/wrangler.json"
+    "deploy:vinext": "vinext build && vinext-cloudflare deploy --config dist/server/wrangler.json",
+    "deploy:staging": "vinext-cloudflare deploy --env staging",
+    "deploy:production": "vinext-cloudflare deploy --env production"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.30.0",
-    "next": "^16.3.5",
+    "next": "16.3.5",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "tailwind-merge": "^3.6.0"
@@ -27,7 +29,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@vinext/cloudflare": "^1.0.0-beta.8",
+    "@vinext/cloudflare": "1.0.0-beta.8",
     "@vitejs/plugin-react": "^6.1.1",
     "@vitejs/plugin-rsc": "^0.5.35",
     "eslint": "^9",
@@ -35,7 +37,7 @@
     "react-server-dom-webpack": "^19.2.8",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "vinext": "^1.0.0-beta.10",
+    "vinext": "1.0.0-beta.10",
     "vite": "^8.3.0",
     "wrangler": "^4.132.0"
   },

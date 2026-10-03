@@ -1,40 +1,47 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 export default function LoginPage() {
-  const router = useRouter();
-
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     setError("");
     setLoading(true);
 
-    // ---------------------------------------------------------
-    // DEMO AUTH
-    // ---------------------------------------------------------
+    try {
+      const response = await fetch("/api/auth", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username,
+          password,
+        }),
+      });
 
-    if (username === "admin" && password === "admin") {
-      document.cookie =
-        "klynx_session=demo; path=/; max-age=86400; SameSite=Lax";
+      const data = await response.json();
 
-      router.push("/dashboard");
-      router.refresh();
+      if (!response.ok) {
+        setError(data.message || "Invalid username or password.");
+        setLoading(false);
+        return;
+      }
 
-      return;
+      // Reload after login so no previous tenant's client state survives.
+      window.location.assign("/dashboard");
+    } catch {
+      setError("Unable to sign in. Please try again.");
+      setLoading(false);
     }
-
-    setError("Invalid username or password.");
-    setLoading(false);
   }
 
   return (
@@ -46,18 +53,16 @@ export default function LoginPage() {
         items-center
         justify-center
         overflow-hidden
-        bg-[#09090B]
+        bg-background
         px-6
-        text-white
+        text-text
       "
     >
-
       {/* =========================================================
           AMBIENT BACKGROUND
       ========================================================= */}
 
       <div className="pointer-events-none absolute inset-0">
-
         <div
           className="
             absolute
@@ -84,20 +89,16 @@ export default function LoginPage() {
             blur-[160px]
           "
         />
-
       </div>
-
 
       {/* =========================================================
           LOGIN
       ========================================================= */}
 
       <div className="relative w-full max-w-[390px]">
-
         {/* Logo */}
 
         <div className="mb-8 text-center">
-
           <Link
             href="/"
             className="
@@ -112,12 +113,10 @@ export default function LoginPage() {
             <span className="text-[#F06AAA]">OS</span>
           </Link>
 
-          <p className="mt-2 text-sm text-[#71717A]">
+          <p className="mt-2 text-sm text-muted">
             Rental business operating system
           </p>
-
         </div>
-
 
         {/* Card */}
 
@@ -125,39 +124,30 @@ export default function LoginPage() {
           className="
             rounded-2xl
             border
-            border-[#2B2B30]
-            bg-[#111113]/90
+            border-border
+            bg-surface/90
             p-6
-            shadow-[0_30px_100px_rgba(0,0,0,.6)]
+            shadow-card
             backdrop-blur-xl
           "
         >
-
           <div className="mb-6">
-
             <h1 className="font-[Syne] text-xl font-semibold">
               Welcome back
             </h1>
 
-            <p className="mt-1 text-sm text-[#71717A]">
+            <p className="mt-1 text-sm text-muted">
               Sign in to your workspace.
             </p>
-
           </div>
 
-
-          <form
-            onSubmit={handleSubmit}
-            className="space-y-4"
-          >
-
+          <form onSubmit={handleSubmit} className="space-y-4">
             {/* Username */}
 
             <div>
-
               <label
                 htmlFor="username"
-                className="mb-2 block text-xs text-[#A1A1AA]"
+                className="mb-2 block text-xs text-text-secondary"
               >
                 Username
               </label>
@@ -167,36 +157,31 @@ export default function LoginPage() {
                 type="text"
                 autoComplete="username"
                 value={username}
-                onChange={(event) =>
-                  setUsername(event.target.value)
-                }
-                placeholder="admin"
+                onChange={(event) => setUsername(event.target.value)}
+                placeholder="company.username"
                 className="
                   h-10
                   w-full
                   rounded-lg
                   border
-                  border-[#2B2B30]
-                  bg-[#09090B]
+                  border-border
+                  bg-background
                   px-3
                   text-sm
                   outline-none
                   transition
-                  placeholder:text-[#52525B]
+                  placeholder:text-muted
                   focus:border-[#C8F065]/50
                 "
               />
-
             </div>
-
 
             {/* Password */}
 
             <div>
-
               <label
                 htmlFor="password"
-                className="mb-2 block text-xs text-[#A1A1AA]"
+                className="mb-2 block text-xs text-text-secondary"
               >
                 Password
               </label>
@@ -206,48 +191,44 @@ export default function LoginPage() {
                 type="password"
                 autoComplete="current-password"
                 value={password}
-                onChange={(event) =>
-                  setPassword(event.target.value)
-                }
+                onChange={(event) => setPassword(event.target.value)}
                 placeholder="••••••••"
                 className="
                   h-10
                   w-full
                   rounded-lg
                   border
-                  border-[#2B2B30]
-                  bg-[#09090B]
+                  border-border
+                  bg-background
                   px-3
                   text-sm
                   outline-none
                   transition
-                  placeholder:text-[#52525B]
+                  placeholder:text-muted
                   focus:border-[#C8F065]/50
                 "
               />
-
             </div>
-
 
             {/* Error */}
 
             {error && (
               <div
+                role="alert"
                 className="
                   rounded-lg
                   border
-                  border-[#54273C]
-                  bg-[#54273C]/20
+                  border-[var(--status-danger-border)]
+                  bg-[var(--status-danger-bg)]
                   px-3
                   py-2
                   text-xs
-                  text-[#F06AAA]
+                  text-[var(--status-danger-text)]
                 "
               >
                 {error}
               </div>
             )}
-
 
             {/* Submit */}
 
@@ -270,18 +251,13 @@ export default function LoginPage() {
             >
               {loading ? "Opening workspace..." : "Sign in"}
             </button>
-
           </form>
-
         </div>
 
-
-        <p className="mt-5 text-center text-[11px] text-[#52525B]">
+        <p className="mt-5 text-center text-[11px] text-muted">
           Klynx OS · Demo environment
         </p>
-
       </div>
-
     </main>
   );
 }

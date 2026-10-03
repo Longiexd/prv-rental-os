@@ -1,4 +1,5 @@
 import unittest
+from datetime import date, timedelta
 from unittest.mock import patch
 
 from fastapi import HTTPException
@@ -8,6 +9,7 @@ from app.routes import activities
 
 class ActivityTests(unittest.TestCase):
     def setUp(self):
+        self.future_date = (date.today() + timedelta(days=7)).isoformat()
         self.calls = []
         self.stage = 1
         self.category = "phonecall"
@@ -32,7 +34,12 @@ class ActivityTests(unittest.TestCase):
         if model == "mail.activity.type":
             return [{"id": 7, "name": "Appeler", "category": "phonecall"}]
         if model == "ir.model":
-            return [{"id": 25}]
+            raise AssertionError("Direct ir.model access must not be used")
+        if model == "mail.activity" and method == "default_get":
+            self.assertEqual(args, [["res_model", "res_model_id"]])
+            target_model = kwargs["context"]["default_res_model"]
+            self.assertIn(target_model, ("crm.lead", "sale.order"))
+            return {"res_model": target_model, "res_model_id": 25}
         if model == "mail.activity" and method == "create":
             self.values = args[0]
             return 10
@@ -51,11 +58,18 @@ class ActivityTests(unittest.TestCase):
     def test_creates_native_activity_with_real_model_and_escaped_notes(self):
         result = activities.create_activity(activities.ActivityCreate(
             lead_id=42, activity_type_id=7, summary=" Call Mariem ",
-            date_deadline="2026-09-15", note="<script>alert(1)</script>\nDiscuss dates"))
+            date_deadline=self.future_date, note="<script>alert(1)</script>\nDiscuss dates"))
         self.assertEqual(result["activity_id"], 10)
         self.assertEqual(self.values["res_model_id"], 25)
         self.assertEqual(self.values["res_id"], 42)
         self.assertEqual(self.values["summary"], "Call Mariem")
+        self.assertIn(
+            ("mail.activity", "default_get",
+             [["res_model", "res_model_id"]],
+             {"context": {"default_res_model": "crm.lead"}}),
+            self.calls,
+        )
+        self.assertFalse(any(model == "ir.model" for model, _, _, _ in self.calls))
         self.assertNotIn("<script>", self.values["note"])
 
     def test_booking_call_completes_without_changing_prospect_stage(self):
@@ -66,11 +80,36 @@ class ActivityTests(unittest.TestCase):
 
     def test_booking_reminder_uses_sale_model_and_original_record(self):
         activities.create_activity(activities.ActivityCreate(
-            sale_id=42, activity_type_id=7, summary="Email invoice", date_deadline="2026-09-15"))
-        self.assertIn(("ir.model", "search_read", [[["model", "=", "sale.order"]]],
-                       {"fields": ["id"], "limit": 1}), self.calls)
+            sale_id=42, activity_type_id=7, summary="Email invoice", date_deadline=self.future_date))
+        self.assertIn(
+            ("mail.activity", "default_get",
+             [["res_model", "res_model_id"]],
+             {"context": {"default_res_model": "sale.order"}}),
+            self.calls,
+        )
+        self.assertEqual(self.values["res_model_id"], 25)
+        self.assertFalse(any(model == "ir.model" for model, _, _, _ in self.calls))
         self.assertEqual(self.values["res_id"], 42)
         self.assertFalse(any(model == "crm.lead" for model, _, _, _ in self.calls))
+
+    def test_missing_model_defaults_never_creates_activity(self):
+        def execute_without_defaults(model, method, args=None, kwargs=None):
+            if model == "mail.activity" and method == "default_get":
+                self.calls.append((model, method, args, kwargs))
+                return {}
+            return self.execute(model, method, args, kwargs)
+
+        with patch.object(
+            activities.odoo, "execute", side_effect=execute_without_defaults
+        ):
+            with self.assertRaises(HTTPException) as caught:
+                activities.create_activity(activities.ActivityCreate(
+                    sale_id=42, activity_type_id=7, summary="Booking reminder",
+                    date_deadline=self.future_date,
+                ))
+
+        self.assertEqual(caught.exception.status_code, 409)
+        self.assertFalse(any(method == "create" for _, method, _, _ in self.calls))
 
     def test_activity_types_only_query_calls_and_email(self):
         activities.activity_types("sale.order")
@@ -83,13 +122,13 @@ class ActivityTests(unittest.TestCase):
         for ids in [{}, {"lead_id": 42, "sale_id": 42}]:
             with self.assertRaises(HTTPException):
                 activities.create_activity(activities.ActivityCreate(
-                    **ids, activity_type_id=7, summary="Call", date_deadline="2026-09-15"))
+                    **ids, activity_type_id=7, summary="Call", date_deadline=self.future_date))
         self.assertFalse(self.calls)
 
     def test_unknown_activity_type_never_writes(self):
         with self.assertRaises(HTTPException):
             activities.create_activity(activities.ActivityCreate(
-                lead_id=42, activity_type_id=999, summary="Call", date_deadline="2026-09-15"))
+                lead_id=42, activity_type_id=999, summary="Call", date_deadline=self.future_date))
         self.assertFalse(any(method == "create" for _, method, _, _ in self.calls))
 
     def test_completing_call_moves_to_existing_contacted_stage(self):
@@ -130,7 +169,6 @@ class ActivityTests(unittest.TestCase):
         self.assertIn("no unique", result["warning"])
 
     def test_list_filters_native_crm_activities_by_dates(self):
-        from datetime import date
         activities.list_activities(lead_id=42, date_from=date(2026, 9, 1), date_to=date(2026, 9, 30))
         domain = self.calls[-1][2][0]
         self.assertIn(["res_model", "=", "crm.lead"], domain)

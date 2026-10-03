@@ -1,0 +1,29 @@
+name: Tenant integration
+
+on:
+  workflow_call:
+  pull_request:
+    branches: [staging, main]
+
+permissions:
+  contents: read
+
+jobs:
+  compose-isolation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install test dependencies
+        run: python -m pip install -r backend/requirements.txt
+      - name: Resolve official images for the disposable test
+        run: |
+          docker pull odoo:18
+          docker pull postgres:15
+          echo "ODOO_IMAGE=$(docker image inspect --format '{{index .RepoDigests 0}}' odoo:18)" >> "$GITHUB_ENV"
+          echo "POSTGRES_IMAGE=$(docker image inspect --format '{{index .RepoDigests 0}}' postgres:15)" >> "$GITHUB_ENV"
+      - name: Provision two companies and verify real Odoo separation
+        run: sudo --preserve-env=GITHUB_ACTIONS,ODOO_IMAGE,POSTGRES_IMAGE "$(command -v python)" deploy/integration_check.py
