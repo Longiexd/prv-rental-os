@@ -34,7 +34,12 @@ class ActivityTests(unittest.TestCase):
         if model == "mail.activity.type":
             return [{"id": 7, "name": "Appeler", "category": "phonecall"}]
         if model == "ir.model":
-            return [{"id": 25}]
+            raise AssertionError("Direct ir.model access must not be used")
+        if model == "mail.activity" and method == "default_get":
+            self.assertEqual(args, [["res_model", "res_model_id"]])
+            target_model = kwargs["context"]["default_res_model"]
+            self.assertIn(target_model, ("crm.lead", "sale.order"))
+            return {"res_model": target_model, "res_model_id": 25}
         if model == "mail.activity" and method == "create":
             self.values = args[0]
             return 10
@@ -58,6 +63,13 @@ class ActivityTests(unittest.TestCase):
         self.assertEqual(self.values["res_model_id"], 25)
         self.assertEqual(self.values["res_id"], 42)
         self.assertEqual(self.values["summary"], "Call Mariem")
+        self.assertIn(
+            ("mail.activity", "default_get",
+             [["res_model", "res_model_id"]],
+             {"context": {"default_res_model": "crm.lead"}}),
+            self.calls,
+        )
+        self.assertFalse(any(model == "ir.model" for model, _, _, _ in self.calls))
         self.assertNotIn("<script>", self.values["note"])
 
     def test_booking_call_completes_without_changing_prospect_stage(self):
@@ -69,10 +81,35 @@ class ActivityTests(unittest.TestCase):
     def test_booking_reminder_uses_sale_model_and_original_record(self):
         activities.create_activity(activities.ActivityCreate(
             sale_id=42, activity_type_id=7, summary="Email invoice", date_deadline=self.future_date))
-        self.assertIn(("ir.model", "search_read", [[["model", "=", "sale.order"]]],
-                       {"fields": ["id"], "limit": 1}), self.calls)
+        self.assertIn(
+            ("mail.activity", "default_get",
+             [["res_model", "res_model_id"]],
+             {"context": {"default_res_model": "sale.order"}}),
+            self.calls,
+        )
+        self.assertEqual(self.values["res_model_id"], 25)
+        self.assertFalse(any(model == "ir.model" for model, _, _, _ in self.calls))
         self.assertEqual(self.values["res_id"], 42)
         self.assertFalse(any(model == "crm.lead" for model, _, _, _ in self.calls))
+
+    def test_missing_model_defaults_never_creates_activity(self):
+        def execute_without_defaults(model, method, args=None, kwargs=None):
+            if model == "mail.activity" and method == "default_get":
+                self.calls.append((model, method, args, kwargs))
+                return {}
+            return self.execute(model, method, args, kwargs)
+
+        with patch.object(
+            activities.odoo, "execute", side_effect=execute_without_defaults
+        ):
+            with self.assertRaises(HTTPException) as caught:
+                activities.create_activity(activities.ActivityCreate(
+                    sale_id=42, activity_type_id=7, summary="Booking reminder",
+                    date_deadline=self.future_date,
+                ))
+
+        self.assertEqual(caught.exception.status_code, 409)
+        self.assertFalse(any(method == "create" for _, method, _, _ in self.calls))
 
     def test_activity_types_only_query_calls_and_email(self):
         activities.activity_types("sale.order")
