@@ -49,6 +49,6 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       - run: npx tsc --noEmit
-      - run: node --test lib/proxy-security.test.mjs ../deploy/verify-worker.test.mjs
+      - run: node --experimental-strip-types --test lib/proxy-security.test.mjs lib/fleet-bookings.test.mjs ../deploy/verify-worker.test.mjs
       - run: npm run build:vinext
       - run: python ../deploy/test_frontend_proxy.py
