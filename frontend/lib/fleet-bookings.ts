@@ -33,3 +33,48 @@ export function getVehicleBookings<T extends FleetBooking>(vehicleId: number, sa
     (a.date_order || "").localeCompare(b.date_order || "") || a.id - b.id);
   return { rental: confirmed[0] || null, quotations };
 }
+
+export type NextVehicleState = "Nettoyage" | "Disponible" | "Maintenance";
+export type ReturnRecord = {
+  status: "pending" | "completed";
+  order_id: number;
+  vehicle_id: number;
+  returned_at: string;
+  odometer: number | null;
+  previous_odometer: number;
+  odometer_unit: "kilometers" | "miles";
+  next_state: NextVehicleState;
+  return_notes: string;
+  damage_notes: string;
+};
+export type ReturnForm = {
+  orderId: string; odometer: string; nextState: NextVehicleState;
+  returnNotes: string; damageNotes: string;
+};
+
+export function odometerUnit(unit: string | null | undefined) {
+  return unit === "miles" ? "mi" : "km";
+}
+
+export function buildReturnPayload(form: ReturnForm, currentOdometer: number, pending?: ReturnRecord | null) {
+  const orderId = Number(form.orderId);
+  const odometer = Number(form.odometer);
+  if (!Number.isSafeInteger(orderId) || orderId <= 0) throw new Error("Choose the booking to return.");
+  if (!Number.isFinite(currentOdometer) || currentOdometer < 0) throw new Error("The saved odometer reading is invalid. Refresh the vehicle.");
+  if (pending) {
+    if (pending.status !== "pending" || pending.order_id !== orderId) throw new Error("Refresh the saved return details.");
+    if (pending.odometer !== null && (!Number.isFinite(pending.odometer) || pending.odometer < currentOdometer)) {
+      throw new Error("The vehicle's reading has changed since this return. Review it before retrying.");
+    }
+    return { order_id: orderId, odometer: pending.odometer, next_state: pending.next_state,
+      return_notes: pending.return_notes, damage_notes: pending.damage_notes };
+  }
+  if (!form.odometer.trim() || !Number.isFinite(odometer) || odometer < 0) {
+    throw new Error("Enter the vehicle's current odometer reading.");
+  }
+  if (odometer < currentOdometer) throw new Error(`Odometer cannot be below the saved reading (${currentOdometer}).`);
+  if (!["Nettoyage", "Disponible", "Maintenance"].includes(form.nextState)) throw new Error("Choose the vehicle's next state.");
+  if (form.returnNotes.length > 4000 || form.damageNotes.length > 4000) throw new Error("Keep each note within 4,000 characters.");
+  return { order_id: orderId, odometer, next_state: form.nextState,
+    return_notes: form.returnNotes.trim(), damage_notes: form.damageNotes.trim() };
+}

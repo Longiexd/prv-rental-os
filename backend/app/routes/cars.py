@@ -1,9 +1,14 @@
-from datetime import date
+from datetime import datetime, timezone
+import math
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.odoo_client import odoo
+from app.core.record_metadata import write_metadata
+from app.verticals.car_rental.returns import (
+    RETURN_RECORD_KEY, ReturnRecord, can_return, return_record,
+)
 from app.routes.calendar import QUOTATION_TAG, booking_status, rental_vehicle_id
 from app.verticals.car_rental.states import (
     PICKED_UP_TAG, RETURNED_TAG, booking_state, group_bookings,
@@ -79,6 +84,8 @@ def get_active_orders_for_vehicle(vehicle_id: int) -> list[dict]:
         {
             "fields": [
                 "id",
+                "name",
+                "partner_id",
                 "note",
                 "state",
                 "date_order",
@@ -163,18 +170,38 @@ class ReturnRequest(BaseModel):
     # agent's call based on the car's actual condition, not
     # forced through cleaning if it doesn't need it.
     next_state: str = "Nettoyage"
+    order_id: int | None = Field(default=None, gt=0)
+    odometer: float | None = Field(default=None, ge=0, allow_inf_nan=False, strict=True)
+    return_notes: str = Field(default="", max_length=4000)
+    damage_notes: str = Field(default="", max_length=4000)
+
+
+def return_vehicle(vehicle_id: int):
+    records = odoo.execute("fleet.vehicle", "search_read", [[["id", "=", vehicle_id]]], {
+        "fields": ["id", "name", "license_plate", "active", "state_id", "odometer", "odometer_unit"], "limit": 1,
+    })
+    if not records:
+        raise HTTPException(404, "Vehicle not found.")
+    return records[0]
+
+
+@router.get("/{vehicle_id}/return-options")
+def return_options(vehicle_id: int):
+    vehicle = return_vehicle(vehicle_id)
+    orders = [order for order in get_active_orders_for_vehicle(vehicle_id) if can_return(order)]
+    return {"vehicle": {key: vehicle.get(key) for key in
+                       ("id", "name", "license_plate", "odometer", "odometer_unit")},
+            "bookings": [{"id": order["id"], "name": order.get("name") or f"Booking #{order['id']}",
+                          "customer": order["partner_id"][1] if order.get("partner_id") else None,
+                          "pickup_date": order.get("date_order"), "return_date": order.get("commitment_date"),
+                          "pending_return": record.model_dump(mode="json") if
+                          (record := return_record(order.get("note"))) and record.status == "pending" else None}
+                         for order in orders]}
 
 
 @router.post("/{vehicle_id}/return")
 def confirm_return(vehicle_id: int, body: ReturnRequest = ReturnRequest()):
-    """
-    "Véhicule retourné" — marks the active booking as returned
-    and moves the vehicle to whichever state the agent picked
-    (Nettoyage by default, matching "after return, suggest
-    cleaning" — but Disponible or Maintenance are valid too,
-    e.g. a car returned in perfect condition doesn't need to
-    sit in a cleaning queue).
-    """
+    """Return one booking; retain a recoverable record across separate RPCs."""
 
     if body.next_state not in ("Nettoyage", "Disponible", "Maintenance"):
         raise HTTPException(
@@ -182,37 +209,79 @@ def confirm_return(vehicle_id: int, body: ReturnRequest = ReturnRequest()):
             detail="next_state must be Nettoyage, Disponible, or Maintenance.",
         )
 
-    orders = [order for order in get_active_orders_for_vehicle(vehicle_id)
-              if (order.get("date_order") or "9999")[:10] <= date.today().isoformat()]
+    if body.order_id:
+        records = odoo.execute("sale.order", "search_read", [[["id", "=", body.order_id]]], {
+            "fields": ["id", "note", "state", "date_order"], "limit": 1,
+        })
+        if not records:
+            raise HTTPException(404, "Booking not found.")
+        order = records[0]
+        if rental_vehicle_id(order.get("note")) != vehicle_id:
+            raise HTTPException(409, "This booking belongs to a different vehicle.")
+    else:
+        orders = [order for order in get_active_orders_for_vehicle(vehicle_id) if can_return(order)]
+        if len(orders) != 1:
+            raise HTTPException(409, "Choose the booking to return. No unique collected booking is available.")
+        order = orders[0]
 
-    if not orders:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "This vehicle has no active booking to return "
-                "— it may already have been marked returned."
-            ),
-        )
+    note = order.get("note") or ""
+    saved = return_record(note)
+    if f"[Klynx metadata:{RETURN_RECORD_KEY}:" in note and not saved:
+        raise HTTPException(409, "The saved return cannot be read. Review it in Odoo before returning this booking.")
+    if saved and (saved.order_id != order["id"] or saved.vehicle_id != vehicle_id):
+        raise HTTPException(409, "The saved return does not match this booking. Review it in Odoo.")
+    if saved and (saved.odometer != body.odometer or saved.next_state != body.next_state
+                  or saved.return_notes != body.return_notes.strip() or saved.damage_notes != body.damage_notes.strip()):
+        raise HTTPException(409, "This booking has a saved return. Resume it with the saved values.")
+    if RETURNED_TAG in note:
+        if saved and saved.status == "completed":
+            return {"vehicle_id": vehicle_id, "state": saved.next_state, "order_id": order["id"],
+                    "odometer": saved.odometer, "return_record": saved.model_dump(mode="json"), "already": True}
+        raise HTTPException(409, "This booking is already returned. Refresh the rental.")
+    if not can_return(order):
+        raise HTTPException(409, "Only a collected confirmed booking can be returned. Validate pickup or cancel the uncollected booking.")
+    if saved and saved.status != "pending":
+        raise HTTPException(409, "The saved return is inconsistent. Review it in Odoo.")
+    if body.order_id and body.odometer is None and not saved:
+        raise HTTPException(422, "Enter the return odometer reading for this booking.")
 
-    for order in orders:
-        note = order.get("note") or ""
+    vehicle = return_vehicle(vehicle_id)
+    current_odometer = float(vehicle.get("odometer") or 0)
+    if not math.isfinite(current_odometer) or current_odometer < 0:
+        raise HTTPException(409, "The vehicle's saved odometer reading is invalid. Review it in Odoo.")
+    if body.odometer is not None and body.odometer < current_odometer:
+        raise HTTPException(409, f"Return odometer cannot be below the vehicle's current reading ({current_odometer:g}).")
+    unit = vehicle.get("odometer_unit") or "kilometers"
+    if unit not in ("kilometers", "miles"):
+        raise HTTPException(409, "The vehicle's odometer unit is unavailable. Review it in Odoo.")
+    if saved and saved.odometer_unit != unit:
+        raise HTTPException(409, "The vehicle's odometer unit changed. Review the saved return in Odoo.")
+    state_id = find_state_id(body.next_state)
+    if not saved:
+        saved = ReturnRecord(status="pending", order_id=order["id"], vehicle_id=vehicle_id,
+                             returned_at=datetime.now(timezone.utc), odometer=body.odometer,
+                             previous_odometer=current_odometer, odometer_unit=unit,
+                             next_state=body.next_state, return_notes=body.return_notes.strip(),
+                             damage_notes=body.damage_notes.strip())
+        note = write_metadata(note, RETURN_RECORD_KEY, saved.model_dump(mode="json"))
+        if not odoo.execute("sale.order", "write", [[order["id"]], {"note": note}]):
+            raise HTTPException(502, "Return details could not be saved. Keep this form and retry.")
 
-        odoo.execute(
-            "sale.order",
-            "write",
-            [
-                [order["id"]],
-                {"note": f"{note}\n{RETURNED_TAG}".strip()},
-            ],
-        )
-
-    odoo.execute(
-        "fleet.vehicle",
-        "write",
-        [[vehicle_id], {"state_id": find_state_id(body.next_state)}],
-    )
-
-    return {"vehicle_id": vehicle_id, "state": body.next_state}
+    values = {}
+    if not vehicle.get("state_id") or vehicle["state_id"][0] != state_id:
+        values["state_id"] = state_id
+    # Odoo's inverse creates a history entry. Equal-reading retries must not write it again.
+    if body.odometer is not None and body.odometer > current_odometer:
+        values["odometer"] = body.odometer
+    if values:
+        if not odoo.execute("fleet.vehicle", "write", [[vehicle_id], values]):
+            raise HTTPException(502, "Return details saved, but the vehicle could not be updated. Retry with the saved details.")
+    completed = saved.model_copy(update={"status": "completed"})
+    note = write_metadata(note, RETURN_RECORD_KEY, completed.model_dump(mode="json"))
+    if not odoo.execute("sale.order", "write", [[order["id"]], {"note": f"{note}\n{RETURNED_TAG}"}]):
+        raise HTTPException(502, "Vehicle updated, but the booking return is unfinished. Retry with the saved details.")
+    return {"vehicle_id": vehicle_id, "state": body.next_state, "order_id": order["id"],
+            "odometer": body.odometer, "return_record": completed.model_dump(mode="json")}
 
 
 @router.post("/{vehicle_id}/mark-available")

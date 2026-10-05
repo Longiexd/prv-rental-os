@@ -22,6 +22,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Card, CardHeader } from "@/components/ui/Card";
 import CreateRentalModal from "@/components/rentals/CreateRentalModal";
 import { RentalActionMenu } from "@/components/rentals/RentalActionMenu";
+import ReturnVehicleModal from "@/components/rentals/ReturnVehicleModal";
 
 import { formatCurrency, formatDateShort, isSameDay, parseDate } from "@/lib/format";
 import { getFleetStatus, getRentalState, rentalStateMeta, type RentalState } from "@/lib/status";
@@ -108,6 +109,9 @@ export default function DashboardPage() {
 
   const [loading, setLoading] = useState(true);
   const [bookingOpen, setBookingOpen] = useState(false);
+  const [returningVehicle, setReturningVehicle] = useState<{
+    id: number; orderId: number; nextState: "Nettoyage" | "Disponible";
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Neutral on the server (and on the client's very first render,
@@ -192,8 +196,8 @@ export default function DashboardPage() {
     }
   }
 
-  function handleReturn(vehicleId: number, nextState: "Nettoyage" | "Disponible") {
-    void runAction(`/cars/${vehicleId}/return`, "POST", "confirm return", { next_state: nextState });
+  function handleReturn(vehicleId: number, nextState: "Nettoyage" | "Disponible", saleId: number) {
+    setReturningVehicle({ id: vehicleId, orderId: saleId, nextState });
   }
 
   function handlePickedUp(saleId: number) {
@@ -416,6 +420,9 @@ export default function DashboardPage() {
           ))}
         </tbody></table></div>
       </Card></section>
+      {returningVehicle && <ReturnVehicleModal vehicleId={returningVehicle.id} orderId={returningVehicle.orderId}
+        initialNextState={returningVehicle.nextState} onClose={() => setReturningVehicle(null)}
+        onReturned={async () => { await loadDashboard(); setReturningVehicle(null); }} />}
     </main>
   );
 }
@@ -439,7 +446,7 @@ function ScheduleRow({
   icon: React.ReactNode;
   urgent?: boolean;
   kind: "pickup" | "return" | "overdue";
-  onReturn?: (vehicleId: number, nextState: "Nettoyage" | "Disponible") => void;
+  onReturn?: (vehicleId: number, nextState: "Nettoyage" | "Disponible", saleId: number) => void;
   onPickedUp?: (saleId: number) => void;
   onCancel?: (saleId: number) => void;
 }) {

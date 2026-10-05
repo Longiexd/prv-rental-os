@@ -35,6 +35,8 @@ import {
 import { SortableHeader, type SortDirection } from "@/components/ui/SortableHeader";
 import { API_URL, apiRequest } from "@/lib/api-config";
 import { getVehicleBookings } from "@/lib/fleet-bookings";
+import ReturnVehicleModal from "@/components/rentals/ReturnVehicleModal";
+import type { NextVehicleState } from "@/lib/fleet-bookings";
 
 // ============================================================
 // TYPES
@@ -821,7 +823,7 @@ function VehicleModal({
             <Link
               href={`/dashboard/calendar?vehicle=${car.id}`}
               onClick={onClose}
-              className="flex h-11 items-center justify-between rounded-xl bg-[var(--status-available-text)] px-4 text-xs font-semibold text-black transition hover:bg-[#d7ff80]"
+              className="flex h-11 items-center justify-between rounded-xl bg-lime px-4 text-xs font-semibold text-black transition hover:bg-[#d7ff80]"
             >
               <span className="flex items-center gap-2">
                 <CalendarDays size={14} />
@@ -1046,6 +1048,9 @@ export default function FleetPage() {
     useState<CarData | null>(
       null
     );
+  const [returningVehicle, setReturningVehicle] = useState<{
+    id: number; nextState: NextVehicleState;
+  } | null>(null);
 
   const [sortKey, setSortKey] =
     useState<SortKey>("name");
@@ -1137,18 +1142,17 @@ export default function FleetPage() {
     action: "return" | "mark-available" | "needs-diagnosis",
     nextState?: "Nettoyage" | "Disponible" | "Maintenance"
   ) {
+    if (action === "return") {
+      setSelectedCar(null);
+      setReturningVehicle({ id: vehicleId, nextState: nextState || "Nettoyage" });
+      return;
+    }
     try {
       const response = await apiRequest(
         `${API_URL}/cars/${vehicleId}/${action}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body:
-            action === "return"
-              ? JSON.stringify({
-                  next_state: nextState || "Nettoyage",
-                })
-              : undefined,
         }
       );
 
@@ -2026,6 +2030,10 @@ export default function FleetPage() {
       </main>
 
       {/* MODAL */}
+
+      {returningVehicle && <ReturnVehicleModal vehicleId={returningVehicle.id}
+        initialNextState={returningVehicle.nextState} onClose={() => setReturningVehicle(null)}
+        onReturned={async () => { await loadFleet(); setReturningVehicle(null); }} />}
 
       {selectedDetails && (
         <VehicleModal

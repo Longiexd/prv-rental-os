@@ -6,6 +6,7 @@ from fastapi.responses import Response
 from app.odoo_client import odoo
 from app.routes.calendar import QUOTATION_TAG, rental_vehicle_id, booking_status
 from app.routes.cars import PICKED_UP_TAG, RETURNED_TAG
+from app.verticals.car_rental.returns import can_return, return_record
 
 
 router = APIRouter(
@@ -281,6 +282,8 @@ def get_sale(order_id: int):
 
         "returned": RETURNED_TAG in (order.get("note") or ""),
         "picked_up": PICKED_UP_TAG in (order.get("note") or ""),
+        "return_record": record.model_dump(mode="json") if (record := return_record(order.get("note"))) else None,
+        "can_return": can_return(order),
         "order_line_ids": order["order_line"],
         "vehicle_id": rental_vehicle_id(order.get("note")),
             "booking_status": booking_status(order),

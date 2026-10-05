@@ -126,6 +126,22 @@ html[data-theme="light"] .os-shell .bg-surface { box-shadow: 0 1px 1px rgba(17,1
 html[data-theme="light"] .os-shell .border-border { border-color: var(--border); }
 html[data-theme="light"] .os-shell header { box-shadow: 0 1px 0 rgba(17,17,19,.02); }
 
+/* Legacy pale foregrounds occur across rental, customer, fleet and calendar
+   pages. Include body portals so action menus and forms share the same ink. */
+html[data-theme="light"] :is(.text-green-300, .text-green-400) { color: var(--success); }
+html[data-theme="light"] :is(.text-blue-200, .text-blue-400) { color: var(--blue-ink); }
+html[data-theme="light"] :is(.text-yellow-400, .text-amber-400, .text-orange-300, .text-orange-300\/50, .text-orange-400) { color: var(--orange-ink); }
+html[data-theme="light"] .text-violet-400 { color: var(--violet-ink); }
+html[data-theme="light"] .text-red-400 { color: var(--red-ink); }
+html[data-theme="light"] .text-zinc-600 { color: var(--muted); }
+html[data-theme="light"] .bg-black\/20 { background-color: var(--surface-secondary); }
+
+/* Booking stages use black text in light mode, as requested. */
+html[data-theme="light"] .klynx-booking-progress li { color: #111113; }
+
+/* Blue fills need a dedicated foreground rather than the page's text token. */
+.bg-blue-500.text-text { color: #111113; }
+
 
 /* Accessible to-do/attention styling shared by dark and light modes. */
 .klynx-todo-selected {
