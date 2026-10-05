@@ -88,3 +88,38 @@ Each block should have its own reviewed commit and ZIP. Validate the exact candi
 - New/edit booking forms expose the existing API's pickup/return times and bounded locations. Location suggestions/defaults use native Odoo Fleet vehicle.location. Planned pickup/return places remain on the Odoo order note; actual return updates native vehicle.location alongside mileage. Future booking edits do not move a vehicle, and completed return retries preserve later manual location/state changes. Existing datetime and conservative day-based availability conventions are retained.
 - Local verification: 153 targeted backend business/document/lifecycle tests passed; 12 HTTP tests were deselected because the complete Windows TestClient run previously stalled in socket creation. All 40 frontend/security/Worker tests and TypeScript passed. Full DocumentsPanel lint passed; focused existing-page lint passed with the pre-existing set-state-in-effect rule excluded. Git diff checks passed. Full Vinext build hit Windows sandbox EPERM resolving dependencies; browser preview timed out. Full Linux Compose tests/build and live Odoo storage, templates, printing, pickup and return verification remain required before release.
 - Vidange reminders and unpaid invoice filtering remain separate pending blocks.
+
+## Contact identity follow-up and conversation checklist
+
+- Customer identity now shows a CIN / passport selector and one identity form, plus the driving licence. Switching forms preserves saved files; either verified identity is sufficient. If both are already verified, the existing contract policy uses CIN first.
+- Nationality is next to the identity number; birth date is optional. Both are saved in private document metadata on the native Odoo contact attachment, returned in its checklist and used as defaults for future contracts for that same contact. No duplicate contact is created and no CRM opportunity properties are changed.
+- Older API callers retain these optional fields when omitted. Future birth dates and oversized nationality values are rejected. Contract-specific overrides remain on the rental; they do not overwrite reusable contact data. Editing contact identity data invalidates an uncollected rental's current contract while retaining the saved historical copy.
+- Optional identity OCR is not implemented. No identity extraction engine is configured in this repository. A future opt-in reader must suggest editable values for agent review and must never automatically verify the document. Upload/storage works independently of extraction.
+- Local checks: 158 targeted backend tests passed (12 HTTP tests deselected for the previously diagnosed Windows socket limitation); 40 frontend/security/Worker tests, TypeScript, document-panel ESLint and diff checks passed. Full Linux tests/build and live browser verification remain pending. This patch changes six existing files, adds no production files/dependencies and does not change authentication or deployment.
+
+Implemented in this conversation (live verification varies by block):
+
+- [x] Preserve the verified authentication/deployment baseline and repair registered Odoo connectivity during deployment/rollback.
+- [x] Remove redundant staging CI pushes and cancel superseded PR checks; retain independent PR and deployment validation.
+- [x] Fleet cards by default; show quotations without blocking availability; confirmed booking lifecycle; preserve manual cleaning/maintenance states.
+- [x] Separate missed pickup from rented/return due; explicit handover and overdue pickup attention/actions.
+- [x] Booking-specific return mileage, return/damage notes and chosen next state; update native Odoo odometer; retry protection.
+- [x] Improve light-mode text contrast and render attention menus above clipping containers.
+- [x] Private customer/vehicle document upload, review/download, verification and expiry tracking on Odoo attachments; verify readable persistence.
+- [x] CIN or passport plus driving licence; reusable contact identity data; immutable per-rental document copies.
+- [x] Basic printable bilingual contract, company scan/Canva template placement and terms; saved per-rental contracts.
+- [x] Payment or partial payment enables explicit confirmation; replace fixed 30% progress stage with paperwork; require validated documents and a current contract acknowledged as printed/saved before actual pickup.
+- [x] Pickup/return times and locations; suggestions from native Fleet Location; actual return updates Fleet Location.
+- [x] Correct the write-failure test to provide a valid required document number (VPS commit 5d8c21e).
+
+Remaining:
+
+- [ ] Apply this contact identity follow-up, run full Linux backend/build checks, then verify the new selector and a repeat-client contract in staging.
+- [ ] Complete live verification of upload/review, agency templates, stale-contract regeneration, pickup gates and archived rental copies; latest CI/deploy results are not yet confirmed by the agent.
+- [ ] Opt-in identity OCR with editable suggestions and explicit agent verification.
+- [ ] Configurable company/vehicle vidange interval, last-service km and approaching/overdue reminders.
+- [ ] Unpaid invoice filtering.
+- [ ] Booking-to-prospect stage synchronization: reservation confirmed, vehicle handed over, rental completed.
+- [ ] Focused dependency vulnerability assessment/remediation and measured deployment performance review.
+
+Opportunity pickup/drop-off synchronization was explicitly excluded by the user; it is not a remaining requirement for this block. No automated deployment, authentication or dependency changes are included in this follow-up.

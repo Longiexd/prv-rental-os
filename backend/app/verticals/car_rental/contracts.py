@@ -89,6 +89,13 @@ def selected_documents(checklist):
     return [identity, valid["driving_license"]] if identity and "driving_license" in valid else []
 
 
+def customer_details(checklist):
+    identities = [item for item in checklist["documents"] if item["kind"] in ("cin", "passport")]
+    identity = next((item for item in identities if item["status"] == "verified" and item["number"].strip()), None)
+    identity = identity or next((item for item in identities if item.get("id")), {})
+    return {key: identity[key] for key in ("nationality", "birth_date") if identity.get(key)}
+
+
 def booking_digest(order):
     from app.routes.calendar import rental_vehicle_id
     values = {key: order.get(key) for key in ("partner_id", "company_id", "currency_id", "date_order", "commitment_date", "amount_total")}
@@ -97,7 +104,8 @@ def booking_digest(order):
 
 
 def document_digest(checklist):
-    return digest([{key: item.get(key) for key in ("id", "kind", "number", "expiry_date", "checksum")} for item in selected_documents(checklist)])
+    return digest([{**{key: item.get(key) for key in ("id", "kind", "number", "expiry_date", "checksum")},
+                    **{key: item[key] for key in ("nationality", "birth_date") if item.get(key)}} for item in selected_documents(checklist)])
 
 
 def record_summary(order, checklist):
@@ -250,7 +258,8 @@ def contract_values(order, checklist, details):
         "vehicle": vehicle["name"], "plate": vehicle.get("license_plate"), "pickup": order.get("date_order"), "return": order.get("commitment_date"),
         "pickup_location": logistics.get("pickup_location"), "return_location": logistics.get("return_location"),
         "total": order["amount_total"], "paid": paid, "balance": max(0, order["amount_total"] - paid),
-        "currency": order["currency_id"][1] if order.get("currency_id") else "", "pickup_km": pickup.get("odometer", vehicle.get("odometer")), **details}
+        "currency": order["currency_id"][1] if order.get("currency_id") else "", "pickup_km": pickup.get("odometer", vehicle.get("odometer")),
+        **customer_details(checklist), **details}
 
 
 def render_contract(values, template=None):
@@ -319,6 +328,7 @@ def prepare_contract(order_id, data):
         mime, extension = file_type(content)
         value = {"version": 1, "kind": item["kind"], "number": item["number"], "expiry_date": item["expiry_date"],
                  "verified": True, "fingerprint": fingerprint, "sha256": hashlib.sha256(content).hexdigest()}
+        value.update({key: item[key] for key in ("nationality", "birth_date") if item.get(key)})
         description = write_metadata("", "document", value)
         snapshots.append(matching_copy(order_id, description, content) or save_attachment({"name": f'{item["kind"]}.{extension}',
             "type": "binary", "datas": base64.b64encode(content).decode(), "mimetype": mime,

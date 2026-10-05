@@ -235,6 +235,69 @@ def verified_customer(store, identity="cin"):
         update(3, result["attachment_id"], documents.DocumentUpdate(number="123", verified=True))
 
 
+@pytest.mark.parametrize("identity", ["cin", "passport"])
+def test_contact_identity_data_is_reused_by_later_rentals_without_reupload(identity):
+    store = RentalStore()
+    routes = documents.document_router("res.partner", documents.CUSTOMER_KINDS).routes
+    checklist, _, update, _ = [route.endpoint for route in routes]
+    with patch.object(documents.odoo, "execute", side_effect=store.execute):
+        verified_customer(store, identity)
+        update(3, 1, documents.DocumentUpdate(number="123", nationality=" Tunisian ", birth_date=date(1995, 4, 9), verified=True))
+        assert checklist(3)["ready"]  # The alternative identity remains missing.
+        # An older caller can update verification without clearing these new optional fields.
+        update(3, 1, documents.DocumentUpdate(number="123", verified=True))
+        first = contracts.prepare_contract(42, contracts.ContractPrepare())
+        assert "Tunisian" in first["html"] and "1995-04-09" in first["html"]
+        copies = [item for item in store.attachments if item["res_model"] == "sale.order"]
+        snapshot = next(item for item in copies if read_metadata(item["description"], "document"))
+        assert read_metadata(snapshot["description"], "document")["nationality"] == "Tunisian"
+        originals = [item["id"] for item in store.attachments if item["res_model"] == "res.partner"]
+        store.order.update(id=43, name="S0043", note="[Rental OS fleet.vehicle:4]")
+        assert sales.rental_paperwork(43)["details"] == {"nationality": "Tunisian", "birth_date": "1995-04-09"}
+        second = contracts.prepare_contract(43, contracts.ContractPrepare())
+        assert "Tunisian" in second["html"] and "1995-04-09" in second["html"]
+        assert originals == [item["id"] for item in store.attachments if item["res_model"] == "res.partner"]
+        assert first["contract_id"] != second["contract_id"]
+
+
+def test_contact_identity_corrections_invalidate_current_contract_but_keep_saved_copy():
+    store = RentalStore()
+    update = documents.document_router("res.partner", documents.CUSTOMER_KINDS).routes[2].endpoint
+    with patch.object(documents.odoo, "execute", side_effect=store.execute):
+        verified_customer(store)
+        original = contracts.prepare_contract(42, contracts.ContractPrepare())
+        contracts.confirm_printed(42, contracts.ContractPrinted(contract_id=original["contract_id"]))
+        update(3, 1, documents.DocumentUpdate(number="123", nationality="Tunisian", birth_date=date(1990, 1, 1), verified=True))
+        assert not sales.rental_paperwork(42)["contract_ready"]
+        assert contracts.stored_contract(store.order) == original["html"]
+        refreshed = contracts.prepare_contract(42, contracts.ContractPrepare())
+        assert refreshed["contract_id"] != original["contract_id"]
+        update(3, 1, documents.DocumentUpdate(number="123", nationality="", birth_date=None, verified=True))
+        assert contracts.customer_details(documents.document_checklist("res.partner", 3, documents.CUSTOMER_KINDS)) == {}
+
+
+def test_identity_optional_fields_validate_birth_date_and_nationality():
+    from pydantic import ValidationError
+    for model in (documents.DocumentUpload, documents.DocumentUpdate):
+        required = {"kind": "cin", "content": "AA==", "filename": "scan.pdf"} if model is documents.DocumentUpload else {}
+        with pytest.raises(ValidationError):
+            model(**required, birth_date=date.today() + timedelta(days=1))
+        with pytest.raises(ValidationError):
+            model(**required, nationality="x" * 101)
+
+
+def test_uploaded_identity_details_are_saved_privately_and_do_not_verify_automatically():
+    store = Store()
+    checklist, create, _, _ = [route.endpoint for route in documents.document_router("res.partner", documents.CUSTOMER_KINDS).routes]
+    with patch.object(documents.odoo, "execute", side_effect=store.execute):
+        create(3, documents.DocumentUpload(kind="passport", filename="scan.pdf", content=base64.b64encode(b"%PDF-1.7 scan").decode(),
+               number="AB123", nationality=" Tunisian ", birth_date=date(1995, 4, 9)))
+        identity = next(item for item in checklist(3)["documents"] if item["kind"] == "passport")
+        assert identity["nationality"] == "Tunisian" and identity["birth_date"] == "1995-04-09"
+        assert identity["status"] == "uploaded" and not checklist(3)["ready"]
+        assert store.attachments[0]["res_model"] == "res.partner" and not store.attachments[0]["public"]
+
+
 def test_verified_passport_and_licence_prepare_print_and_pickup_preserve_rental_copies():
     store = RentalStore()
     with patch.object(documents.odoo, "execute", side_effect=store.execute), patch.object(booking_changes, "refresh_fleet"):

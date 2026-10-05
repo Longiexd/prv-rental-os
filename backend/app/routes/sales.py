@@ -436,8 +436,8 @@ def quotation_print_link(order_id: int):
 
 @router.get("/{order_id}/paperwork")
 def rental_paperwork(order_id: int):
-    order, _, status = contracts.paperwork(order_id)
-    return {**status, "details": read_metadata(order.get("note"), "rental_paperwork") or {}}
+    order, checklist, status = contracts.paperwork(order_id)
+    return {**status, "details": {**contracts.customer_details(checklist), **(read_metadata(order.get("note"), "rental_paperwork") or {})}}
 
 
 @router.get("/{order_id}/contract")

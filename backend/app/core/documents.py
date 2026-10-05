@@ -5,7 +5,7 @@ from datetime import date
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.core.record_metadata import read_metadata, write_metadata
 from app.odoo_client import odoo
@@ -15,18 +15,31 @@ KEY = "document"
 CUSTOMER_KINDS = {"cin": "CIN", "passport": "Passport", "driving_license": "Driving licence"}
 
 
-class DocumentUpload(BaseModel):
+class IdentityFields(BaseModel):
+    birth_date: date | None = None
+
+    @field_validator("birth_date")
+    @classmethod
+    def past_birth_date(cls, value):
+        if value and value > date.today():
+            raise ValueError("Date of birth cannot be in the future.")
+        return value
+
+
+class DocumentUpload(IdentityFields):
     kind: str = Field(min_length=1, max_length=40)
     content: str = Field(min_length=1, max_length=819200)
     filename: str = Field(min_length=1, max_length=200)
     number: str = Field(default="", max_length=100)
     expiry_date: date | None = None
+    nationality: str = Field(default="", max_length=100)
 
 
-class DocumentUpdate(BaseModel):
+class DocumentUpdate(IdentityFields):
     number: str = Field(default="", max_length=100)
     expiry_date: date | None = None
     verified: bool = False
+    nationality: str | None = Field(default=None, max_length=100)
 
 
 def file_type(content: bytes):
@@ -51,11 +64,14 @@ def metadata(attachment):
     if not value or value.get("version") != 1:
         return None
     if (not isinstance(value.get("kind"), str) or not isinstance(value.get("number"), str)
-            or len(value["number"]) > 100 or not isinstance(value.get("verified"), bool)):
+            or len(value["number"]) > 100 or not isinstance(value.get("verified"), bool)
+            or not isinstance(value.get("nationality", ""), str) or len(value.get("nationality", "")) > 100):
         return None
     try:
         if value.get("expiry_date"):
             date.fromisoformat(value["expiry_date"])
+        if value.get("birth_date") and date.fromisoformat(value["birth_date"]) > date.today():
+            return None
     except (ValueError, TypeError):
         return None
     return value
@@ -83,12 +99,14 @@ def checklist_from_records(records, kinds):
     documents = []
     for kind, label in kinds.items():
         item = {"kind": kind, "label": label, "status": "missing", "id": None,
-                "filename": None, "number": "", "expiry_date": None, "verified": False, "checksum": None}
+                "filename": None, "number": "", "expiry_date": None, "verified": False, "checksum": None,
+                "nationality": "", "birth_date": None}
         if kind in latest:
             attachment, value = latest[kind]
             expired = bool(value.get("expiry_date") and value["expiry_date"] < date.today().isoformat())
             item.update(id=attachment["id"], filename=attachment["name"], number=value["number"], checksum=attachment.get("checksum"),
                         expiry_date=value.get("expiry_date"), verified=value["verified"],
+                        nationality=value.get("nationality", ""), birth_date=value.get("birth_date"),
                         status="expired" if expired else "verified" if value["verified"] else "uploaded")
         documents.append(item)
     valid = {item["kind"] for item in documents if item["status"] == "verified" and item["number"].strip()}
@@ -162,6 +180,8 @@ def document_router(model: Literal["res.partner", "fleet.vehicle", "sale.order"]
         mime, extension = file_type(content)
         value = {"version": 1, "kind": data.kind, "number": data.number.strip(),
                  "expiry_date": data.expiry_date.isoformat() if data.expiry_date else None, "verified": False}
+        if model == "res.partner" and data.kind in ("cin", "passport"):
+            value.update(nationality=data.nationality.strip(), birth_date=data.birth_date.isoformat() if data.birth_date else None)
         attachment_id = save_attachment({
             "name": f"{data.kind}.{extension}", "type": "binary", "datas": data.content,
             "mimetype": mime, "res_model": model, "res_id": record_id, "public": False,
@@ -174,6 +194,12 @@ def document_router(model: Literal["res.partner", "fleet.vehicle", "sale.order"]
         attachment, value = tracked_attachment(model, record_id, attachment_id, kinds)
         value.update(number=data.number.strip(), verified=data.verified,
                      expiry_date=data.expiry_date.isoformat() if data.expiry_date else None)
+        # Older callers omit these optional fields; preserve their saved contact data.
+        if model == "res.partner" and value["kind"] in ("cin", "passport"):
+            if "nationality" in data.model_fields_set:
+                value["nationality"] = (data.nationality or "").strip()
+            if "birth_date" in data.model_fields_set:
+                value["birth_date"] = data.birth_date.isoformat() if data.birth_date else None
         if data.verified and data.expiry_date and data.expiry_date < date.today():
             raise HTTPException(422, "An expired document cannot be marked verified.")
         if data.verified:

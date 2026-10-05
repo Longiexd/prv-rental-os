@@ -7,6 +7,7 @@ type TrackedDocument = {
   id: number | null; kind: string; label: string; filename: string | null;
   status: "missing" | "uploaded" | "verified" | "expired";
   number: string; expiry_date: string | null; verified: boolean;
+  nationality?: string; birth_date?: string | null;
 };
 type Checklist = { documents: TrackedDocument[]; ready: boolean };
 const input = "w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm text-text";
@@ -32,7 +33,7 @@ export function PaperworkPanel({ rentalId, customerId, confirmed, collected, sta
   const [template, setTemplate] = useState<Template | null>(null);
   const [selectedField, setSelectedField] = useState("customer");
   const [editedDetails, setDetails] = useState<Record<string, string> | null>(null);
-  const details = editedDetails || status?.details || {};
+  const details = {...status?.details, ...editedDetails};
 
   async function perform(operation: () => Promise<void>) {
     if (pending.current) return;
@@ -71,7 +72,7 @@ export function PaperworkPanel({ rentalId, customerId, confirmed, collected, sta
         {!status ? "Checking paperwork…" : !status.documents_ready ? "Identity or licence still missing, unverified or expired." : status.contract_ready ? "Contract ready. You can hand over the keys at actual pickup." : status.contract_current ? "Contract prepared. Print/save it and confirm below." : "Prepare the contract using the verified documents."}
       </p>
       {!collected && <details className="mt-3 text-sm text-text-secondary"><summary className="cursor-pointer">Optional contract details</summary><div className="mt-3 grid gap-3 sm:grid-cols-2">
-        {Object.entries({birth_date: "Date of birth", nationality: "Nationality", license_issued: "Licence issue date", driver: "Additional driver", driver_identity: "Additional driver identity", driver_license: "Additional driver licence", deposit: "Security deposit (caution)", fuel: "Pickup fuel", notes: "Contract notes"}).map(([key, label]) => <label key={key}>{label}<input className={input} maxLength={key === "notes" ? 2000 : 250} value={details[key] || ""} onChange={event => setDetails({...details, [key]: event.target.value})} /></label>)}
+        {Object.entries({birth_date: "Date of birth", nationality: "Nationality", license_issued: "Licence issue date", driver: "Additional driver", driver_identity: "Additional driver identity", driver_license: "Additional driver licence", deposit: "Security deposit (caution)", fuel: "Pickup fuel", notes: "Contract notes"}).map(([key, label]) => <label key={key}>{label}<input className={input} maxLength={key === "notes" ? 2000 : 250} value={details[key] || ""} onChange={event => setDetails(previous => ({...previous, [key]: event.target.value}))} /></label>)}
       </div></details>}
       <div className="mt-3 flex flex-wrap gap-2">
         <button className={button} disabled={busy || !confirmed || (!collected && !status?.documents_ready) || (collected && !status?.contract_id)} onClick={openContract}>{collected ? "View / print saved contract" : "Prepare / Print rental contract"}</button>
@@ -121,6 +122,11 @@ export default function DocumentsPanel({ owner, recordId, onChanged }: { owner: 
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
   const [revision, setRevision] = useState(0);
+  const [identity, setIdentity] = useState<{ path: string; kind: string } | null>(null);
+  const identities = checklist?.documents.filter(document => document.kind === "cin" || document.kind === "passport") || [];
+  const identityKind = (identity?.path === path ? identity.kind : null)
+    || identities.find(document => document.status === "verified" && document.number.trim())?.kind
+    || identities.find(document => document.id)?.kind || "cin";
 
   useEffect(() => {
     let active = true;
@@ -138,16 +144,18 @@ export default function DocumentsPanel({ owner, recordId, onChanged }: { owner: 
     const file = fields.get("file") as File | null;
     const number = String(fields.get("number") || "").trim();
     const expiry_date = String(fields.get("expiry_date") || "") || null;
+    const identityFields = owner === "customers" && (document.kind === "cin" || document.kind === "passport")
+      ? {nationality: String(fields.get("nationality") || "").trim(), birth_date: String(fields.get("birth_date") || "") || null} : {};
     try {
       if (file?.size) {
         if (file.size > 600 * 1024) throw new Error("Compress the document to 600 KiB or less before uploading.");
         const content = await encodedFile(file);
         await apiFetch(path, { method: "POST", body: JSON.stringify({ kind: document.kind, filename: file.name,
-          content, number, expiry_date }) });
+          content, number, expiry_date, ...identityFields }) });
         setNotice("Document uploaded. Review it, then mark it verified. Earlier versions remain in Odoo.");
       } else if (document.id) {
         await apiFetch(`${path}/${document.id}`, { method: "PATCH", body: JSON.stringify({ number, expiry_date,
-          verified: fields.get("verified") === "on" }) });
+          verified: fields.get("verified") === "on", ...identityFields }) });
         setNotice("Document checklist updated.");
       } else throw new Error("Choose a document to upload first.");
       // A successful save is kept even if the following refresh fails.
@@ -179,12 +187,22 @@ export default function DocumentsPanel({ owner, recordId, onChanged }: { owner: 
     <p className="mt-1 text-xs text-muted">PDF, PNG or JPEG · maximum 600 KiB per file. Uploads require a separate verification.</p>
     {error && <p role="alert" className="mt-3 text-sm text-[var(--status-danger-text)]">{error} <button className={button} disabled={busy} onClick={() => { setError(""); setRevision(value => value + 1); }}>Refresh</button></p>}
     {notice && <p role="status" className="mt-3 text-sm text-text">{notice}</p>}
+    {owner === "customers" && checklist && <label className="mt-4 block text-sm text-text">Identity document · choose one
+      <select className={`${input} mt-1 max-w-sm`} disabled={busy} value={identityKind} onChange={event => setIdentity({path, kind: event.target.value})}>
+        {identities.map(document => <option key={document.kind} value={document.kind}>{document.label}{document.id ? ` · ${document.status}` : ""}</option>)}
+      </select>
+      <span className="mt-1 block text-xs text-text-secondary">Only CIN or passport is required, together with the driving licence. Switching this form keeps previously saved scans.</span>
+    </label>}
     <div className="mt-4 grid gap-4">
-      {checklist?.documents.filter(document => owner !== "sales" || document.id).map(document => <form key={`${document.kind}-${document.id}-${revision}`} onSubmit={event => void save(event, document)} className="rounded-lg border border-border p-4">
+      {checklist?.documents.filter(document => owner === "sales" ? document.id : owner !== "customers" || !["cin", "passport"].includes(document.kind) || document.kind === identityKind).map(document => <form key={`${document.kind}-${document.id}-${revision}`} onSubmit={event => void save(event, document)} className="rounded-lg border border-border p-4">
         <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-medium text-text">{document.label}</h3>
           <span className={`text-sm ${document.status === "verified" ? "text-[var(--status-available-text)]" : document.status === "expired" ? "text-[var(--status-danger-text)]" : "text-muted"}`}>{document.status}</span></div>
         {owner !== "sales" && <fieldset disabled={busy} className="mt-3 grid gap-3 sm:grid-cols-2">
           <label className="text-sm text-text">Document number<input name="number" maxLength={100} defaultValue={document.number} className={input} /></label>
+          {owner === "customers" && ["cin", "passport"].includes(document.kind) && <>
+            <label className="text-sm text-text">Nationality (optional)<input name="nationality" maxLength={100} defaultValue={document.nationality || ""} className={input} /></label>
+            <label className="text-sm text-text">Date of birth (optional)<input name="birth_date" type="date" defaultValue={document.birth_date || ""} className={input} /></label>
+          </>}
           <label className="text-sm text-text">Expiry date (optional)<input name="expiry_date" type="date" defaultValue={document.expiry_date || ""} className={input} /></label>
           <label className="text-sm text-text sm:col-span-2">{document.id ? "Replace scan (optional)" : "Upload scan"}<input name="file" type="file" accept="application/pdf,image/png,image/jpeg" className={input} /></label>
           {document.id && <label className="flex items-center gap-2 text-sm text-text"><input name="verified" type="checkbox" defaultChecked={document.verified} />Verified by agent</label>}
