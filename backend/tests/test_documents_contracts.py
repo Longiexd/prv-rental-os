@@ -136,7 +136,7 @@ def test_missing_parent_wrong_kind_and_failed_update_are_not_success(client):
     store.missing_parent = False
     upload(http)
     store.fail_write = True
-    assert http.patch("/customers/3/documents/1", json={"verified": True}).status_code == 502
+    assert http.patch("/customers/3/documents/1", json={"verified": True, "number": "12345678"}).status_code == 502
 
 
 def test_untracked_or_public_attachment_is_not_downloadable(client):
@@ -169,7 +169,7 @@ def test_document_endpoints_directly_preserve_ownership_and_verification():
             update(3, 1, documents.DocumentUpdate(verified=True, expiry_date=date.today() - timedelta(days=1)))
         store.fail_write = True
         with pytest.raises(HTTPException) as error:
-            update(3, 1, documents.DocumentUpdate(verified=False))
+            update(3, 1, documents.DocumentUpdate(number="123", verified=True))
         assert error.value.status_code == 502
 
 
