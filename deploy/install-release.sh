@@ -89,24 +89,44 @@ test -x "$admin_python"
 
 cd "$release_dir"
 docker compose --project-name "$compose_project" --env-file "$compose_env_file" -f "$compose_file" config --quiet
+wait_ready() {
+  for _ in {1..30}; do
+    if curl --fail --silent --show-error --max-time 5 "$health_url" >/dev/null; then
+      return 0
+    fi
+    sleep 2
+  done
+  return 1
+}
+
 healthy=false
-if docker compose --project-name "$compose_project" --env-file "$compose_env_file" -f "$compose_file" up -d --build "$service_name" &&
-   "$admin_python" "$release_dir/deploy/admin.py" --environment "$environment" attach-api; then
-for _ in {1..30}; do
-  if curl --fail --silent --show-error --max-time 5 "$health_url" >/dev/null; then
-    healthy=true
-    break
+if docker compose --project-name "$compose_project" --env-file "$compose_env_file" -f "$compose_file" up -d --build "$service_name"; then
+  if "$admin_python" "$release_dir/deploy/admin.py" --environment "$environment" attach-api; then
+    if wait_ready; then
+      healthy=true
+    else
+      echo "$environment API readiness check failed" >&2
+    fi
+  else
+    echo "$environment registered Odoo attachment/check failed" >&2
   fi
-  sleep 2
-done
+else
+  echo "$environment backend build/start failed" >&2
 fi
 
 if [[ "$healthy" != "true" ]]; then
   echo "$environment health check failed; attempting to restore the previous release" >&2
   if [[ -n "$previous_release" && -f "$previous_release/backend/app/control.py" ]]; then
     cd "$previous_release"
-    docker compose --project-name "$compose_project" --env-file "$compose_env_file" -f "$compose_file" up -d --build "$service_name"
-    "$admin_python" "$previous_release/deploy/admin.py" --environment "$environment" attach-api
+    # Network attachment follows today's registry, even when the backend being
+    # restored predates a routing repair. Do not rerun the old faulty helper.
+    if docker compose --project-name "$compose_project" --env-file "$compose_env_file" -f "$compose_file" up -d --build "$service_name" &&
+       "$admin_python" "$release_dir/deploy/admin.py" --environment "$environment" attach-api &&
+       wait_ready; then
+      echo "$environment previous release restored and ready; candidate deployment failed" >&2
+    else
+      echo "$environment rollback did not become ready; keep traffic gated and inspect the failure above" >&2
+    fi
   else
     echo "Refusing rollback to the old unauthenticated API. Keep traffic gated and fix this release." >&2
   fi

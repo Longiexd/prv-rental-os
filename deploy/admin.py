@@ -13,11 +13,36 @@ import subprocess
 import sys
 import tempfile
 import time
+from urllib.parse import urlencode, urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 from cryptography.fernet import Fernet
 from app.control import CODE, LOGIN, Control, Settings
 from tenant_compose import compose_document, names
+
+
+def registered_odoo_route(environment, code, endpoint, database):
+    """Use registered routing, allowing only this environment's private stacks."""
+    project, host, _ = names(environment, code)
+    try:
+        parsed = urlsplit(endpoint)
+        valid = (parsed.scheme == "http" and parsed.port == 8069 and parsed.username is None
+                 and parsed.password is None and parsed.path in ("", "/")
+                 and not parsed.query and not parsed.fragment)
+    except ValueError:
+        valid = False
+    if not valid:
+        raise ValueError(f"{code}: invalid registered Odoo endpoint; review the private registry")
+    if parsed.hostname in {host, host + "-1"}:
+        network = project + "-app"
+    elif parsed.hostname == "klynx-odoo-" + environment:
+        # Compatibility for an explicitly registered pre-migration stack.
+        network = "klynx-odoo-" + environment
+    else:
+        raise ValueError(f"{code}: registered Odoo endpoint is outside its environment/company stack")
+    if not database:
+        raise ValueError(f"{code}: registered Odoo database is missing")
+    return network, endpoint.rstrip("/") + "/web/health?" + urlencode({"db": database})
 
 
 def command(args, *, stdin=None, timeout=1200, diagnostic_label=None, redactions=()):
@@ -260,13 +285,18 @@ log_level = warn
             raise RuntimeError("API container is absent")
         networks = json.loads(command(["docker", "inspect", "--format", "{{json .NetworkSettings.Networks}}", container]))
         with self.control().db() as db:
-            codes = [row[0] for row in db.execute("SELECT code FROM companies WHERE status='active'")]
-        for code in codes:
-            network = names(self.environment, code)[0] + "-app"
+            companies = db.execute("SELECT code, endpoint, database_name FROM companies WHERE status='active' ORDER BY code").fetchall()
+        routes = [(row[0], *registered_odoo_route(self.environment, *row)) for row in companies]
+        probe = (Path(__file__).parent / "odoo_probe.py").read_text()
+        for code, network, endpoint in routes:
             if network not in networks:
-                command(["docker", "network", "connect", network, container])
-            endpoint = "http://" + names(self.environment, code)[1] + ":8069/web/health"
-            command(["docker", "exec", container, "python", "-c", "import urllib.request; urllib.request.urlopen(" + repr(endpoint) + ", timeout=5)"])
+                command(["docker", "network", "connect", network, container],
+                        diagnostic_label=f"Application network attachment for {code}")
+                networks[network] = {}
+            print(f"{code}: checking registered Odoo from the {self.environment} API", flush=True)
+            command(["docker", "exec", container, "python", "-c", probe, endpoint], timeout=45,
+                    diagnostic_label=f"Registered Odoo health check for {code}")
+            print(f"{code}: registered Odoo reachable", flush=True)
 
     def user(self, operation, code, login, name="", password=None):
         if not CODE.fullmatch(code) or not LOGIN.fullmatch(login) or login in {"admin", "default", "public", "root"}:

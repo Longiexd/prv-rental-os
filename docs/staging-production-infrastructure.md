@@ -50,6 +50,28 @@ The staging and production Worker secrets must be different. Worker custom domai
 
 The installer checks `/ready`, restores tenant network attachments after an API recreation, and verifies active Odoo reachability. A failed release attempts to start the previous tenant-aware backend. The first authentication rollout must remain gated until both frontend and backend are validated because the old demo-auth frontend is incompatible.
 
+Attachment reads the active registry endpoint/database instead of guessing a
+container from the company code. Generated stacks use their company application
+network; an explicitly registered pre-migration `klynx-odoo-<environment>` stack
+uses that environment's legacy network. Other hosts, cross-environment routes,
+credential-bearing URLs and database networks are not accepted by this helper.
+The health probe reports safe HTTP/network failures and retries bounded cold
+starts. A failed release restores the previous backend using the candidate's
+attachment helper, so old routing code cannot break recovery again.
+
+After applying a reviewed installer change on the VPS, update the host copy
+before pushing the deployment commit:
+
+```bash
+sudo install -m 0755 deploy/install-release.sh /usr/local/sbin/klynx-install-release
+```
+
+Run this from the checkout containing the repair. This installs the deployment
+entry point; it does not itself deploy or restart an application. A green
+workflow alone does not prove that a failed earlier release became current:
+verify `/opt/klynx-rental-os/current-staging.sha` and the running container's
+Compose working directory after a successful retry.
+
 For a compatible rollback, dispatch **Promote tested commit to production** from main with a previously successful staged commit in `release_sha`. The selected commit must remain reachable from staging and main. Never roll back to the pre-tenant demo-auth/unprotected API. Database/schema migrations and Odoo image changes need their own backup and compatibility review.
 
 Backups, restore acceptance and complete first-rollout checks are documented in [MULTITENANCY.md](../deploy/MULTITENANCY.md).
