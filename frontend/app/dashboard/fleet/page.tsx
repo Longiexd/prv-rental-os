@@ -844,7 +844,13 @@ function VehicleModal({
             </Link>
           </div>
 
-          <DocumentsPanel key={car.id} owner="cars" recordId={car.id} />
+          <details key={`vehicle-documents-${car.id}`} className="mt-6 rounded-xl border border-border bg-surface p-4">
+            <summary className="cursor-pointer text-sm font-semibold text-text">
+              Vehicle documents
+              <span className="ml-2 font-normal text-text-secondary">Assurance · Carte grise · Visite technique</span>
+            </summary>
+            <DocumentsPanel key={car.id} owner="cars" recordId={car.id} />
+          </details>
 
           {/* VEHICLE INFORMATION */}
 
