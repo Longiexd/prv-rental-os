@@ -4,11 +4,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.odoo_client import odoo
-from app.routes.calendar import QUOTATION_TAG, booking_status, rental_vehicle_id
-from app.verticals.car_rental.states import (
-    PICKED_UP_TAG, RETURNED_TAG, booking_state, group_bookings,
-    is_operational_state, normalize_state, target_state,
-)
+from app.routes.calendar import booking_status, rental_vehicle_id
 
 
 router = APIRouter(
@@ -32,11 +28,15 @@ router = APIRouter(
 # second, parallel status system.
 #
 # "Returned" is tracked the same way: a
-# [Rental OS returned] marker appended to the same
+# [Rental OS returned:YYYY-MM-DD] marker appended to the same
 # order note, since sale.order has no field for this and this
 # keeps the convention in one place instead of inventing a
 # second one.
 # =========================================================
+
+RETURNED_TAG = "[Rental OS returned]"
+PICKED_UP_TAG = "[Rental OS picked up]"
+
 
 def find_state_id(name: str) -> int:
     """
@@ -70,10 +70,8 @@ def get_active_orders_for_vehicle(vehicle_id: int) -> list[dict]:
         "search_read",
         [
             [
-                ["state", "in", ["sale", "done"]],
+                ["state", "!=", "cancel"],
                 ["note", "ilike", f"fleet.vehicle:{vehicle_id}]"],
-                ["note", "not ilike", RETURNED_TAG],
-                ["note", "not ilike", QUOTATION_TAG],
             ]
         ],
         {
@@ -84,6 +82,7 @@ def get_active_orders_for_vehicle(vehicle_id: int) -> list[dict]:
                 "date_order",
                 "commitment_date",
             ],
+            "limit": 200,
         },
     )
 
@@ -96,37 +95,68 @@ def get_active_orders_for_vehicle(vehicle_id: int) -> list[dict]:
     ]
 
 
-def compute_target_state(vehicle_id: int, orders: list[dict] | None = None) -> str | None:
-    return booking_state(
-        get_active_orders_for_vehicle(vehicle_id) if orders is None else orders,
-    )
+def compute_target_state(vehicle_id: int) -> str | None:
+    """
+    - Louée: a CONFIRMED (sale/done) booking whose range covers
+      today.
+    - Retour dû: a CONFIRMED booking whose end date has passed.
+    - Réservé: a confirmed future booking reserves the vehicle.
+    - None: no booking currently needs to drive this vehicle's
+      state, so its actual state (Disponible, Nettoyage,
+      Maintenance...) is left alone. This sync is corrective
+      only, never a wholesale takeover of every state.
+    """
 
+    orders = get_active_orders_for_vehicle(vehicle_id)
 
-def sync_vehicle_state(vehicle_id: int, *, vehicle: dict | None = None,
-                       orders: list[dict] | None = None,
-                       state_ids: dict[str, int] | None = None) -> str | None:
-    """Recompute booking states without overwriting manual operations."""
-    if vehicle is None:
-        records = odoo.execute("fleet.vehicle", "search_read",
-                               [[["id", "=", vehicle_id]]],
-                               {"fields": ["state_id"], "limit": 1})
-        if not records:
-            raise HTTPException(404, "Vehicle not found.")
-        vehicle = records[0]
-    state = vehicle.get("state_id")
-    current = state[1] if state else None
-    if is_operational_state(current):
+    if not orders:
         return None
-    active_orders = get_active_orders_for_vehicle(vehicle_id) if orders is None else orders
-    target = target_state(current, active_orders)
+
+    today = date.today().isoformat()
+    has_upcoming_or_current = False
+    has_overdue_confirmed = False
+
+    for order in orders:
+        start = (order.get("date_order") or "")[:10]
+        end = (order.get("commitment_date") or "")[:10]
+        confirmed = order.get("state") in ("sale", "done")
+
+        if confirmed and start and end and start <= today <= end:
+            return "Louée"
+
+        if confirmed and end and today > end:
+            has_overdue_confirmed = True
+        elif not end or today <= end:
+            has_upcoming_or_current = True
+
+    if has_overdue_confirmed:
+        return "Retour dû"
+
+    if has_upcoming_or_current:
+        return "Réservé"
+
+    return None
+
+
+def sync_vehicle_state(vehicle_id: int) -> str | None:
+    """
+    Computes and writes the correct state for one vehicle.
+    Called right after a rental is created, and available via
+    POST /cars/sync for the Fleet/Calendar pages to refresh all
+    vehicles at once.
+    """
+
+    target = compute_target_state(vehicle_id)
+
     if not target:
         return None
-    if normalize_state(current) != normalize_state(target):
-        cache = state_ids if state_ids is not None else {}
-        if target not in cache:
-            cache[target] = find_state_id(target)
-        odoo.execute("fleet.vehicle", "write",
-                     [[vehicle_id], {"state_id": cache[target]}])
+
+    odoo.execute(
+        "fleet.vehicle",
+        "write",
+        [[vehicle_id], {"state_id": find_state_id(target)}],
+    )
+
     return target
 
 
@@ -136,21 +166,13 @@ def sync_all_vehicles():
         "fleet.vehicle",
         "search_read",
         [[["active", "=", True]]],
-        {"fields": ["id", "state_id"]},
+        {"fields": ["id"], "limit": 500},
     )
-    orders = odoo.execute("sale.order", "search_read", [[
-        ["state", "in", ["sale", "done"]],
-        ["note", "ilike", "[Rental OS fleet.vehicle:"],
-        ["note", "not ilike", RETURNED_TAG],
-        ["note", "not ilike", QUOTATION_TAG],
-    ]], {"fields": ["id", "note", "state", "date_order", "commitment_date"]}) if vehicles else []
-    grouped = group_bookings(orders)
-    state_ids = {}
+
     updated = {}
 
     for vehicle in vehicles:
-        result = sync_vehicle_state(vehicle["id"], vehicle=vehicle,
-                                    orders=grouped.get(vehicle["id"], []), state_ids=state_ids)
+        result = sync_vehicle_state(vehicle["id"])
 
         if result:
             updated[vehicle["id"]] = result

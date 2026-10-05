@@ -1,4 +1,4 @@
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -6,7 +6,6 @@ from pydantic import BaseModel, Field
 from app.odoo_client import odoo
 from app.routes.calendar import QUOTATION_TAG, booking_status, rental_vehicle_id
 from app.routes.cars import RETURNED_TAG
-from app.verticals.car_rental.states import blocking_booking_domain, is_booking_state, is_operational_state
 
 
 router = APIRouter(
@@ -226,10 +225,26 @@ def get_rental_options(
     booked_vehicle_ids: set[int] = set()
 
     if start_date and end_date and end_date >= start_date:
+        end_exclusive = end_date + timedelta(days=1)
+
         overlapping_orders = odoo.execute(
             "sale.order",
             "search_read",
-            [blocking_booking_domain(start_date, end_date, exclude_order_id)],
+            [
+                [
+                    [
+                        "date_order",
+                        "<",
+                        f"{end_exclusive.isoformat()} 00:00:00",
+                    ],
+                    [
+                        "commitment_date",
+                        ">=",
+                        f"{start_date.isoformat()} 00:00:00",
+                    ],
+                    ["state", "in", ["sale", "done"]],
+                ]
+            ],
             {"fields": ["id", "note", "state"]},
         )
 
@@ -264,8 +279,10 @@ def get_rental_options(
             else None
         )
 
-        is_fleet_available = is_vehicle_available(state_label) or is_booking_state(state_label)
-        if vehicle["id"] == editing_vehicle_id and not is_operational_state(state_label):
+        is_fleet_available = is_vehicle_available(state_label) or any(
+            word in (state_label or "").lower() for word in ("réserv", "reserv")
+        )
+        if vehicle["id"] == editing_vehicle_id:
             is_fleet_available = True
 
         vehicle["available"] = (
@@ -710,8 +727,15 @@ def create_rental(
     sale_values = {
         "partner_id": customer["id"],
 
-        "date_order": pickup_at.strftime("%Y-%m-%d %H:%M:%S"),
-        "commitment_date": return_at.strftime("%Y-%m-%d %H:%M:%S"),
+        "date_order": (
+            f"{rental.start_date.isoformat()}"
+            " 00:00:00"
+        ),
+
+        "commitment_date": (
+            f"{rental.end_date.isoformat()}"
+            " 00:00:00"
+        ),
 
         "note": (
             f"{QUOTATION_TAG}\n"

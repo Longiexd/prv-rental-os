@@ -34,7 +34,6 @@ import {
 } from "@/lib/format";
 import { SortableHeader, type SortDirection } from "@/components/ui/SortableHeader";
 import { API_URL, apiRequest } from "@/lib/api-config";
-import { getVehicleBookings } from "@/lib/fleet-bookings";
 
 // ============================================================
 // TYPES
@@ -81,8 +80,6 @@ type Sale = {
   order_line_ids: number[];
   vehicle_id?: number | null;
   returned?: boolean;
-  picked_up?: boolean;
-  booking_status?: "quotation" | "confirmed" | "cancelled";
 };
 
 type SalesResponse = {
@@ -175,6 +172,93 @@ function formatDate(value: string | null) {
 // RENTAL HELPERS
 // ============================================================
 
+function getVehicleRental(
+  carId: number,
+  sales: Sale[]
+): Sale | null {
+  const rentals = sales
+    .filter(
+      (sale) =>
+        sale.vehicle_id === carId &&
+        sale.state !== "cancel" &&
+        !sale.returned
+    )
+    .sort((a, b) => {
+      const aDate =
+        parseDate(
+          a.date_order
+        )?.getTime() || 0;
+
+      const bDate =
+        parseDate(
+          b.date_order
+        )?.getTime() || 0;
+
+      return bDate - aDate;
+    });
+
+  if (!rentals.length) {
+    return null;
+  }
+
+  const now = new Date();
+
+  const active = rentals.find(
+    (sale) => {
+      const start =
+        parseDate(
+          sale.date_order
+        );
+
+      const end =
+        parseDate(
+          sale.commitment_date
+        );
+
+      if (!start || !end) {
+        return false;
+      }
+
+      return (
+        now >= start &&
+        now <= end
+      );
+    }
+  );
+
+  if (active) {
+    return active;
+  }
+
+  const next = rentals
+    .filter((sale) => {
+      const start =
+        parseDate(
+          sale.date_order
+        );
+
+      return (
+        start !== null &&
+        start > now
+      );
+    })
+    .sort((a, b) => {
+      const aDate =
+        parseDate(
+          a.date_order
+        )?.getTime() || 0;
+
+      const bDate =
+        parseDate(
+          b.date_order
+        )?.getTime() || 0;
+
+      return aDate - bDate;
+    })[0];
+
+  return next || rentals[0];
+}
+
 // ============================================================
 // STATUS BADGE
 // ============================================================
@@ -228,13 +312,11 @@ function StatusBadge({
 function VehicleCard({
   car,
   rental,
-  quotations,
   onClick,
   onAction,
 }: {
   car: CarData;
   rental: Sale | null;
-  quotations: Sale[];
   onClick: () => void;
   onAction: (
     vehicleId: number,
@@ -259,7 +341,7 @@ function VehicleCard({
       tabIndex={0}
       onClick={onClick}
       onKeyDown={(event) => {
-        if (event.target === event.currentTarget && event.key === "Enter") onClick();
+        if (event.key === "Enter") onClick();
       }}
       className="group relative overflow-hidden rounded-2xl border border-border bg-surface text-left transition duration-200 hover:-translate-y-0.5 hover:border-strong hover:bg-surface hover:shadow-2xl hover:shadow-black/20"
     >
@@ -329,11 +411,13 @@ function VehicleCard({
           <StatusBadge car={car} />
         </div>
 
-        {rental && ["rented", "reserved", "returnDue"].includes(fleetStatus) && (
+        {rental &&
+          fleetStatus ===
+            "rented" && (
             <div className="mt-5 rounded-xl border border-border bg-surface-secondary p-3.5">
               <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.12em] text-muted">
                 <UserRound size={12} />
-                {fleetStatus === "reserved" ? "Reserved for" : "Rented to"}
+                Rented to
               </div>
 
               <div className="mt-2 truncate text-sm font-medium text-text">
@@ -363,22 +447,6 @@ function VehicleCard({
               </div>
             </div>
           )}
-
-        {quotations.length > 0 && (
-          <div className="mt-4 rounded-xl border border-border bg-surface-secondary p-3.5">
-            <p className="text-xs font-medium text-text-secondary">Quotations · do not reserve the vehicle</p>
-            <div className="mt-2 max-h-32 space-y-2 overflow-y-auto">
-              {quotations.map(quotation => (
-                <Link key={quotation.id} href={`/dashboard/rentals/${quotation.id}`}
-                  onClick={event => event.stopPropagation()}
-                  className="block rounded-lg p-2 text-sm text-text hover:bg-background focus-visible:outline-lime-ink">
-                  <span className="block truncate font-medium">{quotation.customer?.name || quotation.name}</span>
-                  <span className="text-xs text-muted">{formatDate(quotation.date_order)} → {formatDate(quotation.commitment_date)}</span>
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
 
         {fleetStatus ===
           "cleaning" && (
@@ -1036,10 +1104,10 @@ export default function FleetPage() {
   const [statusFilter, setStatusFilter] =
     useState<FleetStatus | null>(null);
 
-  // Cards expose booking context and operational actions immediately.
+  // LIST REMAINS DEFAULT
   const [view, setView] =
     useState<"list" | "cards">(
-      "cards"
+      "list"
     );
 
   const [selectedCar, setSelectedCar] =
@@ -1079,7 +1147,7 @@ export default function FleetPage() {
           apiRequest(`${API_URL}/cars`, {
             cache: "no-store",
           }),
-          apiRequest(`${API_URL}/sales?for_fleet=true`, {
+          apiRequest(`${API_URL}/sales`, {
             cache: "no-store",
           }),
         ]);
@@ -1178,21 +1246,16 @@ export default function FleetPage() {
   // ==========================================================
 
   const fleet = useMemo(() => {
-    const bookingsByVehicle = new Map<number, Sale[]>();
-    for (const sale of sales) {
-      if (sale.vehicle_id) {
-        const bookings = bookingsByVehicle.get(sale.vehicle_id) || [];
-        bookings.push(sale);
-        bookingsByVehicle.set(sale.vehicle_id, bookings);
-      }
-    }
     return cars.map((car) => ({
       car,
       status: getFleetStatus(
         car.status,
         car.active
       ),
-      ...getVehicleBookings(car.id, bookingsByVehicle.get(car.id) || []),
+      rental: getVehicleRental(
+        car.id,
+        sales
+      ),
     }));
   }, [cars, sales]);
 
@@ -2004,13 +2067,11 @@ export default function FleetPage() {
                 ({
                   car,
                   rental,
-                  quotations,
                 }) => (
                   <VehicleCard
                     key={car.id}
                     car={car}
                     rental={rental}
-                    quotations={quotations}
                     onClick={() =>
                       setSelectedCar(
                         car

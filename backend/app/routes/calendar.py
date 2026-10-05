@@ -1,20 +1,43 @@
+import re
 from datetime import date, timedelta
 
 from fastapi import APIRouter, Query
 
 from app.odoo_client import odoo
-from app.core.bookings import QUOTATION_TAG, CONFIRMED_TAG, booking_status
-from app.verticals.car_rental.states import rental_vehicle_id
 
 router = APIRouter(
     prefix="/calendar",
     tags=["Calendar"],
 )
 
+QUOTATION_TAG = "[Rental OS booking:quotation]"
+CONFIRMED_TAG = "[Rental OS booking:confirmed]"
+
+
+def booking_status(order):
+    if order.get("state") == "cancel":
+        return "cancelled"
+    if QUOTATION_TAG in (order.get("note") or ""):
+        return "quotation"
+    return "confirmed" if order.get("state") in ("sale", "done") else "quotation"
+
+
 def many2one(value):
     if isinstance(value, list) and len(value) >= 2:
         return {"id": value[0], "name": value[1]}
     return None
+
+
+def rental_vehicle_id(note):
+    if not isinstance(note, str):
+        return None
+
+    match = re.search(
+        r"\[Rental OS fleet\.vehicle:(\d+)\]",
+        note,
+    )
+
+    return int(match.group(1)) if match else None
 
 
 @router.get("")
