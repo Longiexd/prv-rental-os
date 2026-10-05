@@ -123,3 +123,13 @@ Remaining:
 - [ ] Focused dependency vulnerability assessment/remediation and measured deployment performance review.
 
 Opportunity pickup/drop-off synchronization was explicitly excluded by the user; it is not a remaining requirement for this block. No automated deployment, authentication or dependency changes are included in this follow-up.
+
+## Compact paperwork, linked follow-ups and expiry reminder dates
+
+- Identity uses one expandable CIN / Passport row and one number field, with the type selector inside. Licence and other documents also collapse to status rows. Missing/expired rows remain visibly red; uploaded files show Needs review; verified rows remain green. Existing files are preserved when switching identity types.
+- Storage guidance is visible in the panel: private customer originals belong to the Odoo contact, rental archives belong to the booking, and vehicle files belong to the native Fleet record. Nationality and birth date from the preceding follow-up remain reusable.
+- Paperwork and its load error are after Invoices & payments. The prospect link is a bordered semantic button using the existing readable to-do palette in both themes.
+- Rental To do uses the existing compact component, lists upcoming as well as due scoped follow-ups, and creates new activities against the linked CRM prospect. Earlier booking activities are read alongside them; rentals without a prospect retain booking-bound scheduling. All actions keep native mail.activity and existing authorization. Compact lists can expand beyond five items without navigating to unrelated global activities.
+- Vehicle uploads/updates store expiry and a reminder_date one calendar month earlier, clamping month-end/leap-year days. Removing expiry clears its reminder date. Existing documents derive the same reminder from stored expiry without migration. The renewal window date is shown on the vehicle form. This is the foundation requested for later reminders; there is no background notification sender or new scheduler in this patch.
+- Verification: 164 targeted backend tests passed (12 HTTP tests deselected for the existing Windows socket limitation); 40 frontend/security/Worker tests and TypeScript passed. Component lint passed; the rental page passed focused lint with its pre-existing set-state-in-effect rule excluded. A mocked component interaction check verified prospect and legacy booking loads, prospect activity creation, booking-only fallback and two collapsed identity/licence rows. Full Linux tests/build and live visual checks remain required.
+- No new production files, dependency upgrades, authentication, registry, proxy or deployment changes. Only existing document, activity, rental page, regression test and tracker files change.

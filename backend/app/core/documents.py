@@ -1,6 +1,7 @@
 """Private document tracking on native Odoo attachments, scoped to their parent."""
 import base64
 import binascii
+from calendar import monthrange
 from datetime import date
 from typing import Literal
 
@@ -13,6 +14,16 @@ from app.odoo_client import odoo
 MAX_FILE_BYTES = 600 * 1024  # Base64 plus metadata stays below the existing 1 MiB proxy limit.
 KEY = "document"
 CUSTOMER_KINDS = {"cin": "CIN", "passport": "Passport", "driving_license": "Driving licence"}
+
+
+def expiry_reminder(expiry):
+    if not expiry:
+        return None
+    if expiry.year == 1 and expiry.month == 1:
+        return date.min.isoformat()
+    month = expiry.month - 1 or 12
+    year = expiry.year - (expiry.month == 1)
+    return date(year, month, min(expiry.day, monthrange(year, month)[1])).isoformat()
 
 
 class IdentityFields(BaseModel):
@@ -100,13 +111,14 @@ def checklist_from_records(records, kinds):
     for kind, label in kinds.items():
         item = {"kind": kind, "label": label, "status": "missing", "id": None,
                 "filename": None, "number": "", "expiry_date": None, "verified": False, "checksum": None,
-                "nationality": "", "birth_date": None}
+                "nationality": "", "birth_date": None, "reminder_date": None}
         if kind in latest:
             attachment, value = latest[kind]
             expired = bool(value.get("expiry_date") and value["expiry_date"] < date.today().isoformat())
             item.update(id=attachment["id"], filename=attachment["name"], number=value["number"], checksum=attachment.get("checksum"),
                         expiry_date=value.get("expiry_date"), verified=value["verified"],
                         nationality=value.get("nationality", ""), birth_date=value.get("birth_date"),
+                        reminder_date=expiry_reminder(date.fromisoformat(value["expiry_date"])) if value.get("expiry_date") else None,
                         status="expired" if expired else "verified" if value["verified"] else "uploaded")
         documents.append(item)
     valid = {item["kind"] for item in documents if item["status"] == "verified" and item["number"].strip()}
@@ -182,6 +194,8 @@ def document_router(model: Literal["res.partner", "fleet.vehicle", "sale.order"]
                  "expiry_date": data.expiry_date.isoformat() if data.expiry_date else None, "verified": False}
         if model == "res.partner" and data.kind in ("cin", "passport"):
             value.update(nationality=data.nationality.strip(), birth_date=data.birth_date.isoformat() if data.birth_date else None)
+        if model == "fleet.vehicle":
+            value["reminder_date"] = expiry_reminder(data.expiry_date)
         attachment_id = save_attachment({
             "name": f"{data.kind}.{extension}", "type": "binary", "datas": data.content,
             "mimetype": mime, "res_model": model, "res_id": record_id, "public": False,
@@ -194,6 +208,8 @@ def document_router(model: Literal["res.partner", "fleet.vehicle", "sale.order"]
         attachment, value = tracked_attachment(model, record_id, attachment_id, kinds)
         value.update(number=data.number.strip(), verified=data.verified,
                      expiry_date=data.expiry_date.isoformat() if data.expiry_date else None)
+        if model == "fleet.vehicle":
+            value["reminder_date"] = expiry_reminder(data.expiry_date)
         # Older callers omit these optional fields; preserve their saved contact data.
         if model == "res.partner" and value["kind"] in ("cin", "passport"):
             if "nationality" in data.model_fields_set:

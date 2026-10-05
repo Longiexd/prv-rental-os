@@ -8,6 +8,7 @@ type TrackedDocument = {
   status: "missing" | "uploaded" | "verified" | "expired";
   number: string; expiry_date: string | null; verified: boolean;
   nationality?: string; birth_date?: string | null;
+  reminder_date?: string | null;
 };
 type Checklist = { documents: TrackedDocument[]; ready: boolean };
 const input = "w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm text-text";
@@ -179,38 +180,37 @@ export default function DocumentsPanel({ owner, recordId, onChanged }: { owner: 
 
   return <section className="mt-6 rounded-xl border border-border bg-surface p-5" aria-label={owner === "sales" ? "Rental document copies" : owner === "customers" ? "Customer documents" : "Vehicle documents"}>
     <h2 className="font-semibold text-text">{owner === "sales" ? "Documents saved with this rental" : owner === "customers" ? "Documents before pickup" : "Vehicle documents"}</h2>
-    {owner === "customers" && <p className="mt-1 text-sm text-text-secondary">Verify either CIN or passport, plus the driving licence. These scans stay on the customer and can be reused for later rentals.</p>}
+    <p className="mt-1 text-xs text-text-secondary">{owner === "customers" ? "Originals are stored privately on the client's Odoo contact and reused for later rentals. Verify one identity document and the licence." : owner === "sales" ? "Private copies are archived on this Odoo booking; updating the contact does not replace them." : "Documents and expiry dates are stored privately on this Odoo Fleet vehicle."}</p>
     <p className={`mt-1 text-sm ${checklist?.ready ? "text-[var(--status-available-text)]" : "text-muted"}`}>
       {!checklist ? "Loading document checklist…" : owner === "sales" ? "Copies retained with this rental. Customer originals can be updated separately." : checklist.ready ? (owner === "customers" ? "Client documents ready for pickup." : "Vehicle documents verified.")
         : "Review missing, unverified or expired documents before pickup."}
     </p>
-    <p className="mt-1 text-xs text-muted">PDF, PNG or JPEG · maximum 600 KiB per file. Uploads require a separate verification.</p>
     {error && <p role="alert" className="mt-3 text-sm text-[var(--status-danger-text)]">{error} <button className={button} disabled={busy} onClick={() => { setError(""); setRevision(value => value + 1); }}>Refresh</button></p>}
     {notice && <p role="status" className="mt-3 text-sm text-text">{notice}</p>}
-    {owner === "customers" && checklist && <label className="mt-4 block text-sm text-text">Identity document · choose one
-      <select className={`${input} mt-1 max-w-sm`} disabled={busy} value={identityKind} onChange={event => setIdentity({path, kind: event.target.value})}>
-        {identities.map(document => <option key={document.kind} value={document.kind}>{document.label}{document.id ? ` · ${document.status}` : ""}</option>)}
-      </select>
-      <span className="mt-1 block text-xs text-text-secondary">Only CIN or passport is required, together with the driving licence. Switching this form keeps previously saved scans.</span>
-    </label>}
-    <div className="mt-4 grid gap-4">
-      {checklist?.documents.filter(document => owner === "sales" ? document.id : owner !== "customers" || !["cin", "passport"].includes(document.kind) || document.kind === identityKind).map(document => <form key={`${document.kind}-${document.id}-${revision}`} onSubmit={event => void save(event, document)} className="rounded-lg border border-border p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-medium text-text">{document.label}</h3>
-          <span className={`text-sm ${document.status === "verified" ? "text-[var(--status-available-text)]" : document.status === "expired" ? "text-[var(--status-danger-text)]" : "text-muted"}`}>{document.status}</span></div>
+    <div className="mt-3 grid gap-2">
+      {checklist?.documents.filter(document => owner === "sales" ? document.id : owner !== "customers" || !["cin", "passport"].includes(document.kind) || document.kind === identityKind).map(document => <details key={`${owner === "customers" && ["cin", "passport"].includes(document.kind) ? "identity" : document.kind}-${revision}`} className={`group rounded-lg border ${owner !== "sales" && ["missing", "expired"].includes(document.status) ? "border-[var(--status-danger-border)] bg-[var(--status-danger-bg)]" : "border-border"}`}>
+        <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 p-3 text-sm text-text">
+          <span className="flex items-center gap-2 font-medium"><span aria-hidden="true" className="text-lg transition-transform group-open:rotate-90">›</span>{owner === "customers" && ["cin", "passport"].includes(document.kind) ? "Identity · CIN / Passport" : document.label}</span>
+          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${document.status === "verified" ? "bg-[var(--status-available-bg)] text-[var(--status-available-text)]" : ["missing", "expired"].includes(document.status) ? "bg-[var(--status-danger-bg)] text-[var(--status-danger-text)]" : "bg-[var(--status-reserved-bg)] text-[var(--status-reserved-text)]"}`}>{document.status === "uploaded" ? "Needs review" : document.status}{owner === "customers" && ["cin", "passport"].includes(document.kind) && document.id ? ` · ${document.label}` : ""}</span>
+        </summary>
+        <form key={`${document.kind}-${document.id}-${revision}`} onSubmit={event => void save(event, document)} className="border-t border-border p-3">
+        {owner !== "sales" && <p className="text-xs text-text-secondary">PDF, PNG or JPEG · maximum 600 KiB. Uploads require agent verification.</p>}
         {owner !== "sales" && <fieldset disabled={busy} className="mt-3 grid gap-3 sm:grid-cols-2">
-          <label className="text-sm text-text">Document number<input name="number" maxLength={100} defaultValue={document.number} className={input} /></label>
+          {owner === "customers" && ["cin", "passport"].includes(document.kind) && <label className="text-sm text-text sm:col-span-2">Identity type<select className={`${input} mt-1 max-w-sm`} value={identityKind} onChange={event => setIdentity({path, kind: event.target.value})}>{identities.map(item => <option key={item.kind} value={item.kind}>{item.label}{item.id ? ` · ${item.status}` : ""}</option>)}</select></label>}
+          <label className="text-sm text-text">{owner === "customers" && ["cin", "passport"].includes(document.kind) ? "CIN / Passport number" : "Document number"}<input name="number" maxLength={100} defaultValue={document.number} className={input} /></label>
           {owner === "customers" && ["cin", "passport"].includes(document.kind) && <>
             <label className="text-sm text-text">Nationality (optional)<input name="nationality" maxLength={100} defaultValue={document.nationality || ""} className={input} /></label>
             <label className="text-sm text-text">Date of birth (optional)<input name="birth_date" type="date" defaultValue={document.birth_date || ""} className={input} /></label>
           </>}
           <label className="text-sm text-text">Expiry date (optional)<input name="expiry_date" type="date" defaultValue={document.expiry_date || ""} className={input} /></label>
+          {owner === "cars" && document.reminder_date && <p className="self-end text-xs text-text-secondary">Renewal window starts {document.reminder_date} · one month before expiry.</p>}
           <label className="text-sm text-text sm:col-span-2">{document.id ? "Replace scan (optional)" : "Upload scan"}<input name="file" type="file" accept="application/pdf,image/png,image/jpeg" className={input} /></label>
           {document.id && <label className="flex items-center gap-2 text-sm text-text"><input name="verified" type="checkbox" defaultChecked={document.verified} />Verified by agent</label>}
           <div className="flex flex-wrap gap-2 sm:col-span-2"><button className={button} type="submit">{busy ? "Please wait…" : "Save document"}</button>
             {document.id && <button className={button} type="button" onClick={() => void download(document)}>Download / review</button>}</div>
         </fieldset>}
         {owner === "sales" && document.id && <button disabled={busy} className={`${button} mt-3`} type="button" onClick={() => void download(document)}>Download rental copy · {document.number}</button>}
-      </form>)}
+      </form></details>)}
     </div>
   </section>;
 }

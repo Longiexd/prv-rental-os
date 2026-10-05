@@ -298,6 +298,31 @@ def test_uploaded_identity_details_are_saved_privately_and_do_not_verify_automat
         assert store.attachments[0]["res_model"] == "res.partner" and not store.attachments[0]["public"]
 
 
+@pytest.mark.parametrize("expiry,reminder", [("2030-03-31", "2030-02-28"), ("2028-03-31", "2028-02-29"),
+                                           ("2030-01-15", "2029-12-15"), ("2030-07-01", "2030-06-01"),
+                                           ("0001-01-01", "0001-01-01")])
+def test_vehicle_expiry_reminder_is_one_calendar_month_before_expiry(expiry, reminder):
+    assert documents.expiry_reminder(date.fromisoformat(expiry)) == reminder
+
+
+def test_vehicle_document_expiry_reminder_persists_updates_clears_and_reads_legacy_dates():
+    store = Store()
+    checklist, create, update, _ = [route.endpoint for route in documents.document_router("fleet.vehicle", {"insurance": "Assurance"}).routes]
+    with patch.object(documents.odoo, "execute", side_effect=store.execute):
+        create(3, documents.DocumentUpload(kind="insurance", filename="scan.pdf", content=base64.b64encode(b"%PDF-1.7 scan").decode(), expiry_date=date(2030, 3, 31)))
+        value = read_metadata(store.attachments[0]["description"], "document")
+        assert value["reminder_date"] == "2030-02-28"
+        # Existing scans retain their expiry and gain the same derived reminder in the checklist.
+        del value["reminder_date"]
+        store.attachments[0]["description"] = write_metadata("", "document", value)
+        assert checklist(3)["documents"][0]["reminder_date"] == "2030-02-28"
+        update(3, 1, documents.DocumentUpdate(expiry_date=date(2030, 1, 15)))
+        assert read_metadata(store.attachments[0]["description"], "document")["reminder_date"] == "2029-12-15"
+        update(3, 1, documents.DocumentUpdate(expiry_date=None))
+        assert checklist(3)["documents"][0]["reminder_date"] is None
+        assert read_metadata(store.attachments[0]["description"], "document")["reminder_date"] is None
+
+
 def test_verified_passport_and_licence_prepare_print_and_pickup_preserve_rental_copies():
     store = RentalStore()
     with patch.object(documents.odoo, "execute", side_effect=store.execute), patch.object(booking_changes, "refresh_fleet"):

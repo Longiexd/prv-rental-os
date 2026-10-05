@@ -245,7 +245,7 @@ export default function RentalDetailPage() {
       {!editable && !cancelled && quotation.amount_to_invoice > 0 && !pendingInvoice && <form className="mt-3 flex flex-wrap items-end gap-3 rounded-xl border border-border p-4" onSubmit={event => { event.preventDefault(); void act(`/sales/${rentalId}/invoice`, "POST", { deposit_amount: Number(depositAmount) }, "Deposit invoice created. Validate it below, then record the amount received."); }}>
         <label className="text-sm text-text-secondary">Invoice a deposit<input required type="number" min="0.01" max={quotation.amount_to_invoice} step="0.01" className={`${inputClass} ml-3 w-32`} value={depositAmount} onChange={event => setDepositAmount(event.target.value)} /></label><button disabled={!!busy} className={buttonClass}>Create deposit invoice</button><p className="text-sm text-muted">Enter the partial amount agreed with the client. Advances are recorded before the final invoice.</p>
       </form>}
-      {quotation.opportunity && <Link href={`/crm/leads/${quotation.opportunity.id}`} className="mt-4 inline-block text-sm text-lime-ink">Open prospect & follow-ups →</Link>}
+      {quotation.opportunity && <Link href={`/crm/leads/${quotation.opportunity.id}`} className="mt-4 inline-flex items-center gap-2 rounded-lg border border-[var(--todo-border)] bg-[var(--todo-bg)] px-4 py-2.5 text-sm font-semibold text-[var(--todo-text)] transition hover:bg-[var(--todo-bg-soft)]"><User size={16} />Open prospect & follow-ups →</Link>}
       <p className="mt-4 text-sm text-text-secondary">Pickup: {quotation.date_order || "Not set"}{quotation.logistics?.pickup_location ? ` · ${quotation.logistics.pickup_location}` : ""} · Return: {quotation.commitment_date || "Not set"}{quotation.logistics?.return_location ? ` · ${quotation.logistics.return_location}` : ""}</p>
       <section className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard icon={<Receipt size={17} />} label="Total" value={formatCurrency(quotation.amount_total)} />
@@ -274,8 +274,6 @@ export default function RentalDetailPage() {
         </div>}
         <div className="flex flex-wrap justify-end gap-5 border-t border-border px-5 py-4 text-sm text-muted"><span>Untaxed: {formatCurrency(quotation.amount_untaxed)}</span><span>Tax: {formatCurrency(quotation.amount_tax)}</span><strong className="text-text">Total: {formatCurrency(quotation.amount_total)}</strong></div>
       </Card></section>
-      {paperworkError && <p role="alert" className="mt-4 text-danger">{paperworkError} <button className={buttonClass} onClick={() => void loadPaperwork()}>Retry paperwork</button></p>}
-      {quotation.customer && <PaperworkPanel key={quotation.id} rentalId={rentalId} customerId={quotation.customer.id} confirmed={confirmed} collected={quotation.picked_up || quotation.returned} status={paperwork} refresh={loadPaperwork} />}
       <section id="payments" className="mt-6 scroll-mt-5 rounded-xl border border-blue-400/40 bg-blue-500/5"><Card><CardHeader title="Invoices & payments" subtitle="Validate the invoice, record each instalment, then print the final invoice." />
         {!quotation.invoices.length && <div className="p-6"><EmptyState icon={<Receipt />} title="No invoice yet" description={editable ? "Confirm the quotation above to generate an invoice." : "Generate the invoice above to record payment."} /></div>}
         {quotation.invoices.map((invoice) => <div key={invoice.id} className="border-t border-border p-5">
@@ -295,7 +293,9 @@ export default function RentalDetailPage() {
           {expandedInvoiceId === invoice.id && <div className="mt-2 space-y-2 rounded-lg bg-surface-secondary p-3 text-sm text-muted">{!paymentHistory[invoice.id]?.length ? "No payments recorded yet." : paymentHistory[invoice.id].map((payment, index) => <div key={index} className="flex flex-wrap justify-between gap-2"><span>{formatDate(payment.date)} · {payment.reference}</span><span>{formatCurrency(payment.amount)}</span></div>)}</div>}
         </div>)}
       </Card></section>
-      <div id="follow-ups" className="mt-5 scroll-mt-5"><ActivitiesPanel saleId={rentalId} /></div>
+      {paperworkError && <p role="alert" className="mt-4 text-danger">{paperworkError} <button className={buttonClass} onClick={() => void loadPaperwork()}>Retry paperwork</button></p>}
+      {quotation.customer && <PaperworkPanel key={quotation.id} rentalId={rentalId} customerId={quotation.customer.id} confirmed={confirmed} collected={quotation.picked_up || quotation.returned} status={paperwork} refresh={loadPaperwork} />}
+      <div id="follow-ups" className="mt-5 scroll-mt-5"><ActivitiesPanel key={`${rentalId}-${quotation.opportunity?.id || "booking"}`} leadId={quotation.opportunity?.id} saleId={rentalId} compact /></div>
       {returningVehicle && quotation.vehicle_id && <ReturnVehicleModal vehicleId={quotation.vehicle_id} orderId={rentalId}
         onClose={() => setReturningVehicle(false)} onReturned={async () => {
           await loadQuotation(); setReturningVehicle(false); setNotice("Return recorded and vehicle updated.");
