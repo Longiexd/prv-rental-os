@@ -8,9 +8,7 @@ import {
   CalendarDays,
   Car,
   CheckCircle2,
-  ChevronDown,
   ChevronRight,
-  ChevronUp,
   Clock3,
   Gauge,
   LayoutGrid,
@@ -29,7 +27,6 @@ import {
   type FleetStatus,
 } from "@/lib/status";
 import {
-  parseDate as sharedParseDate,
   formatDate as sharedFormatDate,
 } from "@/lib/format";
 import { SortableHeader, type SortDirection } from "@/components/ui/SortableHeader";
@@ -166,10 +163,6 @@ function getStatusMeta(
 // ============================================================
 // DATES
 // ============================================================
-
-function parseDate(value: string | null) {
-  return sharedParseDate(value);
-}
 
 function formatDate(value: string | null) {
   return sharedFormatDate(value);
@@ -1604,7 +1597,7 @@ export default function FleetPage() {
                 : counts.available}
             </div>
 
-            <div className="mt-1 text-xs text-[var(--status-available-text)]/50">
+            <div className="mt-1 text-xs text-[var(--status-available-text)]">
               ready to rent
             </div>
           </button>
@@ -1634,7 +1627,7 @@ export default function FleetPage() {
                 : counts.reserved}
             </div>
 
-            <div className="mt-1 text-xs text-[var(--status-reserved-text)]/50">
+            <div className="mt-1 text-xs text-[var(--status-reserved-text)]">
               booked, not yet picked up
             </div>
           </button>
@@ -1664,7 +1657,7 @@ export default function FleetPage() {
                 : counts.rented}
             </div>
 
-            <div className="mt-1 text-xs text-[var(--status-rented-text)]/50">
+            <div className="mt-1 text-xs text-[var(--status-rented-text)]">
               currently rented
             </div>
           </button>
@@ -1694,7 +1687,7 @@ export default function FleetPage() {
                 : counts.cleaning}
             </div>
 
-            <div className="mt-1 text-xs text-[var(--status-cleaning-text)]/50">
+            <div className="mt-1 text-xs text-[var(--status-cleaning-text)]">
               being prepared
             </div>
           </button>
@@ -1724,7 +1717,7 @@ export default function FleetPage() {
                 : counts.maintenance}
             </div>
 
-            <div className="mt-1 text-xs text-[var(--status-maintenance-text)]/50">
+            <div className="mt-1 text-xs text-[var(--status-maintenance-text)]">
               unavailable
             </div>
           </button>

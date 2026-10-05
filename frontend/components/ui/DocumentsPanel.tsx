@@ -86,7 +86,7 @@ export function PaperworkPanel({ rentalId, customerId, confirmed, collected, sta
     <p className="mt-2 text-sm text-text-secondary">1. Review identity and licence. 2. Prepare and print the contract. 3. Confirm it is ready, then validate actual pickup.</p>
     {!confirmed && <p className="mt-2 text-sm text-muted">You can collect documents now. Record a payment and confirm the booking to prepare its contract.</p>}
     {error && <p role="alert" className="mt-3 text-sm text-danger">{error}</p>}
-    <DocumentsPanel owner="customers" recordId={customerId} rentalId={rentalId} rentalCopies={status?.rental_documents}
+    <DocumentsPanel key={customerId} owner="customers" recordId={customerId} rentalId={rentalId} rentalCopies={status?.rental_documents}
       readOnly={collected} onChanged={() => void refresh().catch(err => setError(String(err)))} />
     {!collected && !driverActive && !addingDriver && <button className={`${reviewButton} mt-3`} disabled={busy} onClick={() => setAddingDriver(true)}>Add additional driver</button>}
     {(driverActive || addingDriver) && <details key={driverActive ? "saved-driver" : "new-driver"} open={addingDriver || undefined} className="mt-4 rounded-lg border border-border p-4">
@@ -100,7 +100,7 @@ export function PaperworkPanel({ rentalId, customerId, confirmed, collected, sta
         }}>{driverActive ? "Remove additional driver" : "Cancel"}</button></div>
       </form>}
       {driverActive && <>
-        <DocumentsPanel key={`driver-${rentalId}`} owner="sales" recordId={rentalId} rentalId={rentalId} additionalDriver readOnly={collected} rentalCopies={driver?.rental_documents} onChanged={() => void refresh().catch(err => setError(String(err)))} />
+        <DocumentsPanel key={`driver-${rentalId}-${profile?.name}`} owner="sales" recordId={rentalId} rentalId={rentalId} additionalDriver readOnly={collected} rentalCopies={driver?.rental_documents} onChanged={() => void refresh().catch(err => setError(String(err)))} />
         {!collected && driver?.fee_status !== "included" && !profile?.fee_reviewed && <div role="status" className="mt-3 rounded-lg border border-[var(--status-reserved-border)] bg-[var(--status-reserved-bg)] p-3 text-sm text-[var(--status-reserved-text)]">
           <p>{driver?.fee_status === "invoice_pending" ? "Additional-driver fee is on the quotation. Generate or update the invoice for this added service." : "Does your agency charge for an additional driver? Add OPT-CDSUPP to the quotation and invoice if applicable."}</p>
           <div className="mt-2 flex flex-wrap gap-2"><button className={reviewButton} disabled={busy} onClick={editBooking}>Review quotation / fee</button><button className={button} disabled={busy} onClick={() => void perform(async () => {
@@ -261,7 +261,7 @@ export default function DocumentsPanel({ owner, recordId, onChanged, rentalId, r
           <button className={`${saveButton} justify-self-start`} type="submit">{busy ? "Please wait…" : "Save document"}</button>
         </fieldset>}
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          {editable && rentalCopies?.some(copy => copy.kind === document.kind && copy.id) && <select name="review_source" aria-label={`Review ${document.label} source`} className={`${input} max-w-xs`} defaultValue={document.id ? "original" : "rental"}><option value="original" disabled={!document.id}>Current document</option><option value="rental">Copy saved with this rental</option></select>}
+          {editable && rentalCopies?.some(copy => copy.kind === document.kind && copy.id) && <select name="review_source" aria-label="Document review source" className={`${input} max-w-xs`} defaultValue={document.id ? "original" : "rental"}><option value="original" disabled={!document.id}>Current document</option><option value="rental">Copy saved with this rental</option></select>}
           <button disabled={busy || !document.id && !rentalCopies?.some(copy => copy.kind === document.kind && copy.id)} className={reviewButton} type="button" onClick={event => {
             const source = event.currentTarget.form?.elements.namedItem("review_source") as HTMLSelectElement | null;
             const copy = rentalCopies?.find(item => item.kind === document.kind);

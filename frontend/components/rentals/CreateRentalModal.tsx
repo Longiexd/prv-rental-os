@@ -990,7 +990,7 @@ export default function CreateRentalModal({
               id="new-rental-title"
               className="mt-1 text-xl font-semibold text-text"
             >
-              New booking
+              {rentalId ? "Edit booking" : "New booking"}
             </h2>
 
             <p className="mt-1 text-sm text-muted">
@@ -1003,6 +1003,7 @@ export default function CreateRentalModal({
           <button
             type="button"
             onClick={onClose}
+            aria-label="Close"
             className="rounded-lg p-2 text-muted transition hover:bg-surface-secondary hover:text-text"
           >
             <X size={18} />

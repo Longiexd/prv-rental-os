@@ -858,7 +858,7 @@ export default function AddLeadModal({
                 </div>
 
                 <p className="mt-1 text-[10px] text-muted">
-                  Capture the customer's initial rental needs.
+                  Capture the customer&apos;s initial rental needs.
                   These can be refined later.
                 </p>
 

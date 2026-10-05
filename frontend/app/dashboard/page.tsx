@@ -1,5 +1,7 @@
 "use client";
 
+import { useKlynxUI } from "@/components/providers/UIProvider";
+
 import ActivitiesPanel from "@/components/activities/ActivitiesPanel";
 
 import {
@@ -104,6 +106,7 @@ function displayValue(value: RelationalValue): string {
 // ============================================================
 
 export default function DashboardPage() {
+  const { t } = useKlynxUI();
   const router = useRouter();
   const [cars, setCars] = useState<CarData[]>([]);
   const [customers, setCustomers] = useState<CustomerData[]>([]);
@@ -354,7 +357,7 @@ export default function DashboardPage() {
           <Card className="border-danger/30">
             <CardHeader
               title="Needs attention"
-              subtitle={`${missingPaperwork.length} pickup paperwork incomplete · ${latePickups.length} late pickup${latePickups.length === 1 ? "" : "s"} · ${overdue.length} overdue return${overdue.length === 1 ? "" : "s"}`}
+              subtitle={t(`${missingPaperwork.length} pickup paperwork incomplete · ${latePickups.length} late pickup${latePickups.length === 1 ? "" : "s"} · ${overdue.length} overdue return${overdue.length === 1 ? "" : "s"}`)}
             />
             <div className="p-4">
               <div className="space-y-1">

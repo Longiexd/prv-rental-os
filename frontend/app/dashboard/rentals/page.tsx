@@ -742,7 +742,7 @@ export default function RentalsPage() {
             className="
               mt-1
               text-xs
-              text-orange-300/50
+              text-orange-300
             "
           >
             unpaid invoice balance

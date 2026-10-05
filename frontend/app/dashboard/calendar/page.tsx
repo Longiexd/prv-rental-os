@@ -13,7 +13,6 @@ import {
   ChevronRight,
   Clock3,
   UserRound,
-  Wrench,
   X,
   
 } from "lucide-react";
@@ -177,25 +176,6 @@ function formatDate(
       day: "2-digit",
       month: "short",
       year: "numeric",
-    }
-  );
-}
-
-function formatDateShort(
-  value: string | null
-) {
-  const date =
-    parseDate(value);
-
-  if (!date) {
-    return "—";
-  }
-
-  return date.toLocaleDateString(
-    "en-GB",
-    {
-      day: "2-digit",
-      month: "short",
     }
   );
 }
@@ -1101,7 +1081,6 @@ function TimelineView({
   month,
   vehicles,
   sales,
-  vehicleMap,
   onRentalClick,
 }: {
   month: Date;
@@ -1475,10 +1454,7 @@ function TimelineView({
 function YearView({
   year,
   sales,
-  vehicles,
-  vehicleMap,
   onMonthClick,
-  onRentalClick,
 }: {
   year: number;
   sales: Sale[];
@@ -2245,7 +2221,7 @@ export default function CalendarPage() {
           </div>
 
           <div className="rounded-2xl border border-[#C8F065]/10 bg-[var(--status-available-text)]/[0.025] p-4">
-            <div className="text-[9px] uppercase tracking-[0.14em] text-[var(--status-available-text)]/60">
+            <div className="text-[9px] uppercase tracking-[0.14em] text-[var(--status-available-text)]">
               Available
             </div>
 
@@ -2257,7 +2233,7 @@ export default function CalendarPage() {
           </div>
 
           <div className="rounded-2xl border border-[#F06AAA]/10 bg-[var(--status-rented-text)]/[0.025] p-4">
-            <div className="text-[9px] uppercase tracking-[0.14em] text-[var(--status-rented-text)]/60">
+            <div className="text-[9px] uppercase tracking-[0.14em] text-[var(--status-rented-text)]">
               Rented
             </div>
 
@@ -2269,7 +2245,7 @@ export default function CalendarPage() {
           </div>
 
           <div className="rounded-2xl border border-blue-400/10 bg-[var(--status-cleaning-text)]/[0.025] p-4">
-            <div className="text-[9px] uppercase tracking-[0.14em] text-[var(--status-cleaning-text)]/60">
+            <div className="text-[9px] uppercase tracking-[0.14em] text-[var(--status-cleaning-text)]">
               Cleaning
             </div>
 
@@ -2281,7 +2257,7 @@ export default function CalendarPage() {
           </div>
 
           <div className="rounded-2xl border border-violet-400/10 bg-[var(--status-maintenance-text)]/[0.025] p-4">
-            <div className="text-[9px] uppercase tracking-[0.14em] text-[var(--status-maintenance-text)]/60">
+            <div className="text-[9px] uppercase tracking-[0.14em] text-[var(--status-maintenance-text)]">
               Maintenance
             </div>
 

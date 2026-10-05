@@ -1,5 +1,6 @@
 "use client";
 
+import { useKlynxUI } from "@/components/providers/UIProvider";
 import Link from "next/link";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Check, Plus } from "lucide-react";
@@ -11,6 +12,7 @@ const input = "w-full rounded-lg border border-strong bg-surface-secondary px-3 
 export default function ActivitiesPanel({ leadId, saleId, compact = false, onCompleted }: {
   leadId?: number; saleId?: number; compact?: boolean; onCompleted?: () => void;
 }) {
+  const { t } = useKlynxUI();
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -135,7 +137,7 @@ export default function ActivitiesPanel({ leadId, saleId, compact = false, onCom
         </article>
       ))}
       {compact && filtered.length > 5 && <button type="button" className="klynx-todo-link text-sm font-medium underline" onClick={() => setShowAll(!showAll)}>{showAll ? "Show fewer" : `Show all ${filtered.length} activities`}</button>}
-      {compact && <Link href={leadId ? `/crm/leads/${leadId}` : saleId ? `/dashboard/rentals/${saleId}` : "/dashboard/activities"} className="klynx-todo-link inline-block text-sm font-medium underline">{leadId ? "Open prospect follow-ups" : saleId ? "Open booking" : `View all activities (${activities.length})`} →</Link>}
+      {compact && <Link href={leadId ? `/crm/leads/${leadId}` : saleId ? `/dashboard/rentals/${saleId}` : "/dashboard/activities"} className="klynx-todo-link inline-block text-sm font-medium underline">{leadId ? "Open prospect follow-ups" : saleId ? "Open booking" : `${t("View all activities")} (${activities.length})`} →</Link>}
     </section>
   );
 }

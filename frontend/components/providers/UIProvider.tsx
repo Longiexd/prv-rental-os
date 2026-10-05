@@ -20,6 +20,7 @@ const LOCALE_KEY = "klynx-locale";
 const originalText = new WeakMap<Text, string>();
 const lastRenderedText = new WeakMap<Text, string>();
 const originalAttrs = new WeakMap<Element, Map<string, string>>();
+const lastRenderedAttrs = new WeakMap<Element, Map<string, string>>();
 const translatableAttrs = ["placeholder", "title", "aria-label"] as const;
 
 const legacyFrenchToEnglish: Record<string, string> = {
@@ -54,16 +55,39 @@ const monthFr: Record<string, string> = {
   Jan: "janv.", Feb: "févr.", Mar: "mars", Apr: "avr.", May: "mai", Jun: "juin",
   Jul: "juil.", Aug: "août", Sep: "sept.", Oct: "oct.", Nov: "nov.", Dec: "déc.",
 };
+const fullMonthFr: Record<string, string> = {
+  January: "janvier", February: "février", March: "mars", April: "avril", May: "mai", June: "juin",
+  July: "juillet", August: "août", September: "septembre", October: "octobre", November: "novembre", December: "décembre",
+};
 
 function localizeDateFragments(value: string, locale: KlynxLocale) {
   if (locale === "en") return value;
-  return value.replace(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/g, (month) => monthFr[month] ?? month);
+  return value.replace(/\b(January|February|March|April|May|June|July|August|September|October|November|December)(?= \d{4}\b)/g, month => fullMonthFr[month])
+    .replace(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/g, (month) => monthFr[month] ?? month);
 }
 
 function translateExact(value: string, locale: KlynxLocale) {
   const canonical = legacyFrenchToEnglish[value] ?? value;
   if (locale === "en") return canonical;
-  return localizeDateFragments(fr[canonical] ?? canonical, locale);
+  if (fr[canonical]) return fr[canonical];
+  // Translate UI fragments around counts without translating customer/product data.
+  const numbered = canonical.match(/^([✓\d]+) (.+)$/);
+  if (numbered && fr[numbered[2]]) return `${numbered[1]} ${fr[numbered[2]]}`;
+  const counted = canonical.match(/^(\d+) (orders?|invoices?|leads?|customers|kilometers)$/);
+  if (counted && fr[counted[2]]) return `${counted[1]} ${fr[counted[2]]}`;
+  const fleet = canonical.match(/^of (\d+) in fleet$/);
+  if (fleet) return `sur ${fleet[1]} dans la flotte`;
+  const attention = canonical.match(/^(\d+) pickup paperwork incomplete · (\d+) late pickups? · (\d+) overdue returns$/);
+  if (attention) return `${attention[1]} documents de départ incomplets · ${attention[2]} départs en retard · ${attention[3]} retours en retard`;
+  const activities = canonical.match(/^View all activities \((\d+)\) →$/);
+  if (activities) return `Voir toutes les activités (${activities[1]}) →`;
+  const performance = canonical.match(/^(Month|Vehicle|Product category|Vehicle category|Customer) performance · (\d{4})$/);
+  if (performance) return `${fr[performance[1]] ?? performance[1]} · performances ${performance[2]}`;
+  const pickup = canonical.match(/^(Pickup due · |Pickup due )(.+)$/);
+  if (pickup) return localizeDateFragments(`${fr["Pickup due"]}${pickup[1].includes("·") ? " · " : " "}${pickup[2]}`, locale);
+  const dueDate = canonical.match(/^· Due (.+)$/);
+  if (dueDate) return localizeDateFragments(`· ${fr.Due} ${dueDate[1]}`, locale);
+  return localizeDateFragments(canonical, locale);
 }
 
 function applyTranslation(root: ParentNode, locale: KlynxLocale) {
@@ -72,7 +96,7 @@ function applyTranslation(root: ParentNode, locale: KlynxLocale) {
 
   while (node) {
     const parent = node.parentElement;
-    if (parent && !parent.closest("[data-i18n-ignore]") && !["SCRIPT", "STYLE", "CODE", "PRE"].includes(parent.tagName)) {
+    if (parent && !parent.closest("[data-i18n-ignore], script, style, code, pre, textarea")) {
       const current = node.nodeValue ?? "";
       if (!originalText.has(node)) {
         originalText.set(node, current);
@@ -98,7 +122,8 @@ function applyTranslation(root: ParentNode, locale: KlynxLocale) {
     node = walker.nextNode() as Text | null;
   }
 
-  const elements = root instanceof Element ? [root, ...root.querySelectorAll("*")] : [...root.querySelectorAll("*")];
+  const selector = translatableAttrs.map(attr => `[${attr}]`).join(",");
+  const elements = root instanceof Element ? [root, ...root.querySelectorAll(selector)] : [...root.querySelectorAll(selector)];
   for (const element of elements) {
     if (element.closest("[data-i18n-ignore]")) continue;
     let attrs = originalAttrs.get(element);
@@ -106,11 +131,18 @@ function applyTranslation(root: ParentNode, locale: KlynxLocale) {
       attrs = new Map<string, string>();
       originalAttrs.set(element, attrs);
     }
+    let rendered = lastRenderedAttrs.get(element);
+    if (!rendered) { rendered = new Map<string, string>(); lastRenderedAttrs.set(element, rendered); }
     for (const attr of translatableAttrs) {
       const current = element.getAttribute(attr);
-      if (current !== null && !attrs.has(attr)) attrs.set(attr, current);
+      if (current === null) { attrs.delete(attr); rendered.delete(attr); continue; }
+      if (!attrs.has(attr) || rendered.has(attr) && current !== rendered.get(attr)) attrs.set(attr, current);
       const source = attrs.get(attr);
-      if (source !== undefined) element.setAttribute(attr, translateExact(source, locale));
+      if (source !== undefined) {
+        const translated = translateExact(source, locale);
+        rendered.set(attr, translated);
+        if (current !== translated) element.setAttribute(attr, translated);
+      }
     }
   }
 }
@@ -156,6 +188,10 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
     applyTranslation(document.body, locale);
     const observer = new MutationObserver((mutations) => {
       for (const mutation of mutations) {
+        if (mutation.type === "attributes") {
+          applyTranslation(mutation.target as Element, locale);
+          continue;
+        }
         if (mutation.type === "characterData") {
           const text = mutation.target as Text;
           const parent = text.parentElement;
@@ -173,7 +209,7 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
         }
       }
     });
-    observer.observe(document.body, { childList: true, characterData: true, subtree: true });
+    observer.observe(document.body, { childList: true, characterData: true, attributes: true, attributeFilter: [...translatableAttrs], subtree: true });
     return () => observer.disconnect();
   }, [locale]);
 

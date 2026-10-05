@@ -1,5 +1,7 @@
 "use client";
 
+import { useKlynxUI } from "@/components/providers/UIProvider";
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 
@@ -233,6 +235,7 @@ function BreakdownList({
 }
 
 export default function AnalyticsPage() {
+  const { t } = useKlynxUI();
   const currentYear =
     new Date().getFullYear();
 
@@ -777,7 +780,7 @@ export default function AnalyticsPage() {
             <Card>
               <CardHeader
                 title={measureLabel}
-                subtitle={`${groupLabels[groupBy]} performance · ${year}`}
+                subtitle={t(`${groupLabels[groupBy]} performance · ${year}`)}
               />
 
               <div className="p-5">
@@ -964,7 +967,7 @@ export default function AnalyticsPage() {
         <section className="mt-4">
           <Card>
             <CardHeader
-              title={`${measureLabel} by ${groupLabels[groupBy].toLowerCase()}`}
+              title={`${t(measureLabel)} ${t("by")} ${t(groupLabels[groupBy])}`}
               subtitle="Analytical pivot"
             />
 

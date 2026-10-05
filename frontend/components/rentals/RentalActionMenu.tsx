@@ -4,6 +4,7 @@ import { MoreVertical, Phone, Check, X, XCircle, Eye, Clock } from "lucide-react
 import Link from "next/link";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useKlynxUI } from "@/components/providers/UIProvider";
 
 type Rect = { left: number; right: number; top: number; bottom: number };
 
@@ -45,6 +46,7 @@ export function RentalActionMenu({
   onCancel?: (saleId: number) => void;
   onReturn?: (vehicleId: number, nextState: "Nettoyage" | "Disponible", saleId: number) => void;
 }) {
+  const { t } = useKlynxUI();
   const [open, setOpen] = useState(false);
   const [subMenu, setSubMenu] = useState<"none" | "not-picked-up" | "not-returned">("none");
   const ref = useRef<HTMLDivElement>(null);
@@ -73,9 +75,10 @@ export function RentalActionMenu({
     };
   }, [open, subMenu]);
 
+  const positioned = position !== null;
   useEffect(() => {
-    if (open) menuRef.current?.querySelector<HTMLElement>("a[href], button")?.focus();
-  }, [open, subMenu]);
+    if (open && positioned) menuRef.current?.querySelector<HTMLElement>("a[href], button")?.focus();
+  }, [open, subMenu, positioned]);
 
   useEffect(() => {
     if (!open) return;
@@ -165,7 +168,7 @@ export function RentalActionMenu({
               )}
 
               {onCancel && (
-                <button role="menuitem" type="button" onClick={() => { if (window.confirm("Cancel this booking?")) { onCancel(sale.id); } close(); }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-danger hover:bg-danger/10">
+                <button role="menuitem" type="button" onClick={() => { if (window.confirm(t("Cancel this booking?"))) { onCancel(sale.id); } close(); }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-danger hover:bg-danger/10">
                   <XCircle size={14} /> Cancel booking
                 </button>
               )}
@@ -179,7 +182,7 @@ export function RentalActionMenu({
                 <Phone size={14} /> Schedule a call
               </Link>
               {onCancel && (
-                <button role="menuitem" type="button" onClick={() => { if (window.confirm("Cancel this booking?")) { onCancel(sale.id); } close(); }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-danger hover:bg-danger/10">
+                <button role="menuitem" type="button" onClick={() => { if (window.confirm(t("Cancel this booking?"))) { onCancel(sale.id); } close(); }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-danger hover:bg-danger/10">
                   <XCircle size={14} /> Cancel booking
                 </button>
               )}

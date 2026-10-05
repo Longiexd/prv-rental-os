@@ -186,6 +186,7 @@ export default function AddCustomerModal({
 
           <button
             onClick={onClose}
+            aria-label="Close"
             className="text-muted transition hover:text-text"
           >
             <X size={16} />

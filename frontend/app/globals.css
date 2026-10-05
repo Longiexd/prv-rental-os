@@ -138,6 +138,7 @@ html[data-theme="light"] .bg-black\/20 { background-color: var(--surface-seconda
 
 /* Booking stages use black text in light mode, as requested. */
 html[data-theme="light"] .klynx-booking-progress li { color: #111113; }
+html[data-theme="light"] .klynx-booking-progress .klynx-attention-flicker { color: #111113; }
 
 /* Blue fills need a dedicated foreground rather than the page's text token. */
 .bg-blue-500.text-text { color: #111113; }
@@ -167,7 +168,7 @@ html[data-theme="light"] .klynx-booking-progress li { color: #111113; }
   86% { opacity: 1; transform: scale(1); filter: none; }
 }
 .klynx-attention-flicker {
-  color: var(--notification-red);
+  color: var(--danger);
   animation: klynx-soft-attention 4.8s ease-in-out infinite;
   transform-origin: center;
 }

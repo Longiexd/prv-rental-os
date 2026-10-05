@@ -21,7 +21,7 @@ html[data-theme="dark"] {
   --todo-text: #E9D5FF;
   --todo-fill: #C4B5FD;
   --todo-fill-text: #111113;
-  --notification-red: #EF4444;
+  --notification-red: #B91C1C;
 
   /* Dark UI */
   --background: #0E0E10;
@@ -141,10 +141,10 @@ html[data-theme="light"] {
 
   --status-danger-bg: #FFF1F2;
   --status-danger-border: #FDA4AF;
-  --status-danger-text: #BE123C;
+  --status-danger-text: #9F1239;
 
   --success: #3D5600;
-  --danger: #BE123C;
+  --danger: #9F1239;
 
   --shadow-glow-lime: 0 8px 24px rgba(168, 216, 74, 0.15);
   --shadow-glow-pink: 0 8px 24px rgba(240, 106, 170, 0.12);

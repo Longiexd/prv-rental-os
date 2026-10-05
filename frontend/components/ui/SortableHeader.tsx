@@ -12,7 +12,7 @@ function SortIcon({
   direction: SortDirection;
 }) {
   if (!active) {
-    return <span className="text-muted/50">↕</span>;
+    return <span className="text-muted">↕</span>;
   }
 
   return direction === "asc" ? (

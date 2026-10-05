@@ -176,3 +176,68 @@ test("Economy keeps LOC-ECO and DEP-ECO type matches while OPT products stay ext
   assert.equal(matchesVehicleProduct("LOC-ECO", ""), false);
   assert.equal(isOptionalProduct(" opt-cdsupp "), true);
 });
+
+async function translator() {
+  const {default: ts} = await import("typescript");
+  const {runInNewContext} = await import("node:vm");
+  const source = readFileSync(resolve(root, "components/providers/UIProvider.tsx"), "utf8");
+  const parsed = ts.createSourceFile("ui.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const names = new Set(["originalText", "lastRenderedText", "originalAttrs", "lastRenderedAttrs", "translatableAttrs", "legacyFrenchToEnglish", "monthFr", "fullMonthFr"]);
+  const selected = parsed.statements.filter(node =>
+    ts.isVariableStatement(node) && names.has(node.declarationList.declarations[0]?.name.getText(parsed)) ||
+    ts.isFunctionDeclaration(node) && ["localizeDateFragments", "translateExact", "applyTranslation"].includes(node.name?.text)
+  ).map(node => node.getText(parsed)).join("\n");
+  const dictionary = {};
+  runInNewContext(ts.transpileModule(readFileSync(resolve(root, "lib/i18n/fr.ts"), "utf8"), {compilerOptions: {module: ts.ModuleKind.CommonJS}}).outputText, {exports: dictionary});
+  class Element {
+    constructor(tag = "div", attrs = {}, texts = []) { this.tag = tag; this.attrs = {...attrs}; this.texts = texts.map(value => ({nodeValue: value, parentElement: this})); }
+    closest(selector) { return this.tag === "textarea" && selector.includes("textarea") ? this : null; }
+    getAttribute(name) { return this.attrs[name] ?? null; }
+    setAttribute(name, value) { this.attrs[name] = value; }
+    querySelectorAll() { return []; }
+  }
+  const context = {fr: dictionary.fr, Element, NodeFilter: {SHOW_TEXT: 4}, document: {createTreeWalker: element => {let index=0; return {nextNode: () => element.texts[index++] ?? null};}}};
+  context.exports = {};
+  runInNewContext(ts.transpileModule(selected + "\nexports.translate = translateExact; exports.apply = applyTranslation;", {compilerOptions: {module: ts.ModuleKind.CommonJS}}).outputText, context);
+  return {...context.exports, Element};
+}
+
+test("French workflow labels and dates translate while client and product data stay intact", async () => {
+  const {translate} = await translator();
+  assert.equal(translate("5 Documents & contract", "fr"), "5 Documents et contrat");
+  assert.equal(translate("October 2026", "fr"), "octobre 2026");
+  assert.equal(translate("Month performance · 2026", "fr"), "Mois · performances 2026");
+  assert.equal(translate("0 pickup paperwork incomplete · 1 late pickup · 0 overdue returns", "fr"), "0 documents de départ incomplets · 1 départs en retard · 0 retours en retard");
+  assert.equal(translate("QA client · OPT-CDSUPP", "fr"), "QA client · OPT-CDSUPP");
+  assert.equal(translate("Download / review", "en"), "Download / review");
+});
+
+test("React updates to placeholders and accessibility labels survive locale changes", async () => {
+  const {apply, Element} = await translator();
+  const field = new Element("input", {placeholder: "Save document", "aria-label": "Customer"});
+  apply(field, "fr");
+  assert.equal(field.attrs.placeholder, "Enregistrer le document");
+  field.setAttribute("placeholder", "Download / review"); field.setAttribute("aria-label", "Close");
+  apply(field, "fr");
+  assert.equal(field.attrs.placeholder, "Télécharger / consulter"); assert.equal(field.attrs["aria-label"], "Fermer");
+  apply(field, "en");
+  assert.equal(field.attrs.placeholder, "Download / review"); assert.equal(field.attrs["aria-label"], "Close");
+});
+
+test("translation protects editable textarea contents and preserves updated React text", async () => {
+  const {apply, Element} = await translator();
+  const textarea = new Element("textarea", {}, ["Save document"]);
+  apply(textarea, "fr"); assert.equal(textarea.texts[0].nodeValue, "Save document");
+  const label = new Element("span", {}, ["Save document"]);
+  apply(label, "fr"); label.texts[0].nodeValue = "Download / review";
+  apply(label, "fr"); assert.equal(label.texts[0].nodeValue, "Télécharger / consulter");
+  apply(label, "en"); assert.equal(label.texts[0].nodeValue, "Download / review");
+});
+
+test("attention text and notification counts stay legible on their colored backgrounds", () => {
+  const dark = Object.fromEntries([...theme.slice(0, theme.indexOf('html[data-theme="light"]')).matchAll(/--([\w-]+):\s*(#[0-9a-f]{6});/gi)].map(match => [match[1], match[2]]));
+  assert.ok(contrast("#FFFFFF", dark["notification-red"]) >= 4.5);
+  assert.ok(contrast("#FFFFFF", palette["notification-red"]) >= 4.5);
+  assert.ok(contrast(dark.danger, "#142440") >= 4.5);
+  assert.ok(contrast(palette.danger, "#C6D7EA") >= 4.5);
+});
