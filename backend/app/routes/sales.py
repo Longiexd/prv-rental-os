@@ -19,12 +19,18 @@ router = APIRouter(
 # =========================================================
 
 @router.get("")
-def get_sales():
+def get_sales(for_fleet: bool = False):
+
+    domain = []
+    if for_fleet:
+        domain = [["state", "!=", "cancel"],
+                  ["note", "ilike", "[Rental OS fleet.vehicle:"],
+                  ["note", "not ilike", RETURNED_TAG]]
 
     orders = odoo.execute(
         "sale.order",
         "search_read",
-        [],
+        [domain],
         {
             "fields": [
                 "id",
@@ -40,7 +46,7 @@ def get_sales():
                 "note",
             ],
             "order": "id desc",
-            "limit": 100,
+            **({} if for_fleet else {"limit": 100}),
         }
     )
 

@@ -17,7 +17,7 @@ Authentication, registry, proxy, runtime keys, and repaired deployment routing a
 
 | Block | Status |
 | --- | --- |
-| Fleet cards, draft visibility and availability lifecycle | Original implementation retained in Git; must reapply and verify on this baseline before return-mileage work |
+| Fleet cards, draft visibility and availability lifecycle | Reapplied on the repaired baseline; locally verified and packaged separately; awaiting staging deployment and live verification |
 | Booking-specific return, mileage, notes and operational state | Saved separately; incomplete and not shipped |
 | Unpaid invoice filtering | Pending |
 | Booking-to-prospect stages and explicit handover | Pending |
@@ -27,3 +27,14 @@ Authentication, registry, proxy, runtime keys, and repaired deployment routing a
 | Attention-menu clipping and light-mode contrast | Pending |
 
 Each block should have its own reviewed commit and ZIP. Validate the exact candidate before pushing. No new credentials or authentication changes are required for these blocks.
+
+## Fleet Block 01 verification
+
+- Cards are the default. Quotations appear separately and never become the active rental or block availability.
+- Confirmed bookings reserve; actual handover marks rented; overdue unreturned bookings show return due. Cancellation and return no longer drive booking states.
+- Sync clears stale booking states while preserving cleaning and maintenance. Booking edits retain pickup/return times and refresh the linked vehicles.
+- Shared booking policy lives in `app/core`; vehicle rules live in `app/verticals/car_rental`.
+- Existing sales response and its default 100-record limit remain. The fleet uses an additive `for_fleet=true` query to include older open bookings.
+- Backend: 159 passed, 5 Linux-only installer tests skipped on Windows, one existing Starlette warning. Frontend/proxy/Worker policy: 25 passed. TypeScript and actionlint passed.
+- CI and staging deployment now run the new fleet tests. The deployment installer, Odoo connectivity repair, authentication, registry, and proxy code are unchanged.
+- Full Worker build and live Odoo workflow remain to be verified by staging CI and the agent after deployment; local sandbox previously blocked the build. Return mileage/notes and CRM stage synchronization remain separate pending blocks.
