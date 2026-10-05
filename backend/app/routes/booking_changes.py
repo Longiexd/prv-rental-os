@@ -1,10 +1,12 @@
 """Booking edits reuse the existing sale-order and fleet links in Odoo."""
 import re
-from datetime import date, datetime, time
+import math
+from datetime import date, datetime, time, timezone
 
 from fastapi import APIRouter, HTTPException
 
 from app.odoo_client import odoo
+from app.core.record_metadata import write_metadata
 from app.routes.calendar import CONFIRMED_TAG, QUOTATION_TAG, booking_status, rental_vehicle_id
 from app.routes.cars import PICKED_UP_TAG, RETURNED_TAG, sync_vehicle_state
 from app.routes.rentals import RentalCreate, get_record
@@ -134,11 +136,18 @@ def mark_picked_up(order_id: int):
         return {"success": True, "already": True}
     if not order.get("date_order") or order["date_order"][:10] > date.today().isoformat():
         raise HTTPException(409, "Pickup is not due yet. Update the booking dates first.")
-    vehicle = get_record("fleet.vehicle", vehicle_id, ["active", "state_id"])
+    vehicle = get_record("fleet.vehicle", vehicle_id, ["active", "state_id", "odometer", "odometer_unit"])
     state = vehicle.get("state_id")
     if not vehicle.get("active") or is_operational_state(state[1] if state else None):
         raise HTTPException(409, "Finish vehicle cleaning or maintenance and mark it available before pickup.")
-    odoo.execute("sale.order", "write", [[order_id], {"note": f"{(order.get('note') or '')}\n{PICKED_UP_TAG}".strip()}])
+    note = f"{(order.get('note') or '')}\n{PICKED_UP_TAG}".strip()
+    reading = vehicle.get("odometer")
+    unit = vehicle.get("odometer_unit")
+    if isinstance(reading, (int, float)) and not isinstance(reading, bool) and math.isfinite(reading) and reading >= 0 and unit in ("kilometers", "miles"):
+        note = write_metadata(note, "rental_pickup", {"order_id": order_id, "vehicle_id": vehicle_id,
+            "odometer": reading, "odometer_unit": unit, "picked_up_at": datetime.now(timezone.utc).isoformat()})
+    if not odoo.execute("sale.order", "write", [[order_id], {"note": note}]):
+        raise HTTPException(502, "Pickup could not be saved. Refresh before retrying.")
     refresh_fleet(vehicle_id)
     return {"success": True}
 

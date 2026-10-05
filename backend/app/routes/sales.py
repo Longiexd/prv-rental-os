@@ -7,6 +7,9 @@ from app.odoo_client import odoo
 from app.routes.calendar import QUOTATION_TAG, rental_vehicle_id, booking_status
 from app.routes.cars import PICKED_UP_TAG, RETURNED_TAG
 from app.verticals.car_rental.returns import can_return, return_record
+from app.core.documents import document_checklist
+from app.core.record_metadata import read_metadata
+from app.verticals.car_rental.contracts import render_contract
 
 
 router = APIRouter(
@@ -425,6 +428,49 @@ def create_invoice(order_id: int, request: InvoiceCreate | None = None):
 def quotation_print_link(order_id: int):
     sale_record(order_id)
     return {"url": f"/api/backend/sales/{order_id}/document"}
+
+
+@router.get("/{order_id}/contract")
+def rental_contract(order_id: int):
+    order = get_sale(order_id)
+    if order["booking_status"] == "cancelled":
+        raise HTTPException(409, "A cancelled booking cannot generate a rental contract.")
+    if not order.get("customer") or not order.get("vehicle_id"):
+        raise HTTPException(409, "Select a customer and vehicle before generating a contract.")
+    partners = odoo.execute("res.partner", "read", [[order["customer"]["id"]]],
+                            {"fields": ["name", "phone"]})
+    vehicles = odoo.execute("fleet.vehicle", "read", [[order["vehicle_id"]]],
+                            {"fields": ["name", "model_id", "license_plate"]})
+    if not partners or not vehicles:
+        raise HTTPException(404, "Contract customer or vehicle is unavailable.")
+    client, vehicle = partners[0], vehicles[0]
+    details = sale_record(order_id, ["company_id", "currency_id", "note"])
+    companies = odoo.execute("res.company", "read", [[details["company_id"][0]]],
+                             {"fields": ["name", "phone", "email"]}) if details.get("company_id") else []
+    company = companies[0] if companies else {}
+    documents = document_checklist("res.partner", order["customer"]["id"],
+                                  {"cin": "CIN", "driving_license": "Driving licence"})
+    numbers = {item["kind"]: item["number"] for item in documents["documents"]}
+    record = order.get("return_record") or {}
+    pickup = read_metadata(details.get("note"), "rental_pickup") or {}
+    if pickup.get("order_id") != order_id or pickup.get("vehicle_id") != order["vehicle_id"]:
+        pickup = {}
+    # A pre-return reading is not necessarily the pickup reading. Never invent historical mileage.
+    fields = {
+        "Agence": company.get("name"), "Téléphone agence": company.get("phone"), "Email agence": company.get("email"),
+        "Réservation": order["name"], "Statut": order["booking_status"],
+        "Client": client["name"], "Téléphone": client.get("phone"), "CIN": numbers["cin"],
+        "Permis de conduire": numbers["driving_license"], "Véhicule": vehicle["name"],
+        "Modèle": vehicle["model_id"][1] if vehicle.get("model_id") else None,
+        "Immatriculation": vehicle.get("license_plate"), "Départ": order["date_order"],
+        "Retour prévu": order["commitment_date"], "Prix total": order["amount_total"],
+        "Montant payé / acompte": order["amount_paid"], "Reste à payer": order["amount_outstanding"],
+        "Devise": details["currency_id"][1] if details.get("currency_id") else None,
+        "Kilométrage au départ": pickup.get("odometer"),
+        "Kilométrage au retour": record.get("odometer") if record.get("status") == "completed" else None,
+        "Unité du compteur": pickup.get("odometer_unit") or record.get("odometer_unit"),
+    }
+    return {"template": "car-rental-basic-v1", "fields": fields, "html": render_contract(fields)}
 
 
 @router.get("/{order_id}/document")

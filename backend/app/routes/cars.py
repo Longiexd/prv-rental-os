@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from app.odoo_client import odoo
+from app.core.documents import document_router
 from app.core.record_metadata import write_metadata
 from app.verticals.car_rental.returns import (
     RETURN_RECORD_KEY, ReturnRecord, can_return, return_record,
@@ -20,6 +21,10 @@ router = APIRouter(
     prefix="/cars",
     tags=["Cars"]
 )
+router.include_router(document_router("fleet.vehicle", {
+    "insurance": "Assurance / Insurance", "registration": "Carte grise",
+    "technical_inspection": "Visite technique",
+}))
 
 
 # =========================================================

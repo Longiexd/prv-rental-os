@@ -6,6 +6,7 @@ from fastapi import HTTPException
 
 from app.routes import cars, booking_changes as changes, rentals, sales
 from app.core.bookings import QUOTATION_TAG
+from app.core.record_metadata import read_metadata
 from app.verticals.car_rental.states import (
     PICKED_UP_TAG, RETURNED_TAG, booking_state, group_bookings, target_state,
 )
@@ -108,6 +109,29 @@ def test_pickup_marks_only_this_booking_and_refreshes_linked_car():
     assert rpc.call_args.args[2][0] == [12]
     assert PICKED_UP_TAG in rpc.call_args.args[2][1]["note"]
     refresh.assert_called_once_with(4)
+
+
+def test_pickup_captures_the_actual_vehicle_reading_once():
+    with patch.object(changes, "get_record", side_effect=[booking(), {"active": True, "state_id": [1, "Réservé"],
+                      "odometer": 10000, "odometer_unit": "kilometers"}]), \
+         patch.object(changes.odoo, "execute", return_value=True) as rpc, patch.object(changes, "refresh_fleet"):
+        changes.mark_picked_up(12)
+    note = rpc.call_args.args[2][1]["note"]
+    snapshot = read_metadata(note, "rental_pickup")
+    assert snapshot["odometer"] == 10000 and snapshot["order_id"] == 12 and snapshot["vehicle_id"] == 4
+    with patch.object(changes, "get_record", return_value=booking(note=note)), \
+         patch.object(changes.odoo, "execute") as rpc, patch.object(changes, "refresh_fleet"):
+        changes.mark_picked_up(12)
+    rpc.assert_not_called()
+
+
+def test_pickup_false_write_does_not_report_success_or_refresh_fleet():
+    with patch.object(changes, "get_record", side_effect=[booking(), {"active": True, "state_id": [1, "Réservé"]}]), \
+         patch.object(changes.odoo, "execute", return_value=False), patch.object(changes, "refresh_fleet") as refresh, \
+         pytest.raises(HTTPException) as error:
+        changes.mark_picked_up(12)
+    assert error.value.status_code == 502
+    refresh.assert_not_called()
 
 
 def test_repeated_pickup_repairs_fleet_without_another_handover_write():

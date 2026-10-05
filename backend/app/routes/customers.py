@@ -2,12 +2,14 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.odoo_client import odoo
+from app.core.documents import document_router
 
 
 router = APIRouter(
     prefix="/customers",
     tags=["Customers"],
 )
+router.include_router(document_router("res.partner", {"cin": "CIN", "driving_license": "Driving licence"}))
 
 
 # ============================================================

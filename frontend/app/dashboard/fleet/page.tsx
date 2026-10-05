@@ -36,6 +36,7 @@ import { SortableHeader, type SortDirection } from "@/components/ui/SortableHead
 import { API_URL, apiRequest } from "@/lib/api-config";
 import { getVehicleBookings } from "@/lib/fleet-bookings";
 import { getRentalState, rentalStateMeta } from "@/lib/status";
+import DocumentsPanel from "@/components/ui/DocumentsPanel";
 import ReturnVehicleModal from "@/components/rentals/ReturnVehicleModal";
 import type { NextVehicleState } from "@/lib/fleet-bookings";
 
@@ -842,6 +843,8 @@ function VehicleModal({
               <ArrowRight size={14} />
             </Link>
           </div>
+
+          <DocumentsPanel key={car.id} owner="cars" recordId={car.id} />
 
           {/* VEHICLE INFORMATION */}
 

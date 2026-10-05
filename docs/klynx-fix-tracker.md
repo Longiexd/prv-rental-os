@@ -17,12 +17,12 @@ Authentication, registry, proxy, runtime keys, and repaired deployment routing a
 
 | Block | Status |
 | --- | --- |
-| Fleet cards, draft visibility and availability lifecycle | Reapplied on the repaired baseline; locally verified and packaged separately; awaiting staging deployment and live verification |
-| Booking-specific return, mileage, notes and operational state | Implemented and locally verified; awaiting staging deployment and live verification |
+| Fleet cards, draft visibility and availability lifecycle | User verified on f6dc558; late-pickup correction prepared separately |
+| Booking-specific return, mileage, notes and operational state | User verified working on f6dc558, including odometer updates |
 | Unpaid invoice filtering | Pending |
 | Booking-to-prospect stages and explicit handover | Pending |
-| Contract template/action | Pending |
-| Customer and vehicle document tracking | Pending |
+| Contract template/action | Basic printable contract implemented; Linux build/live verification pending |
+| Customer and vehicle document tracking | Private native Odoo uploads/checklist implemented; Linux HTTP/live verification pending |
 | Maintenance/vidange reminders | Pending |
 | Attention-menu clipping and light-mode contrast | Fixed in a separate UI commit; automated contrast/position checks pass; live visual verification pending |
 
@@ -64,3 +64,15 @@ Each block should have its own reviewed commit and ZIP. Validate the exact candi
 - Actual handover is required before showing rented/return due. Missed pickups stay reserved and appear separately in Needs attention, with pickup, follow-up and cancellation actions. Past-day pickup is available on rental detail and linked from fleet/calendar. Drafts, returned and cancelled records are excluded from attention.
 - Overview reads all open fleet bookings; calendar can request all sales without the ordinary 100-record limit. Default API pagination and authentication/deployment remain unchanged.
 - Targeted fleet/return tests: 75 passed. Frontend tests: 40 passed; TypeScript passed. Full backend run stopped after stalling on Windows; rerun in the isolated Docker test project before push.
+
+## Block 03: contracts and private documents
+
+- Base is the user-verified staging commit f6dc558. Separate missed-pickup correction precedes this feature commit. Authentication, credentials, private proxy, dependencies and deployment workflows are unchanged.
+- One reusable document workflow uses native private ir.attachment records scoped by parent model and ID. Customer CIN/driving licence and vehicle assurance/carte grise/visite technique are supported. PDF/PNG/JPEG files up to 600 KiB fit the existing JSON proxy limit; no public links or new upload infrastructure.
+- Statuses are missing, uploaded, verified and expired. Upload and replacement reset verification. Expired documents cannot be marked verified. Latest scans are shown; older scans remain in Odoo. Corrupt metadata fails closed instead of falling back to an earlier verified scan. No deletions or production data migrations.
+- One shared DocumentsPanel appears on customer detail, rental detail before pickup, and fleet vehicle detail. Readiness requires both customer documents verified and unexpired. It is guidance, not a new hard pickup gate. File download/review is authenticated; upload errors do not block booking/payment screens.
+- Generate / Print rental contract returns a replaceable basic French template populated from customer/vehicle details, document numbers, planned dates, totals, paid amount, balance and currency/agency. The browser prints or saves PDF. All values are escaped, with no external resources or scripts. Cancelled/incomplete bookings are rejected. Generating a contract does not confirm, invoice or collect a booking.
+- Actual handover now snapshots valid odometer/unit into the existing booking note, once. Contracts use that historical reading and completed return mileage; legacy pickup mileage stays blank when it was never saved. Failed pickup writes cannot report success.
+- Local verification: 149 backend tests passed across the selected business/lifecycle suites and pure document/contract tests. 40 frontend/security/Worker tests, TypeScript and focused document-component ESLint passed. Full Linux backend tests remain required: local Windows socket creation hung in HTTP and probe tests (confirmed by faulthandler). Full Vinext build was attempted but hit the existing sandbox EPERM resolving Vite dependencies. No live Odoo uploads/printing or browser interaction has been verified by the agent.
+- CRM custom CIN/Permis and pickup/drop-off properties still require technical names/types before mapping; existing CRM fields remain untouched. Booking-to-prospect stage sync remains a separate pending update. Odoo 18 defines lead_properties using the sales-team definition; labels in a screenshot are not stable field identifiers.
+- Configurable company/vehicle vidange interval and km reminders remain the next maintenance block, as requested.

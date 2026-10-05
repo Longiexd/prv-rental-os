@@ -18,6 +18,7 @@ import {
 import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import DocumentsPanel from "@/components/ui/DocumentsPanel";
 import { StatCard } from "@/components/ui/StatCard";
 import { API_URL, apiRequest } from "@/lib/api-config";
 
@@ -955,6 +956,7 @@ export default function CustomerDetailPage() {
 
       </section>
 
+      <DocumentsPanel key={customer.id} owner="customers" recordId={customer.id} />
     </main>
   );
 }

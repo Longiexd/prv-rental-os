@@ -7,6 +7,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import ActivitiesPanel from "@/components/activities/ActivitiesPanel";
 import CreateRentalModal from "@/components/rentals/CreateRentalModal";
 import ReturnVehicleModal from "@/components/rentals/ReturnVehicleModal";
+import DocumentsPanel from "@/components/ui/DocumentsPanel";
 import { odometerUnit, type ReturnRecord } from "@/lib/fleet-bookings";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard } from "@/components/ui/StatCard";
@@ -122,6 +123,18 @@ export default function RentalDetailPage() {
     }
   }
 
+  async function printContract() {
+    const tab = window.open("about:blank", "_blank");
+    if (!tab) { setError("Allow pop-ups to open the rental contract."); return; }
+    tab.opener = null;
+    try {
+      const result = await apiFetch<{ html: string }>(`/sales/${rentalId}/contract`);
+      const url = URL.createObjectURL(new Blob([result.html], { type: "text/html;charset=utf-8" }));
+      tab.location.href = url;
+      setTimeout(() => URL.revokeObjectURL(url), 300000);
+    } catch (err) { tab.close(); setError(err instanceof Error ? err.message : "Unable to generate the rental contract."); }
+  }
+
   async function toggleHistory(invoiceId: number) {
     if (expandedInvoiceId === invoiceId) { setExpandedInvoiceId(null); return; }
     try {
@@ -187,6 +200,7 @@ export default function RentalDetailPage() {
           {printableInvoice && <button className="rounded-lg bg-blue-500 px-5 py-3 font-semibold text-text hover:bg-blue-400" onClick={() => printDocument(`/invoices/${printableInvoice.id}/print-link`)}>Print invoice · {printableInvoice.name}</button>}
           <a className={buttonClass} href="#follow-ups">Schedule call / email</a>
           <button className={buttonClass} onClick={() => printDocument(`/sales/${rentalId}/print-link`)}>Print quotation</button>
+          <button disabled={cancelled || !quotation.customer || !quotation.vehicle_id} className={buttonClass} onClick={() => void printContract()}>Generate / Print rental contract</button>
           {!cancelled && <button disabled={!!busy} className={buttonClass} onClick={() => { if (window.confirm("Send this quotation to the customer's saved email address?")) void act(`/sales/${rentalId}/send`, "POST", undefined, "Quotation sent."); }}>Email quotation</button>}
           {!cancelled && <button disabled={!!busy} className={buttonClass} onClick={() => setEditingBooking(true)}>Edit booking</button>}
           {editable && <button disabled={!!busy || !quotation.lines.length} className={primaryClass} onClick={() => act(`/sales/${rentalId}/confirm`, "POST", undefined, "Quotation confirmed. Generate the invoice next.")}>Confirm quotation</button>}
@@ -256,6 +270,7 @@ export default function RentalDetailPage() {
         </div>}
         <div className="flex flex-wrap justify-end gap-5 border-t border-border px-5 py-4 text-sm text-muted"><span>Untaxed: {formatCurrency(quotation.amount_untaxed)}</span><span>Tax: {formatCurrency(quotation.amount_tax)}</span><strong className="text-text">Total: {formatCurrency(quotation.amount_total)}</strong></div>
       </Card></section>
+      {quotation.customer && <DocumentsPanel key={quotation.customer.id} owner="customers" recordId={quotation.customer.id} />}
       <section id="payments" className="mt-6 scroll-mt-5 rounded-xl border border-blue-400/40 bg-blue-500/5"><Card><CardHeader title="Invoices & payments" subtitle="Validate the invoice, record each instalment, then print the final invoice." />
         {!quotation.invoices.length && <div className="p-6"><EmptyState icon={<Receipt />} title="No invoice yet" description={editable ? "Confirm the quotation above to generate an invoice." : "Generate the invoice above to record payment."} /></div>}
         {quotation.invoices.map((invoice) => <div key={invoice.id} className="border-t border-border p-5">
