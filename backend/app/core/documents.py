@@ -88,24 +88,24 @@ def metadata(attachment):
     return value
 
 
-def tracked_attachment(model, record_id, attachment_id, kinds):
+def tracked_attachment(model, record_id, attachment_id, kinds, scope=None):
     parent(model, record_id)
     records = odoo.execute("ir.attachment", "search_read", [[
         ["id", "=", attachment_id], ["res_model", "=", model], ["res_id", "=", record_id],
         ["type", "=", "binary"], ["public", "=", False],
     ]], {"fields": ["id", "name", "description"], "limit": 1})
-    if not records or not (value := metadata(records[0])) or value.get("kind") not in kinds:
+    if not records or not (value := metadata(records[0])) or value.get("kind") not in kinds or value.get("scope") != scope:
         raise HTTPException(404, "Tracked document not found for this record.")
     return records[0], value
 
 
-def checklist_from_records(records, kinds):
+def checklist_from_records(records, kinds, scope=None):
     latest = {}
     for attachment in records:
         value = metadata(attachment)
         if value is None:
             raise HTTPException(409, "A tracked document has invalid metadata. Review its attachment in Odoo.")
-        if value.get("kind") in kinds:
+        if value.get("scope") == scope and value.get("kind") in kinds:
             latest.setdefault(value["kind"], (attachment, value))
     documents = []
     for kind, label in kinds.items():
@@ -126,13 +126,13 @@ def checklist_from_records(records, kinds):
     return {"documents": documents, "ready": ready}
 
 
-def document_checklist(model, record_id, kinds):
+def document_checklist(model, record_id, kinds, scope=None):
     parent(model, record_id)
     records = odoo.execute("ir.attachment", "search_read", [[
         ["res_model", "=", model], ["res_id", "=", record_id], ["type", "=", "binary"],
         ["public", "=", False], ["description", "ilike", "[Klynx metadata:document:"],
     ]], {"fields": ["id", "name", "description", "checksum"], "order": "id desc"})
-    return checklist_from_records(records, kinds)
+    return checklist_from_records(records, kinds, scope)
 
 
 def attachment_content(attachment_id, limit=MAX_FILE_BYTES):
@@ -170,16 +170,17 @@ def save_attachment(values, limit=MAX_FILE_BYTES):
     return attachment_id
 
 
-def document_router(model: Literal["res.partner", "fleet.vehicle", "sale.order"], kinds: dict[str, str]):
+def document_router(model: Literal["res.partner", "fleet.vehicle", "sale.order"], kinds: dict[str, str], scope=None, edit_guard=None):
     """Reuse the same workflow under customers and the fleet without exposing arbitrary models."""
     router = APIRouter(prefix="/{record_id}/documents", tags=["Documents"])
 
     @router.get("")
     def checklist(record_id: int):
-        return document_checklist(model, record_id, kinds)
+        return document_checklist(model, record_id, kinds, scope)
 
     @router.post("")
     def upload(record_id: int, data: DocumentUpload):
+        owner_key = edit_guard(record_id) if edit_guard else None
         parent(model, record_id)
         if data.kind not in kinds:
             raise HTTPException(422, "Choose an available document type.")
@@ -192,7 +193,11 @@ def document_router(model: Literal["res.partner", "fleet.vehicle", "sale.order"]
         mime, extension = file_type(content)
         value = {"version": 1, "kind": data.kind, "number": data.number.strip(),
                  "expiry_date": data.expiry_date.isoformat() if data.expiry_date else None, "verified": False}
-        if model == "res.partner" and data.kind in ("cin", "passport"):
+        if scope:
+            value["scope"] = scope
+        if owner_key:
+            value["owner_key"] = owner_key
+        if (model == "res.partner" or scope == "additional_driver") and data.kind in ("cin", "passport"):
             value.update(nationality=data.nationality.strip(), birth_date=data.birth_date.isoformat() if data.birth_date else None)
         if model == "fleet.vehicle":
             value["reminder_date"] = expiry_reminder(data.expiry_date)
@@ -205,13 +210,16 @@ def document_router(model: Literal["res.partner", "fleet.vehicle", "sale.order"]
 
     @router.patch("/{attachment_id}")
     def update(record_id: int, attachment_id: int, data: DocumentUpdate):
-        attachment, value = tracked_attachment(model, record_id, attachment_id, kinds)
+        owner_key = edit_guard(record_id) if edit_guard else None
+        attachment, value = tracked_attachment(model, record_id, attachment_id, kinds, scope)
+        if owner_key and value.get("owner_key") != owner_key:
+            raise HTTPException(409, "This scan belongs to the previous additional driver. Upload the current driver's document.")
         value.update(number=data.number.strip(), verified=data.verified,
                      expiry_date=data.expiry_date.isoformat() if data.expiry_date else None)
         if model == "fleet.vehicle":
             value["reminder_date"] = expiry_reminder(data.expiry_date)
         # Older callers omit these optional fields; preserve their saved contact data.
-        if model == "res.partner" and value["kind"] in ("cin", "passport"):
+        if (model == "res.partner" or scope == "additional_driver") and value["kind"] in ("cin", "passport"):
             if "nationality" in data.model_fields_set:
                 value["nationality"] = (data.nationality or "").strip()
             if "birth_date" in data.model_fields_set:
@@ -219,7 +227,7 @@ def document_router(model: Literal["res.partner", "fleet.vehicle", "sale.order"]
         if data.verified and data.expiry_date and data.expiry_date < date.today():
             raise HTTPException(422, "An expired document cannot be marked verified.")
         if data.verified:
-            if model == "res.partner" and not value["number"]:
+            if (model == "res.partner" or scope == "additional_driver") and not value["number"]:
                 raise HTTPException(422, "Enter the document number before verifying identity or licence.")
             file_type(attachment_content(attachment_id))
         if not odoo.execute("ir.attachment", "write", [[attachment_id],
@@ -229,7 +237,7 @@ def document_router(model: Literal["res.partner", "fleet.vehicle", "sale.order"]
 
     @router.get("/{attachment_id}/download")
     def download(record_id: int, attachment_id: int):
-        tracked_attachment(model, record_id, attachment_id, kinds)
+        tracked_attachment(model, record_id, attachment_id, kinds, scope)
         content = attachment_content(attachment_id)
         mime, extension = file_type(content)
         return {"content": base64.b64encode(content).decode(), "mime": mime,

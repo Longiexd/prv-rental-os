@@ -7,7 +7,7 @@ from app.odoo_client import odoo
 from app.routes.calendar import QUOTATION_TAG, rental_vehicle_id, booking_status
 from app.routes.cars import PICKED_UP_TAG, RETURNED_TAG
 from app.verticals.car_rental.returns import can_return, return_record
-from app.core.documents import CUSTOMER_KINDS, document_router
+from app.core.documents import CUSTOMER_KINDS, document_router, checklist_from_records
 from app.core.record_metadata import read_metadata
 from app.verticals.car_rental import contracts
 
@@ -437,7 +437,31 @@ def quotation_print_link(order_id: int):
 @router.get("/{order_id}/paperwork")
 def rental_paperwork(order_id: int):
     order, checklist, status = contracts.paperwork(order_id)
+    driver = status["additional_driver"]
+    if driver["profile"] and driver["profile"]["active"]:
+        driver["fee_status"] = contracts.driver_fee_status(order)
+    copies = rental_document_copies(order_id, order)
+    driver["rental_documents"] = checklist_from_records(copies, CUSTOMER_KINDS, "additional_driver_snapshot")["documents"]
+    status["rental_documents"] = checklist_from_records(copies, CUSTOMER_KINDS)["documents"]
     return {**status, "details": {**contracts.customer_details(checklist), **(read_metadata(order.get("note"), "rental_paperwork") or {})}}
+
+
+@router.put("/{order_id}/additional-driver")
+def save_additional_driver(order_id: int, data: contracts.AdditionalDriver):
+    return contracts.save_driver(order_id, data)
+
+
+_driver_documents = document_router("sale.order", CUSTOMER_KINDS, "additional_driver", contracts.driver_document_guard)
+for _route in _driver_documents.routes:
+    if _route.methods != {"GET"} or "attachment_id" in _route.path:
+        router.add_api_route("/{record_id}/additional-driver/documents" + _route.path.removeprefix("/{record_id}/documents"),
+                             _route.endpoint, methods=list(_route.methods))
+
+
+@router.get("/{record_id}/additional-driver/documents")
+def additional_driver_documents(record_id: int):
+    state = contracts.driver_state(contracts.order_record(record_id))
+    return {"documents": state["documents"], "ready": state["ready"]}
 
 
 @router.get("/{order_id}/contract")
@@ -474,8 +498,27 @@ def update_rental_template(order_id: int, data: contracts.TemplateSetup):
 # Rental snapshots are immutable. Agents edit the reusable customer originals instead.
 _snapshots = document_router("sale.order", CUSTOMER_KINDS)
 for _route in _snapshots.routes:
-    if "GET" in _route.methods:
+    if "GET" in _route.methods and "attachment_id" in _route.path:
         router.add_api_route("/{record_id}/documents" + _route.path.removeprefix("/{record_id}/documents"), _route.endpoint, methods=["GET"])
+
+
+def rental_document_copies(order_id, order=None):
+    order = order or contracts.order_record(order_id)
+    record = read_metadata(order.get("note"), "rental_contract") or {}
+    return odoo.execute("ir.attachment", "search_read", [[["id", "in", record.get("snapshot_ids") or []],
+        ["res_model", "=", "sale.order"], ["res_id", "=", order_id], ["type", "=", "binary"], ["public", "=", False]]],
+        {"fields": ["id", "name", "description", "checksum"], "order": "id desc"}) if record.get("snapshot_ids") else []
+
+
+@router.get("/{record_id}/documents")
+def rental_documents(record_id: int):
+    return checklist_from_records(rental_document_copies(record_id), CUSTOMER_KINDS)
+
+
+_driver_snapshots = document_router("sale.order", CUSTOMER_KINDS, "additional_driver_snapshot")
+for _route in _driver_snapshots.routes:
+    if "GET" in _route.methods and "attachment_id" in _route.path:
+        router.add_api_route("/{record_id}/additional-driver/copies" + _route.path.removeprefix("/{record_id}/documents"), _route.endpoint, methods=["GET"])
 
 
 @router.get("/{order_id}/document")

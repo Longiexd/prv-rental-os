@@ -301,80 +301,20 @@ def get_rental_options(
                 "display_name",
                 "lst_price",
                 "default_code",
-                "product_tmpl_id",
             ],
             "order": "name",
             "limit": 500,
         },
     )
 
-    # ========================================================
-    # OPTIONAL PRODUCT RELATIONSHIPS
-    #
-    # Keep this compatible with the existing Odoo
-    # optional_product_ids configuration for now.
-    #
-    # Later we can replace/extend this with the exact
-    # product-tag relationship used in your Odoo setup.
-    # ========================================================
-
-    template_ids = [
-        product["product_tmpl_id"][0]
-        for product in products
-        if product.get("product_tmpl_id")
-    ]
-
-    templates = []
-
-    if template_ids:
-        templates = odoo.execute(
-            "product.template",
-            "search_read",
-            [
-                [
-                    ["id", "in", template_ids],
-                ]
-            ],
-            {
-                "fields": [
-                    "id",
-                    "optional_product_ids",
-                ],
-                "limit": 500,
-            },
-        )
-
-    optional_templates = {
-        template["id"]:
-            template.get(
-                "optional_product_ids"
-            ) or []
-        for template in templates
-    }
-
-    # ========================================================
-    # PRODUCT VARIANTS BY TEMPLATE
-    # ========================================================
-
-    variants_by_template: dict[int, list[int]] = {}
-
-    for product in products:
-
-        product_template = product.get(
-            "product_tmpl_id"
-        )
-
-        if not product_template:
-            continue
-
-        template_id = product_template[0]
-
-        variants_by_template.setdefault(
-            template_id,
-            [],
-        ).append(
-            product["id"]
-        )
+    # References are the agency's explicit rule: OPT extras, DEP deposits, LOC rentals.
+    if len(products) == 500:
+        extras = odoo.execute("product.product", "search_read", [[["active", "=", True], ["sale_ok", "=", True],
+            ["default_code", "=ilike", "OPT-%"]]], {"fields": ["id", "name", "display_name", "lst_price", "default_code"], "order": "name"})
+        known = {product["id"] for product in products}
+        products.extend(product for product in extras if product["id"] not in known)
+    extra_ids = {product["id"] for product in products
+                 if (product.get("default_code") or "").strip().upper().startswith("OPT-")}
 
     # ========================================================
     # RESPONSE
@@ -427,31 +367,9 @@ def get_rental_options(
 
                 "is_deposit": (
                     product.get("default_code") or ""
-                ).upper().startswith("DEP-"),
+                ).strip().upper().startswith("DEP-"),
 
-                "suggested_product_ids": [
-                    variant_id
-
-                    for template_id
-                    in optional_templates.get(
-                        product[
-                            "product_tmpl_id"
-                        ][0],
-                        [],
-                    )
-
-                    for variant_id
-                    in variants_by_template.get(
-                        template_id,
-                        [],
-                    )
-                ]
-
-                if product.get(
-                    "product_tmpl_id"
-                )
-
-                else [],
+                "suggested_product_ids": sorted(extra_ids - {product["id"]}),
             }
 
             for product in products

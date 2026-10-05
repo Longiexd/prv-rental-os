@@ -210,6 +210,7 @@ class RentalStore(Store):
         self.vehicle = {"id": 4, "name": "Car", "license_plate": "TN123", "odometer": 1000, "odometer_unit": "kilometers", "active": True, "state_id": [1, "Réservé"], "location": "Sousse"}
         self.client = {"id": 3, "name": '<script>alert("x")</script>', "phone": "555", "street": "Street", "city": "Sousse"}
         self.paid = 1
+        self.addon_lines = []
 
     def execute(self, model, method, args, kwargs=None):
         if model == "sale.order":
@@ -221,6 +222,8 @@ class RentalStore(Store):
                 self.order.update(args[1]); return True
         if model == "res.company":
             return [{"id": 1, "name": "Agency", "phone": "111", "partner_id": [100, "Agency contact"]}]
+        if model == "sale.order.line":
+            return deepcopy(self.addon_lines)
         if model == "account.move":
             return [{"amount_total": 720, "amount_residual": 720 - self.paid, "move_type": "out_invoice"}]
         if model == "res.partner": return [deepcopy(self.client)]
@@ -423,7 +426,7 @@ def test_contract_snapshot_download_cannot_cross_rental_and_routes_are_read_only
     with patch.object(documents.odoo, "execute", side_effect=store.execute):
         verified_customer(store)
         contracts.prepare_contract(42, contracts.ContractPrepare())
-        snapshots = [route for route in sales.router.routes if "/documents" in route.path]
+        snapshots = [route for route in sales.router.routes if "/documents" in route.path and "additional-driver" not in route.path]
         assert len(snapshots) == 2 and all(route.methods == {"GET"} for route in snapshots)
         download = next(route.endpoint for route in snapshots if "download" in route.path)
         copy_id = read_metadata(store.order["note"], "rental_contract")["snapshot_ids"][0]
@@ -510,3 +513,142 @@ def test_template_rejects_unknown_or_outside_page_fields(positions):
     from pydantic import ValidationError
     with pytest.raises(ValidationError):
         contracts.TemplateSetup(mode="image", positions=positions)
+
+
+
+def verified_driver(store, identity="passport"):
+    contracts.save_driver(42, contracts.AdditionalDriver(name="Second driver", phone="999", address="Tunis"))
+    routes = documents.document_router("sale.order", documents.CUSTOMER_KINDS, "additional_driver", contracts.driver_document_guard).routes
+    for kind in (identity, "driving_license"):
+        result = routes[1].endpoint(42, documents.DocumentUpload(kind=kind, filename="driver.pdf",
+            content=base64.b64encode(b"%PDF-1.7 driver " + kind.encode()).decode(), number="DRIVER-123",
+            nationality="French", birth_date=date(1992, 5, 6)))
+        routes[2].endpoint(42, result["attachment_id"], documents.DocumentUpdate(number="DRIVER-123", verified=True))
+    return routes
+
+
+def test_additional_driver_is_private_rental_paperwork_not_a_crm_contact_and_requires_own_documents():
+    store = RentalStore()
+    with patch.object(documents.odoo, "execute", side_effect=store.execute):
+        verified_customer(store)
+        first = contracts.prepare_contract(42, contracts.ContractPrepare())
+        contracts.confirm_printed(42, contracts.ContractPrinted(contract_id=first["contract_id"]))
+        original_note = store.order["note"]
+        original_contacts = [row["id"] for row in store.attachments if row["res_model"] == "res.partner"]
+        contracts.save_driver(42, contracts.AdditionalDriver(name="Second driver"))
+        assert store.order["note"] == original_note  # Driver PII is not written into booking fields.
+        status = sales.rental_paperwork(42)
+        assert not status["documents_ready"] and not status["contract_ready"]
+        assert status["additional_driver"]["fee_status"] == "check_fee"
+        with pytest.raises(HTTPException): contracts.prepare_contract(42, contracts.ContractPrepare())
+        with pytest.raises(HTTPException): contracts.ensure_pickup_paperwork(42)
+        routes = verified_driver(store)
+        assert sales.additional_driver_documents(42)["ready"]
+        assert original_contacts == [row["id"] for row in store.attachments if row["res_model"] == "res.partner"]
+        prepared = contracts.prepare_contract(42, contracts.ContractPrepare())
+        assert all(text in prepared["html"] for text in ("Second driver", "DRIVER-123", "French", "1992-05-06", "999", "Tunis"))
+        status = sales.rental_paperwork(42)
+        assert len(status["snapshot_ids"]) == 4 and status["documents_ready"] and not status["contract_ready"]
+        assert len([row for row in status["rental_documents"] if row["id"]]) == 2
+        assert len([row for row in status["additional_driver"]["rental_documents"] if row["id"]]) == 2
+        contracts.confirm_printed(42, contracts.ContractPrinted(contract_id=prepared["contract_id"]))
+        assert contracts.ensure_pickup_paperwork(42)["id"] == 42
+        driver_id = next(row["id"] for row in contracts.driver_state(store.order)["documents"] if row["kind"] == "passport")
+        with pytest.raises(HTTPException): documents.tracked_attachment("res.partner", 3, driver_id, documents.CUSTOMER_KINDS)
+        with pytest.raises(HTTPException): routes[3].endpoint(43, driver_id)
+        with pytest.raises(HTTPException): documents.tracked_attachment("sale.order", 42, driver_id, documents.CUSTOMER_KINDS)
+        assert not any(model == "crm.lead" or model == "res.partner" and method in ("create", "write") for model, method, *_ in store.calls)
+
+
+def test_driver_document_replacement_changes_contract_even_with_same_numbers_and_keeps_old_copies():
+    store = RentalStore()
+    with patch.object(documents.odoo, "execute", side_effect=store.execute):
+        verified_customer(store); routes = verified_driver(store)
+        first = contracts.prepare_contract(42, contracts.ContractPrepare())
+        copies = read_metadata(store.order["note"], "rental_contract")["snapshot_ids"]
+        routes[1].endpoint(42, documents.DocumentUpload(kind="passport", filename="new.pdf", number="DRIVER-123",
+            content=base64.b64encode(b"%PDF-1.7 replacement").decode()))
+        replacement = store.attachments[-1]["id"]
+        assert not contracts.paperwork(42)[2]["documents_ready"]
+        routes[2].endpoint(42, replacement, documents.DocumentUpdate(number="DRIVER-123", verified=True))
+        assert not contracts.paperwork(42)[2]["contract_current"]
+        second = contracts.prepare_contract(42, contracts.ContractPrepare())
+        assert first["contract_id"] != second["contract_id"]
+        assert set(copies).issubset({row["id"] for row in store.attachments})
+
+
+def test_renaming_driver_requires_fresh_scans_and_removal_clears_driver_requirement():
+    store = RentalStore()
+    with patch.object(documents.odoo, "execute", side_effect=store.execute):
+        verified_customer(store); routes = verified_driver(store)
+        first = contracts.prepare_contract(42, contracts.ContractPrepare())
+        driver_scan = next(row["id"] for row in contracts.driver_state(store.order)["documents"] if row["kind"] == "passport")
+        contracts.save_driver(42, contracts.AdditionalDriver(name="Different driver", fee_reviewed=True))
+        state = contracts.driver_state(store.order)
+        assert not state["ready"] and not state["profile"]["fee_reviewed"]
+        assert all(row["id"] is None for row in sales.additional_driver_documents(42)["documents"])
+        with pytest.raises(HTTPException): routes[2].endpoint(42, driver_scan, documents.DocumentUpdate(number="123", verified=True))
+        contracts.save_driver(42, contracts.AdditionalDriver(active=False))
+        assert contracts.paperwork(42)[2]["documents_ready"] and not contracts.paperwork(42)[2]["contract_current"]
+        assert contracts.stored_contract(store.order) == first["html"]
+        assert "Different driver" not in contracts.prepare_contract(42, contracts.ContractPrepare())["html"]
+
+
+@pytest.mark.parametrize("tag,state", [("[Rental OS picked up]", "sale"), ("[Rental OS returned]", "sale"), ("", "cancel")])
+def test_driver_profile_and_scans_cannot_change_after_handover_return_or_cancellation(tag, state):
+    from app.verticals.car_rental.states import PICKED_UP_TAG, RETURNED_TAG
+    store = RentalStore()
+    tag = PICKED_UP_TAG if "picked up" in tag else RETURNED_TAG if "returned" in tag else ""
+    with patch.object(documents.odoo, "execute", side_effect=store.execute):
+        routes = verified_driver(store)
+        store.order.update(state=state, note=store.order["note"] + tag)
+        before = deepcopy(store.attachments)
+        with pytest.raises(HTTPException): contracts.save_driver(42, contracts.AdditionalDriver(name="Change"))
+        with pytest.raises(HTTPException): routes[1].endpoint(42, documents.DocumentUpload(kind="cin", filename="scan.pdf", content="AA=="))
+        assert store.attachments == before
+
+
+@pytest.mark.parametrize("lines,expected", [([], "check_fee"), ([{"product_uom_qty": 1, "qty_invoiced": 0, "price_unit": 20}], "invoice_pending"),
+    ([{"product_uom_qty": 1, "qty_invoiced": 1, "price_unit": 20}], "included"), ([{"product_uom_qty": 1, "qty_invoiced": 0, "price_unit": 0}], "included")])
+def test_additional_driver_fee_guidance_respects_native_order_and_invoiced_quantities(lines, expected):
+    store = RentalStore(); store.addon_lines = lines
+    with patch.object(documents.odoo, "execute", side_effect=store.execute):
+        assert contracts.driver_fee_status(store.order) == expected
+
+
+def test_additional_driver_requires_name_past_birth_date_and_cannot_bypass_verification_with_free_text():
+    from pydantic import ValidationError
+    for values in ({"name": " "}, {"name": "Driver", "birth_date": date.today() + timedelta(days=1)}, {"name": "x" * 251}):
+        with pytest.raises(ValidationError): contracts.AdditionalDriver(**values)
+    store = RentalStore()
+    with patch.object(documents.odoo, "execute", side_effect=store.execute):
+        verified_customer(store)
+        with pytest.raises(HTTPException): contracts.prepare_contract(42, contracts.ContractPrepare(details={"driver": "Unverified driver"}))
+
+
+def test_rental_document_list_only_contains_current_customer_copies_not_driver_scans_or_old_versions():
+    store = RentalStore()
+    with patch.object(documents.odoo, "execute", side_effect=store.execute):
+        verified_customer(store); verified_driver(store)
+        contracts.prepare_contract(42, contracts.ContractPrepare())
+        current = set(read_metadata(store.order["note"], "rental_contract")["snapshot_ids"])
+        listing = sales.rental_documents(42)
+        ids = {row["id"] for row in listing["documents"] if row["id"]}
+        assert len(ids) == 2 and ids <= current
+        assert all(documents.metadata(row).get("scope") is None for row in store.attachments if row["id"] in ids)
+
+
+
+def test_batch_attention_sees_missing_driver_paperwork_and_fee_acknowledgement_preserves_contract():
+    store = RentalStore()
+    with patch.object(documents.odoo, "execute", side_effect=store.execute):
+        verified_customer(store)
+        contracts.save_driver(42, contracts.AdditionalDriver(name="Second driver"))
+        assert not contracts.batch_paperwork([store.order])[42]["documents_ready"]
+        verified_driver(store)
+        prepared = contracts.prepare_contract(42, contracts.ContractPrepare())
+        contracts.confirm_printed(42, contracts.ContractPrinted(contract_id=prepared["contract_id"]))
+        profile = contracts.driver_state(store.order)["profile"]
+        contracts.save_driver(42, contracts.AdditionalDriver(**{**profile, "fee_reviewed": True}))
+        assert contracts.paperwork(42)[2]["contract_ready"]
+        assert contracts.batch_paperwork([store.order])[42]["contract_ready"]

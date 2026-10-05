@@ -294,7 +294,7 @@ export default function RentalDetailPage() {
         </div>)}
       </Card></section>
       {paperworkError && <p role="alert" className="mt-4 text-danger">{paperworkError} <button className={buttonClass} onClick={() => void loadPaperwork()}>Retry paperwork</button></p>}
-      {quotation.customer && <PaperworkPanel key={quotation.id} rentalId={rentalId} customerId={quotation.customer.id} confirmed={confirmed} collected={quotation.picked_up || quotation.returned} status={paperwork} refresh={loadPaperwork} />}
+      {quotation.customer && <PaperworkPanel key={quotation.id} rentalId={rentalId} customerId={quotation.customer.id} confirmed={confirmed} collected={quotation.picked_up || quotation.returned} status={paperwork} refresh={loadPaperwork} editBooking={() => setEditingBooking(true)} />}
       <div id="follow-ups" className="mt-5 scroll-mt-5"><ActivitiesPanel key={`${rentalId}-${quotation.opportunity?.id || "booking"}`} leadId={quotation.opportunity?.id} saleId={rentalId} compact /></div>
       {returningVehicle && quotation.vehicle_id && <ReturnVehicleModal vehicleId={quotation.vehicle_id} orderId={rentalId}
         onClose={() => setReturningVehicle(false)} onReturned={async () => {

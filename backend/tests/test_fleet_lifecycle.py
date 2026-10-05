@@ -219,3 +219,32 @@ def test_deposit_or_direct_full_payment_can_confirm_booking(paid):
          patch.object(changes, "ensure_available"), patch.object(changes, "refresh_fleet"), \
          patch.object(changes.odoo, "execute", side_effect=[[invoice], True]):
         assert changes.confirm_booking(12)["booking_status"] == "confirmed"
+
+
+
+def test_optional_references_are_suggested_without_links_and_deposits_remain_separate():
+    products = [{"id": index, "name": reference or "Other", "default_code": reference, "product_tmpl_id": [index, "Product"]}
+                for index, reference in enumerate(["LOC-ECO", "DEP-ECO", "OPT-CDSUPP", "OPT-BEBE", " opt-chauf ", "LOC-SUV", "DEP-SUV", None], 1)]
+    def rpc(model, method, args, kwargs):
+        return products if model == "product.product" else []
+    with patch.object(rentals.odoo, "execute", side_effect=rpc) as call:
+        options = rentals.get_rental_options(None, None)
+    by_id = {product["id"]: product for product in options["products"]}
+    assert by_id[1]["suggested_product_ids"] == [3, 4, 5]
+    assert by_id[2]["is_deposit"] and not by_id[3]["is_deposit"]
+    assert by_id[3]["suggested_product_ids"] == [4, 5]
+    assert all(not ({1, 2, 6, 7} & set(product["suggested_product_ids"])) for product in by_id.values())
+    assert not any(entry.args[0] == "product.template" for entry in call.call_args_list)
+
+
+def test_optional_products_beyond_the_catalog_limit_are_still_suggested():
+    catalog = [{"id": index, "name": "Rental", "default_code": "LOC-ECO"} for index in range(1, 501)]
+    extra = {"id": 501, "name": "Additional driver", "default_code": "OPT-CDSUPP"}
+    def rpc(model, method, args, kwargs):
+        if model != "product.product":
+            return []
+        return catalog if kwargs.get("limit") == 500 else [extra]
+    with patch.object(rentals.odoo, "execute", side_effect=rpc):
+        options = rentals.get_rental_options(None, None)
+    assert len(options["products"]) == 501
+    assert options["products"][0]["suggested_product_ids"] == [501]

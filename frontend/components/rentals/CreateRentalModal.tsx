@@ -75,6 +75,16 @@ type Product = {
   suggested_product_ids: number[];
 };
 
+export function matchesVehicleProduct(reference: string | null, typeName: string) {
+  const code = typeName.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").slice(0, 3);
+  const ref = (reference || "").trim().toUpperCase();
+  return Boolean(code && /^(LOC|DEP)-/.test(ref) && ref.includes(code));
+}
+
+export function isOptionalProduct(reference: string | null) {
+  return (reference || "").trim().toUpperCase().startsWith("OPT-");
+}
+
 type RentalOptionsResponse = {
   customers: Customer[];
   vehicles: Vehicle[];
@@ -629,8 +639,7 @@ export default function CreateRentalModal({
   // ==========================================================
   // VEHICLE-TYPE PRODUCT SUGGESTIONS
   //
-  // Separate from the addon suggestions above (which come from
-  // Odoo's own optional_product_ids and stay untouched). This
+  // Separate from OPT-reference extras. This
   // matches the selected vehicle type/category against product
   // references — e.g. "Economy" -> a 3-letter code "ECO" -> any
   // product whose reference contains it (LOC-ECO, DEP-ECO).
@@ -654,20 +663,8 @@ export default function CreateRentalModal({
 
     if (!typeName) return [];
 
-    const code = typeName
-      .toUpperCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .slice(0, 3);
-
-    if (!code) return [];
-
-    return options.products.filter(
-      (product) =>
-        !selectedProductIds.has(product.id) &&
-        (product.reference || "")
-          .toUpperCase()
-          .includes(code)
+    return options.products.filter(product =>
+      !selectedProductIds.has(product.id) && matchesVehicleProduct(product.reference, typeName)
     );
   }, [
     options,
@@ -685,51 +682,13 @@ export default function CreateRentalModal({
     useMemo(() => {
       if (!options) return [];
 
-      const suggestedIds =
-        new Set<number>();
-
-      for (
-        const selected of selectedProducts
-      ) {
-        const product =
-          options.products.find(
-            (item) =>
-              item.id ===
-              selected.product_id
-          );
-
-        if (!product) continue;
-
-        for (
-          const suggestedId
-          of product.suggested_product_ids
-        ) {
-          if (
-            !selectedProductIds.has(
-              suggestedId
-            )
-          ) {
-            suggestedIds.add(
-              suggestedId
-            );
-          }
-        }
-      }
-
-      return options.products.filter(
-        (product) =>
-          suggestedIds.has(
-            product.id
-          ) &&
-          !vehicleTypeProducts.some(
-            (typeProduct) => typeProduct.id === product.id
-          )
+      return options.products.filter(product =>
+        isOptionalProduct(product.reference) &&
+        !selectedProductIds.has(product.id)
       );
     }, [
       options,
-      selectedProducts,
       selectedProductIds,
-      vehicleTypeProducts,
     ]);
 
   // ==========================================================

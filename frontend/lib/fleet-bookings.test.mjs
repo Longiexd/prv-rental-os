@@ -155,3 +155,24 @@ test("booking progress explicitly uses black text in light mode and blue action 
   assert.ok(contrast("#111113", "#3B82F6") >= 4.5);
   assert.ok(contrast("#111113", "#C8F065") >= 4.5);
 });
+
+
+// Compile only the two pure predicates from the existing modal; no browser imports.
+test("Economy keeps LOC-ECO and DEP-ECO type matches while OPT products stay extras", async () => {
+  const {default: ts} = await import("typescript");
+  const {runInNewContext} = await import("node:vm");
+  const source = readFileSync(resolve(root, "components/rentals/CreateRentalModal.tsx"), "utf8");
+  const parsed = ts.createSourceFile("modal.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const predicates = parsed.statements.filter(node => ts.isFunctionDeclaration(node) &&
+    ["matchesVehicleProduct", "isOptionalProduct"].includes(node.name?.text)).map(node => node.getText(parsed)).join("\n");
+  const code = ts.transpileModule(predicates, {compilerOptions: {module: ts.ModuleKind.CommonJS}}).outputText;
+  const exports = {};
+  runInNewContext(code, {exports});
+  const {matchesVehicleProduct, isOptionalProduct} = exports;
+  const references = ["LOC-ECO", "DEP-ECO", "LOC-SUV", "DEP-SUV", "OPT-CDSUPP", "OPT-BEBE", "OPT-ECO", null];
+  assert.deepEqual(references.filter(ref => matchesVehicleProduct(ref, "Economy")), ["LOC-ECO", "DEP-ECO"]);
+  assert.deepEqual(references.filter(isOptionalProduct), ["OPT-CDSUPP", "OPT-BEBE", "OPT-ECO"]);
+  assert.equal(matchesVehicleProduct(" dep-éco ".normalize("NFD").replace(/[\u0300-\u036f]/g, ""), "Économique"), true);
+  assert.equal(matchesVehicleProduct("LOC-ECO", ""), false);
+  assert.equal(isOptionalProduct(" opt-cdsupp "), true);
+});

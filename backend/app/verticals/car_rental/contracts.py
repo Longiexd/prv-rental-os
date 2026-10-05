@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from app.core.bookings import booking_status
 from app.core.documents import (CUSTOMER_KINDS, attachment_content, document_checklist,
-                                file_type, save_attachment, checklist_from_records)
+                                file_type, save_attachment, checklist_from_records, IdentityFields)
 from app.core.record_metadata import read_metadata, write_metadata
 from app.odoo_client import odoo
 
@@ -21,6 +21,8 @@ FIELDS = {
     "birth_date": "Date de naissance", "nationality": "Nationalité", "identity_type": "CIN / Passeport",
     "identity_number": "Pièce d’identité / الهوية", "license": "Permis N° / رخصة السياقة", "license_issued": "Permis délivré le",
     "driver": "Conducteur supplémentaire", "driver_identity": "Identité du conducteur", "driver_license": "Permis du conducteur",
+    "driver_identity_type": "CIN / Passeport conducteur", "driver_birth_date": "Naissance conducteur", "driver_nationality": "Nationalité conducteur",
+    "driver_phone": "GSM conducteur", "driver_address": "Adresse conducteur", "driver_license_issued": "Permis conducteur délivré le",
     "vehicle": "Véhicule / السيارة", "plate": "Immatriculation / الرقم المنجمي",
     "pickup": "Départ : date et heure / الاستلام", "return": "Retour : date et heure / الإرجاع",
     "pickup_location": "Lieu de départ", "return_location": "Lieu de retour",
@@ -30,6 +32,78 @@ FIELDS = {
 EXTRA_KEYS = {"birth_date", "nationality", "license_issued", "driver", "driver_identity", "driver_license", "deposit", "fuel", "notes"}
 ORDER_FIELDS = ["id", "name", "state", "note", "partner_id", "company_id", "currency_id", "date_order", "commitment_date", "amount_total", "invoice_ids"]
 CONTRACT_LIMIT = 2 * 1024 * 1024
+
+
+class AdditionalDriver(IdentityFields):
+    active: bool = True
+    name: str = Field(default="", max_length=250)
+    phone: str = Field(default="", max_length=100)
+    address: str = Field(default="", max_length=250)
+    nationality: str = Field(default="", max_length=100)
+    license_issued: str = Field(default="", max_length=100)
+    fee_reviewed: bool = False
+
+    @model_validator(mode="after")
+    def named_driver(self):
+        self.name = self.name.strip()
+        if self.active and not self.name:
+            raise ValueError("Enter the additional driver's name.")
+        return self
+
+
+def driver_state(order, records=None):
+    if records is None:
+        records = odoo.execute("ir.attachment", "search_read", [[["res_model", "=", "sale.order"], ["res_id", "=", order["id"]],
+            ["type", "=", "binary"], ["public", "=", False]]], {"fields": ["id", "name", "description", "checksum"], "order": "id desc"})
+    profile = next((read_metadata(row.get("description"), "additional_driver") for row in records
+                    if read_metadata(row.get("description"), "additional_driver") is not None), None)
+    if profile is not None:
+        profile = AdditionalDriver.model_validate(profile).model_dump(mode="json")
+    owner_key = digest(profile["name"].casefold()) if profile else None
+    scans = [row for row in records if (value := read_metadata(row.get("description"), "document"))
+             and (value.get("scope") != "additional_driver" or value.get("owner_key") == owner_key)]
+    checklist = checklist_from_records(scans, CUSTOMER_KINDS, "additional_driver")
+    active = bool(profile and profile["active"])
+    # Fee acknowledgement has no effect on the identity printed in a contract.
+    identity = {key: value for key, value in (profile or {}).items() if key not in ("fee_reviewed", "active")}
+    return {"profile": profile, **checklist, "ready": not active or checklist["ready"],
+            "digest": digest([identity, document_digest(checklist)]) if active else None}
+
+
+def editable_driver(order_id):
+    from app.verticals.car_rental.states import PICKED_UP_TAG, RETURNED_TAG
+    order = order_record(order_id)
+    if booking_status(order) == "cancelled" or any(tag in (order.get("note") or "") for tag in (PICKED_UP_TAG, RETURNED_TAG)):
+        raise HTTPException(409, "Additional-driver paperwork can be edited before vehicle handover.")
+    return order
+
+
+def driver_document_guard(order_id):
+    state = driver_state(editable_driver(order_id))
+    if not state["profile"] or not state["profile"]["active"]:
+        raise HTTPException(409, "Save the additional driver's name before uploading documents.")
+    return digest(state["profile"]["name"].casefold())
+
+
+def save_driver(order_id, data):
+    order = editable_driver(order_id)
+    value = data.model_dump(mode="json")
+    previous = driver_state(order)["profile"]
+    if not previous or not previous["active"] or previous["name"].casefold() != value["name"].casefold():
+        value["fee_reviewed"] = False
+    content = b"Private additional-driver paperwork"
+    save_attachment({"name": "Additional driver", "type": "binary", "datas": base64.b64encode(content).decode(),
+        "mimetype": "text/plain", "res_model": "sale.order", "res_id": order_id, "public": False,
+        "description": write_metadata("", "additional_driver", value)})
+    return {"success": True}
+
+
+def driver_fee_status(order):
+    lines = odoo.execute("sale.order.line", "search_read", [[["order_id", "=", order["id"]], ["product_uom_qty", ">", 0],
+        ["product_id.default_code", "=ilike", "OPT-CDSUPP%"]]], {"fields": ["product_uom_qty", "qty_invoiced", "price_unit"]})
+    if not lines:
+        return "check_fee"
+    return "invoice_pending" if any(row.get("price_unit", 0) > 0 and row.get("qty_invoiced", 0) < row["product_uom_qty"] for row in lines) else "included"
 
 
 class ContractPrepare(BaseModel):
@@ -62,7 +136,7 @@ class Position(BaseModel):
 class TemplateSetup(BaseModel):
     mode: Literal["basic", "image"] = "basic"
     background: str | None = Field(default=None, max_length=819200)
-    positions: dict[str, Position] = Field(default_factory=dict, max_length=40)
+    positions: dict[str, Position] = Field(default_factory=dict, max_length=len(FIELDS))
     terms: str = Field(default="", max_length=12000)
 
     @model_validator(mode="after")
@@ -108,11 +182,14 @@ def document_digest(checklist):
                     **{key: item[key] for key in ("nationality", "birth_date") if item.get(key)}} for item in selected_documents(checklist)])
 
 
-def record_summary(order, checklist):
+def record_summary(order, checklist, driver=None):
     record = read_metadata(order.get("note"), "rental_contract") or {}
-    current = bool(checklist["ready"] and record.get("version") == 1 and record.get("contract_id")
+    driver = driver or {"ready": True, "digest": None}
+    ready = checklist["ready"] and driver["ready"]
+    current = bool(ready and record.get("version") == 1 and record.get("contract_id")
+                   and record.get("driver_digest") == driver["digest"]
                    and record.get("booking_digest") == booking_digest(order) and record.get("document_digest") == document_digest(checklist))
-    return {"documents_ready": checklist["ready"], "documents": checklist["documents"],
+    return {"documents_ready": ready, "documents": checklist["documents"],
             "contract_current": current, "contract_ready": current and bool(record.get("printed_at")),
             "contract_id": record.get("contract_id"), "printed_at": record.get("printed_at") if current else None,
             "snapshot_ids": record.get("snapshot_ids") or []}
@@ -123,12 +200,13 @@ def paperwork(order_id):
     if not order.get("partner_id"):
         raise HTTPException(409, "Choose a customer first.")
     checklist = document_checklist("res.partner", order["partner_id"][0], CUSTOMER_KINDS)
-    status = record_summary(order, checklist)
+    driver = driver_state(order)
+    status = {**record_summary(order, checklist, driver), "additional_driver": driver}
     from app.verticals.car_rental.states import PICKED_UP_TAG, RETURNED_TAG
     if status["contract_current"] and not any(tag in (order.get("note") or "") for tag in (PICKED_UP_TAG, RETURNED_TAG)):
         details = read_metadata(order.get("note"), "rental_paperwork") or {}
         record = read_metadata(order.get("note"), "rental_contract") or {}
-        if record.get("values_digest") != digest(contract_values(order, checklist, details)):
+        if record.get("values_digest") != digest(contract_values(order, checklist, details, driver)):
             status.update(contract_current=False, contract_ready=False, printed_at=None)
     return order, checklist, status
 
@@ -143,7 +221,12 @@ def batch_paperwork(orders):
         if row["res_id"] in grouped:
             grouped[row["res_id"]].append(row)
     checklists = {partner: checklist_from_records(items, CUSTOMER_KINDS) for partner, items in grouped.items()}
-    return {row["id"]: record_summary(row, checklists.get(row["partner_id"][0], {"documents": [], "ready": False}))
+    driver_rows = odoo.execute("ir.attachment", "search_read", [[["res_model", "=", "sale.order"], ["res_id", "in", [row["id"] for row in orders]],
+        ["type", "=", "binary"], ["public", "=", False]]], {"fields": ["id", "res_id", "name", "description", "checksum"], "order": "id desc"}) if orders else []
+    by_order = {}
+    for attachment in driver_rows:
+        by_order.setdefault(attachment["res_id"], []).append(attachment)
+    return {row["id"]: record_summary(row, checklists.get(row["partner_id"][0], {"documents": [], "ready": False}), driver_state(row, by_order.get(row["id"], [])))
             for row in orders if row.get("partner_id")}
 
 
@@ -161,7 +244,7 @@ def stored_contract(order, check_documents=False):
         ids = record.get("snapshot_ids") or []
         copies = odoo.execute("ir.attachment", "search_read", [[["id", "in", ids], ["res_model", "=", "sale.order"],
             ["res_id", "=", order["id"]], ["type", "=", "binary"], ["public", "=", False]]], {"fields": ["id", "description"]})
-        if len(ids) != 2 or {row["id"] for row in copies} != set(ids):
+        if len(ids) != (4 if record.get("driver_digest") else 2) or {row["id"] for row in copies} != set(ids):
             raise HTTPException(409, "Rental document copies are unavailable. Prepare the contract again.")
         for copy in copies:
             value = read_metadata(copy.get("description"), "document") or {}
@@ -174,7 +257,7 @@ def stored_contract(order, check_documents=False):
 def ensure_pickup_paperwork(order_id):
     order, _, status = paperwork(order_id)
     if not status["documents_ready"]:
-        raise HTTPException(409, "Before handing over the keys, review and verify a CIN or passport number and the driving licence.")
+        raise HTTPException(409, "Before handing over the keys, verify identity and driving licence for the client and any additional driver.")
     if not status["contract_ready"]:
         raise HTTPException(409, "Prepare the rental contract, print or save it, then confirm it is ready before pickup.")
     stored_contract(order, check_documents=True)
@@ -232,7 +315,7 @@ def save_template(order_id, data):
     return {"success": True, "template_id": attachment_id}
 
 
-def contract_values(order, checklist, details):
+def contract_values(order, checklist, details, driver=None):
     from app.routes.calendar import rental_vehicle_id
     clients = odoo.execute("res.partner", "read", [[order["partner_id"][0]]], {"fields": ["name", "phone", "street", "city"]})
     if not clients:
@@ -252,6 +335,13 @@ def contract_values(order, checklist, details):
     identity, licence = selected_documents(checklist)
     logistics = read_metadata(order.get("note"), "rental_logistics") or {}
     pickup = read_metadata(order.get("note"), "rental_pickup") or {}
+    driver_values = {}
+    if driver and (driver.get("profile") or {}).get("active"):
+        profile = driver["profile"]
+        driver_identity, driver_licence = selected_documents(driver)
+        driver_values = {"driver": profile["name"], "driver_identity": driver_identity["number"], "driver_identity_type": driver_identity["label"],
+            "driver_license": driver_licence["number"], **{f"driver_{key}": profile.get(key) for key in ("phone", "address", "birth_date", "nationality", "license_issued")},
+            **{f"driver_{key}": value for key, value in customer_details(driver).items()}}
     return {"agency": company["name"], "agency_phone": company.get("phone"), "booking": order["name"], "customer": client["name"],
         "phone": client.get("phone"), "address": " ".join(str(client.get(key) or "") for key in ("street", "city")),
         "identity_type": identity["label"], "identity_number": identity["number"], "license": licence["number"],
@@ -259,7 +349,7 @@ def contract_values(order, checklist, details):
         "pickup_location": logistics.get("pickup_location"), "return_location": logistics.get("return_location"),
         "total": order["amount_total"], "paid": paid, "balance": max(0, order["amount_total"] - paid),
         "currency": order["currency_id"][1] if order.get("currency_id") else "", "pickup_km": pickup.get("odometer", vehicle.get("odometer")),
-        **customer_details(checklist), **details}
+        **customer_details(checklist), **details, **driver_values}
 
 
 def render_contract(values, template=None):
@@ -273,7 +363,7 @@ def render_contract(values, template=None):
     else:
         groups = {
             "Locataire / المكتري": ("customer", "birth_date", "nationality", "identity_type", "identity_number", "license", "license_issued", "address", "phone"),
-            "Conducteur supplémentaire / سائق إضافي": ("driver", "driver_identity", "driver_license"),
+            "Conducteur supplémentaire / سائق إضافي": ("driver", "driver_birth_date", "driver_nationality", "driver_identity_type", "driver_identity", "driver_license", "driver_license_issued", "driver_address", "driver_phone"),
             "Location / مدة الكراء": ("pickup", "pickup_location", "return", "return_location"),
             "Véhicule / السيارة": ("vehicle", "plate", "pickup_km", "return_km", "fuel"),
             "Montants / المبالغ": ("total", "paid", "balance", "deposit", "currency"),
@@ -307,14 +397,20 @@ def matching_copy(order_id, description, content, limit=CONTRACT_LIMIT):
 
 def prepare_contract(order_id, data):
     from app.routes.cars import PICKED_UP_TAG, RETURNED_TAG
-    order, checklist, _ = paperwork(order_id)
+    order, checklist, status = paperwork(order_id)
     if booking_status(order) != "confirmed" or any(tag in (order.get("note") or "") for tag in (PICKED_UP_TAG, RETURNED_TAG)):
         raise HTTPException(409, "Prepare paperwork for a confirmed booking before handover.")
-    if not checklist["ready"]:
-        raise HTTPException(409, "Verify a CIN or passport number and the driving licence before preparing the contract.")
+    if not status["documents_ready"]:
+        raise HTTPException(409, "Verify identity and driving licence for the client and any additional driver before preparing the contract.")
     template = company_template(order, True)
-    values = contract_values(order, checklist, data.details)
-    fingerprint = digest([booking_digest(order), document_digest(checklist), values, template["id"]])
+    driver = status["additional_driver"]
+    if any(data.details.get(key) for key in ("driver", "driver_identity", "driver_license")) and not driver["digest"]:
+        raise HTTPException(422, "Use the additional-driver form and verify their documents before including them in the contract.")
+    values = contract_values(order, checklist, data.details, driver)
+    fingerprint_values = [booking_digest(order), document_digest(checklist), values, template["id"]]
+    if driver["digest"]:
+        fingerprint_values.append(driver["digest"])
+    fingerprint = digest(fingerprint_values)
     existing = read_metadata(order.get("note"), "rental_contract") or {}
     if existing.get("fingerprint") == fingerprint:
         try:
@@ -323,12 +419,17 @@ def prepare_contract(order_id, data):
             if error.status_code != 409:
                 raise
     snapshots = []
-    for item in selected_documents(checklist):
+    selected = [(item, None) for item in selected_documents(checklist)]
+    if driver["digest"]:
+        selected.extend((item, "additional_driver_snapshot") for item in selected_documents(driver))
+    for item, scope in selected:
         content = attachment_content(item["id"])
         mime, extension = file_type(content)
         value = {"version": 1, "kind": item["kind"], "number": item["number"], "expiry_date": item["expiry_date"],
                  "verified": True, "fingerprint": fingerprint, "sha256": hashlib.sha256(content).hexdigest()}
         value.update({key: item[key] for key in ("nationality", "birth_date") if item.get(key)})
+        if scope:
+            value["scope"] = scope
         description = write_metadata("", "document", value)
         snapshots.append(matching_copy(order_id, description, content) or save_attachment({"name": f'{item["kind"]}.{extension}',
             "type": "binary", "datas": base64.b64encode(content).decode(), "mimetype": mime,
@@ -341,6 +442,8 @@ def prepare_contract(order_id, data):
         "description": description}, CONTRACT_LIMIT)
     record = {"version": 1, "contract_id": contract_id, "html_sha256": sha, "fingerprint": fingerprint, "booking_digest": booking_digest(order),
         "document_digest": document_digest(checklist), "values_digest": digest(values), "snapshot_ids": snapshots, "prepared_at": datetime.now(timezone.utc).isoformat(), "printed_at": None}
+    if driver["digest"]:
+        record["driver_digest"] = driver["digest"]
     note = write_metadata(write_metadata(order.get("note"), "rental_paperwork", data.details), "rental_contract", record)
     if not odoo.execute("sale.order", "write", [[order_id], {"note": note}]):
         raise HTTPException(502, "Contract could not be linked to this rental. Refresh before retrying.")
