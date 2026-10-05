@@ -53,6 +53,7 @@ type Vehicle = {
   category: { id: number; name: string } | null;
   brand: { id: number; name: string } | null;
   available: boolean;
+  location?: string;
 };
 
 type VehicleOption = {
@@ -105,7 +106,7 @@ type CreateRentalModalProps = {
   onClose: () => void;
   onCreated?: (result: unknown) => void;
   rentalId?: number;
-  initialRental?: { partner_id: number; vehicle_id: number; start_date: string; end_date: string; products: SelectedProduct[] };
+  initialRental?: { partner_id: number; vehicle_id: number; start_date: string; end_date: string; start_time?: string; end_time?: string; pickup_location?: string; return_location?: string; products: SelectedProduct[] };
 
   // Optional CRM opportunity.
   opportunityId?: number | null;
@@ -219,6 +220,7 @@ export default function CreateRentalModal({
     start_date: startDate,
 
     end_date: endDate,
+    start_time: "", end_time: "", pickup_location: "", return_location: "",
   });
 
   // ==========================================================
@@ -277,7 +279,7 @@ export default function CreateRentalModal({
         });
 
         if (initialRental) {
-          setForm({ partner_id: String(initialRental.partner_id), vehicle_id: String(initialRental.vehicle_id), start_date: initialRental.start_date, end_date: initialRental.end_date });
+          setForm({ partner_id: String(initialRental.partner_id), vehicle_id: String(initialRental.vehicle_id), start_date: initialRental.start_date, end_date: initialRental.end_date, start_time: initialRental.start_time || "", end_time: initialRental.end_time || "", pickup_location: initialRental.pickup_location || "", return_location: initialRental.return_location || "" });
           setSelectedProducts(initialRental.products);
           setSelectedCustomerName(data.customers.find(customer => customer.id === initialRental.partner_id)?.name || "Current customer");
           setShowAllVehicles(true);
@@ -384,6 +386,7 @@ export default function CreateRentalModal({
       start_date: startDate,
 
       end_date: endDate,
+      start_time: "", end_time: "", pickup_location: "", return_location: "",
     });
 
     setError(null);
@@ -895,6 +898,8 @@ export default function CreateRentalModal({
         vehicle_id: Number(form.vehicle_id),
         start_date: form.start_date,
         end_date: form.end_date,
+        start_time: form.start_time || null, end_time: form.end_time || null,
+        pickup_location: form.pickup_location, return_location: form.return_location,
         products: selectedProducts,
         ...(linkedOpportunity ? { opportunity_id: linkedOpportunity } : {}),
       }),
@@ -950,10 +955,10 @@ export default function CreateRentalModal({
     if (
       form.start_date &&
       form.end_date &&
-      form.end_date <= form.start_date
+      `${form.end_date}T${form.end_time || "00:00"}` <= `${form.start_date}T${form.start_time || "00:00"}`
     ) {
       setError(
-        "The return date must be after the pickup date."
+        "Return date and time must be after pickup."
       );
       return;
     }
@@ -1308,7 +1313,7 @@ export default function CreateRentalModal({
 
                 <input
                   type="date"
-                  min={form.start_date ? formDateAfter(form.start_date) : minimumReturn}
+                  min={form.start_date || minimumReturn}
                   value={form.end_date}
                   onChange={(event) =>
                     setForm({
@@ -1321,6 +1326,16 @@ export default function CreateRentalModal({
 
               </label>
 
+            </div>
+
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              {(["start_time", "end_time", "pickup_location", "return_location"] as const).map(key => <label key={key} className="space-y-2 text-xs font-medium text-text-secondary">
+                {{start_time: "Pickup time (agency local time)", end_time: "Return time (agency local time)", pickup_location: "Pickup agency / location", return_location: "Return agency / location"}[key]}
+                <input type={key.endsWith("time") ? "time" : "text"} list={key.endsWith("location") ? "odoo-fleet-locations" : undefined} maxLength={250} value={form[key]} onChange={event => setForm({...form, [key]: event.target.value})}
+                  placeholder={key.endsWith("location") ? "Agency name or address" : undefined} className="h-10 w-full rounded-lg border border-border bg-surface-secondary px-3 text-sm text-text" />
+              </label>)}
+              <datalist id="odoo-fleet-locations">{Array.from(new Set(options?.vehicles.map(vehicle => vehicle.location).filter(Boolean))).map(location => <option key={location} value={location} />)}</datalist>
+              <p className="text-xs text-muted sm:col-span-2">Agency suggestions come from Odoo Fleet → vehicle Location. Actual return updates that field.</p>
             </div>
 
             {/* ==================================================
@@ -1437,6 +1452,8 @@ export default function CreateRentalModal({
                       setForm({
                         ...form,
                         vehicle_id: String(vehicle.id),
+                        pickup_location: form.pickup_location || vehicle.location || "",
+                        return_location: form.return_location || vehicle.location || "",
                       })
                     }
                     className={`flex w-full items-center justify-between border-b border-border px-3 py-2.5 text-left transition last:border-0 hover:bg-[#C8F065]/10 ${

@@ -29,6 +29,7 @@ export type ActionSale = {
   vehicle_id?: number | null;
   picked_up?: boolean;
   returned?: boolean;
+  paperwork?: { contract_ready: boolean };
 };
 
 export function RentalActionMenu({
@@ -140,9 +141,9 @@ export function RentalActionMenu({
 
               {kind === "pickup" && !sale.picked_up && (
                 <>
-                  <button role="menuitem" type="button" onClick={() => { onPickedUp?.(sale.id); close(); }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-lime-ink hover:bg-lime/10">
+                  {sale.paperwork?.contract_ready ? <button role="menuitem" type="button" onClick={() => { onPickedUp?.(sale.id); close(); }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-lime-ink hover:bg-lime/10">
                     <Check size={14} /> Picked up
-                  </button>
+                  </button> : <Link role="menuitem" href={`/dashboard/rentals/${sale.id}#paperwork`} onClick={close} className="flex items-center gap-2 px-3 py-2 text-danger hover:bg-surface-secondary"><Check size={14} /> Complete pickup paperwork</Link>}
                   <button role="menuitem" type="button" onClick={() => setSubMenu("not-picked-up")} className="flex w-full items-center gap-2 px-3 py-2 text-left text-text-secondary hover:bg-surface-secondary hover:text-text">
                     <X size={14} /> Not picked up
                   </button>

@@ -9,8 +9,9 @@ from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
 from app.core import documents
-from app.core.record_metadata import write_metadata
-from app.routes import sales
+from app.core.record_metadata import read_metadata, write_metadata
+from app.verticals.car_rental import contracts
+from app.routes import sales, booking_changes, cars
 
 KINDS = {"cin": "CIN", "driving_license": "Driving licence"}
 
@@ -36,10 +37,12 @@ class Store:
                     for field, operator, value in args[0]:
                         if operator == "=" and record.get(field) != value:
                             return False
+                        if operator == "in" and record.get(field) not in value:
+                            return False
                         if operator == "ilike" and value not in record.get(field, ""):
                             return False
                     return True
-                return [deepcopy(item) for item in reversed(self.attachments) if matches(item)]
+                return [deepcopy(item) for item in reversed(self.attachments) if matches(item)][: (kwargs or {}).get("limit")]
             if method == "read":
                 return [deepcopy(item) for item in self.attachments if item["id"] in args[0]]
             if method == "write":
@@ -146,38 +149,6 @@ def test_untracked_or_public_attachment_is_not_downloadable(client):
     assert http.get("/customers/3/documents/1/download").status_code == 404
 
 
-def contract_order(**changes):
-    return {"id": 42, "name": "S0042", "booking_status": "confirmed", "customer": {"id": 3}, "vehicle_id": 4,
-            "date_order": "2026-10-05", "commitment_date": "2026-10-08", "amount_total": 720,
-            "amount_paid": 300, "amount_outstanding": 420, "return_record": None, **changes}
-
-
-def test_contract_is_autofilled_escaped_and_never_mutates_booking_or_payments():
-    def execute(model, method, args, kwargs):
-        assert method == "read"
-        return {"res.partner": [{"name": '<script>alert("x")</script>', "phone": "555"}],
-                "fleet.vehicle": [{"name": "Car", "license_plate": "TN123", "model_id": [7, "Model"]}],
-                "res.company": [{"name": "Agency", "phone": "111", "email": "agent@example.test"}]}[model]
-    with patch.object(sales, "get_sale", return_value=contract_order()), \
-         patch.object(sales, "sale_record", return_value={"company_id": [1, "Agency"], "currency_id": [1, "TND"]}), \
-         patch.object(sales, "document_checklist", return_value={"documents": [{"kind": "cin", "number": "123"}, {"kind": "driving_license", "number": "456"}]}), \
-         patch.object(sales.odoo, "execute", side_effect=execute):
-        contract = sales.rental_contract(42)
-    assert contract["fields"]["CIN"] == "123" and contract["fields"]["Permis de conduire"] == "456"
-    assert contract["fields"]["Montant payé / acompte"] == 300
-    assert contract["fields"]["Kilométrage au départ"] is None
-    assert "<script>" not in contract["html"] and "&lt;script&gt;" in contract["html"]
-    assert "default-src 'none'" in contract["html"] and "@media print" in contract["html"]
-
-
-@pytest.mark.parametrize("changes", [{"booking_status": "cancelled"}, {"customer": None}, {"vehicle_id": None}])
-def test_contract_rejects_incomplete_or_cancelled_booking(changes):
-    with patch.object(sales, "get_sale", return_value=contract_order(**changes)), \
-         patch.object(sales.odoo, "execute") as rpc, pytest.raises(HTTPException):
-        sales.rental_contract(42)
-    rpc.assert_not_called()
-
-
 def test_document_endpoints_directly_preserve_ownership_and_verification():
     # Pure endpoint coverage also runs when Windows cannot create TestClient's socket pair.
     store = Store()
@@ -220,10 +191,234 @@ def test_invalid_new_document_cannot_fall_back_to_an_older_verified_scan():
     data = documents.DocumentUpload(kind="cin", filename="scan.pdf", content=base64.b64encode(b"%PDF-1.7").decode())
     with patch.object(documents.odoo, "execute", side_effect=store.execute):
         create(3, data)
-        update(3, 1, documents.DocumentUpdate(verified=True))
+        update(3, 1, documents.DocumentUpdate(number="123", verified=True))
         create(3, data)
         assert checklist(3)["documents"][0]["status"] == "uploaded"
         store.attachments[-1]["description"] = "[Klynx metadata:document:bad]"
         with pytest.raises(HTTPException) as error:
             checklist(3)
         assert error.value.status_code == 409
+
+
+class RentalStore(Store):
+    def __init__(self):
+        super().__init__()
+        self.order = {"id": 42, "name": "S0042", "state": "sale", "partner_id": [3, "Client"], "company_id": [1, "Agency"],
+                      "currency_id": [1, "TND"], "amount_total": 720, "invoice_ids": [9],
+                      "date_order": f"{date.today()} 09:30:00", "commitment_date": f"{date.today() + timedelta(days=2)} 17:00:00",
+                      "note": write_metadata("[Rental OS fleet.vehicle:4]", "rental_logistics", {"pickup_location": "Sousse", "return_location": "Tunis"})}
+        self.vehicle = {"id": 4, "name": "Car", "license_plate": "TN123", "odometer": 1000, "odometer_unit": "kilometers", "active": True, "state_id": [1, "Réservé"], "location": "Sousse"}
+        self.client = {"id": 3, "name": '<script>alert("x")</script>', "phone": "555", "street": "Street", "city": "Sousse"}
+        self.paid = 1
+
+    def execute(self, model, method, args, kwargs=None):
+        if model == "sale.order":
+            if method in ("search_read", "read"):
+                return [deepcopy(self.order)]
+            if method == "write":
+                self.calls.append((model, method, deepcopy(args), kwargs))
+                if self.fail_write: return False
+                self.order.update(args[1]); return True
+        if model == "res.company":
+            return [{"id": 1, "name": "Agency", "phone": "111", "partner_id": [100, "Agency contact"]}]
+        if model == "account.move":
+            return [{"amount_total": 720, "amount_residual": 720 - self.paid, "move_type": "out_invoice"}]
+        if model == "res.partner": return [deepcopy(self.client)]
+        if model == "fleet.vehicle": return [deepcopy(self.vehicle)]
+        return super().execute(model, method, args, kwargs)
+
+
+def verified_customer(store, identity="cin"):
+    _, create, update, _ = [route.endpoint for route in documents.document_router("res.partner", documents.CUSTOMER_KINDS).routes]
+    for kind in (identity, "driving_license"):
+        result = create(3, documents.DocumentUpload(kind=kind, filename="scan.pdf", content=base64.b64encode(b"%PDF-1.7 " + kind.encode()).decode(), number="123"))
+        update(3, result["attachment_id"], documents.DocumentUpdate(number="123", verified=True))
+
+
+def test_verified_passport_and_licence_prepare_print_and_pickup_preserve_rental_copies():
+    store = RentalStore()
+    with patch.object(documents.odoo, "execute", side_effect=store.execute), patch.object(booking_changes, "refresh_fleet"):
+        verified_customer(store, "passport")
+        prepared = sales.prepare_rental_contract(42, contracts.ContractPrepare())
+        assert "&lt;script&gt;" in prepared["html"] and "<script>" not in prepared["html"]
+        assert "09:30" in prepared["html"] and "17:00" in prepared["html"]
+        assert "Sousse" in prepared["html"] and "Tunis" in prepared["html"]
+        assert "عقد كراء" in prepared["html"] and "img-src data:" in prepared["html"]
+        record = read_metadata(store.order["note"], "rental_contract")
+        copies = [row for row in store.attachments if row["id"] in record["snapshot_ids"]]
+        assert len(copies) == 2 and all(row["res_model"] == "sale.order" and row["res_id"] == 42 and not row["public"] for row in copies)
+        count = len(store.attachments)
+        assert sales.prepare_rental_contract(42, contracts.ContractPrepare())["contract_id"] == prepared["contract_id"]
+        assert len(store.attachments) == count
+        with pytest.raises(HTTPException) as error: booking_changes.mark_picked_up(42)
+        assert error.value.status_code == 409 and cars.PICKED_UP_TAG not in store.order["note"]
+        sales.confirm_rental_contract(42, contracts.ContractPrinted(contract_id=prepared["contract_id"]))
+        assert sales.rental_paperwork(42)["contract_ready"]
+        assert booking_changes.mark_picked_up(42)["success"]
+        assert cars.PICKED_UP_TAG in store.order["note"]
+        assert sales.rental_contract(42)["html"] == prepared["html"]
+        assert not any(model == "account.move" and method == "write" for model, method, *_ in store.calls)
+
+
+@pytest.mark.parametrize("change", ["dates", "vehicle", "location", "payment", "customer", "replace_document"])
+def test_changed_rental_or_customer_requires_a_new_contract(change):
+    store = RentalStore()
+    with patch.object(documents.odoo, "execute", side_effect=store.execute):
+        verified_customer(store)
+        prepared = contracts.prepare_contract(42, contracts.ContractPrepare())
+        contracts.confirm_printed(42, contracts.ContractPrinted(contract_id=prepared["contract_id"]))
+        if change == "dates": store.order["commitment_date"] = "2030-10-10 17:00:00"
+        if change == "vehicle": store.order["note"] = store.order["note"].replace("fleet.vehicle:4", "fleet.vehicle:5")
+        if change == "location": store.order["note"] = write_metadata(store.order["note"], "rental_logistics", {"pickup_location": "Other"})
+        if change == "payment": store.paid = 10
+        if change == "customer": store.client["phone"] = "999"
+        if change == "replace_document":
+            documents.document_router("res.partner", documents.CUSTOMER_KINDS).routes[1].endpoint(3,
+                documents.DocumentUpload(kind="cin", filename="scan.pdf", content=base64.b64encode(b"%PDF-NEW").decode(), number="123"))
+        assert not contracts.paperwork(42)[2]["contract_ready"]
+        with pytest.raises(HTTPException): contracts.ensure_pickup_paperwork(42)
+        assert all(row["datas"] for row in store.attachments)
+
+
+@pytest.mark.parametrize("kind", ["cin", "passport", "driving_license"])
+def test_verification_requires_number_and_readable_scan(kind):
+    store = Store()
+    _, create, update, _ = [route.endpoint for route in documents.document_router("res.partner", documents.CUSTOMER_KINDS).routes]
+    with patch.object(documents.odoo, "execute", side_effect=store.execute):
+        create(3, documents.DocumentUpload(kind=kind, filename="scan.pdf", content=base64.b64encode(b"%PDF-1.7").decode()))
+        with pytest.raises(HTTPException): update(3, 1, documents.DocumentUpdate(verified=True))
+        store.attachments[0]["datas"] = False
+        with pytest.raises(HTTPException): update(3, 1, documents.DocumentUpdate(number="123", verified=True))
+
+
+def test_scan_readback_recovers_failed_filestore_using_bounded_private_database_copy():
+    store = Store()
+    def execute(model, method, args, kwargs=None):
+        result = store.execute(model, method, args, kwargs)
+        if method == "create": store.attachments[-1]["datas"] = False
+        return result
+    create = documents.document_router("res.partner", KINDS).routes[1].endpoint
+    with patch.object(documents.odoo, "execute", side_effect=execute):
+        create(3, documents.DocumentUpload(kind="cin", filename="scan.pdf", content=base64.b64encode(b"%PDF-1.7").decode()))
+        assert documents.attachment_content(1) == b"%PDF-1.7"
+    assert store.attachments[0]["public"] is False and store.attachments[0]["db_datas"]
+    assert all(kwargs.get("context", {}).get("bin_size") is False for _, method, _, kwargs in store.calls if method == "read")
+
+
+def test_failed_persistence_is_not_a_successful_upload():
+    store = Store(); store.fail_write = True
+    def execute(model, method, args, kwargs=None):
+        result = store.execute(model, method, args, kwargs)
+        if method == "create": store.attachments[-1]["datas"] = False
+        return result
+    with patch.object(documents.odoo, "execute", side_effect=execute), pytest.raises(HTTPException) as error:
+        documents.save_attachment({"datas": base64.b64encode(b"%PDF-1.7").decode()})
+    assert error.value.status_code == 502
+
+
+def test_company_template_uses_native_company_contact_and_escapes_conditions():
+    store = RentalStore()
+    image = base64.b64encode(b"\x89PNG\r\n\x1a\nimage").decode()
+    with patch.object(documents.odoo, "execute", side_effect=store.execute):
+        contracts.save_template(42, contracts.TemplateSetup(mode="image", background=image,
+            positions={"customer": {"x": 5, "y": 20}}, terms="<script>unsafe</script>"))
+        attachment = store.attachments[0]
+        assert attachment["res_model"] == "res.partner" and attachment["res_id"] == 100 and attachment["company_id"] == 1
+        template = contracts.company_template(store.order, True)
+        html = contracts.render_contract({"customer": "<img onerror=bad>"}, template)
+        assert "&lt;img" in html and "&lt;script&gt;" in html and '<script>' not in html
+        assert "data:image/png;base64," in html and "@page{size:A4" in html
+
+
+def test_contract_snapshot_download_cannot_cross_rental_and_routes_are_read_only():
+    store = RentalStore()
+    with patch.object(documents.odoo, "execute", side_effect=store.execute):
+        verified_customer(store)
+        contracts.prepare_contract(42, contracts.ContractPrepare())
+        snapshots = [route for route in sales.router.routes if "/documents" in route.path]
+        assert len(snapshots) == 2 and all(route.methods == {"GET"} for route in snapshots)
+        download = next(route.endpoint for route in snapshots if "download" in route.path)
+        copy_id = read_metadata(store.order["note"], "rental_contract")["snapshot_ids"][0]
+        assert base64.b64decode(download(42, copy_id)["content"]).startswith(b"%PDF-")
+        with pytest.raises(HTTPException) as error: download(43, copy_id)
+        assert error.value.status_code == 404
+
+
+def test_missing_docs_and_cancelled_bookings_cannot_prepare_contracts():
+    store = RentalStore()
+    with patch.object(documents.odoo, "execute", side_effect=store.execute):
+        with pytest.raises(HTTPException): contracts.prepare_contract(42, contracts.ContractPrepare())
+        verified_customer(store); store.order["state"] = "cancel"
+        with pytest.raises(HTTPException): contracts.prepare_contract(42, contracts.ContractPrepare())
+        assert len(store.attachments) == 2
+
+
+def test_failed_contract_link_reuses_saved_copies_on_retry():
+    store = RentalStore()
+    with patch.object(documents.odoo, "execute", side_effect=store.execute):
+        verified_customer(store)
+        store.fail_write = True
+        with pytest.raises(HTTPException) as error:
+            contracts.prepare_contract(42, contracts.ContractPrepare())
+        assert error.value.status_code == 502
+        assert not read_metadata(store.order["note"], "rental_contract")
+        count = len(store.attachments)
+        store.fail_write = False
+        contracts.prepare_contract(42, contracts.ContractPrepare())
+        assert len(store.attachments) == count
+        assert not contracts.paperwork(42)[2]["contract_ready"]
+
+
+@pytest.mark.parametrize("lost", ["contract", "snapshot"])
+def test_lost_saved_paperwork_can_be_regenerated_without_replacing_customer_scans(lost):
+    store = RentalStore()
+    with patch.object(documents.odoo, "execute", side_effect=store.execute):
+        verified_customer(store)
+        prepared = contracts.prepare_contract(42, contracts.ContractPrepare())
+        record = read_metadata(store.order["note"], "rental_contract")
+        # Force regeneration; a missing retry artifact must not poison the next attempt.
+        for row in store.attachments:
+            if row["id"] == (prepared["contract_id"] if lost == "contract" else record["snapshot_ids"][0]):
+                row["datas"] = False
+        with pytest.raises(HTTPException):
+            contracts.confirm_printed(42, contracts.ContractPrinted(contract_id=prepared["contract_id"]))
+        recovered = contracts.prepare_contract(42, contracts.ContractPrepare())
+        if lost == "contract":
+            assert recovered["contract_id"] != prepared["contract_id"]
+        else:
+            assert read_metadata(store.order["note"], "rental_contract")["snapshot_ids"] != record["snapshot_ids"]
+        assert contracts.stored_contract(store.order) == recovered["html"]
+        assert len([row for row in store.attachments if row["res_model"] == "res.partner"]) == 2
+
+
+def test_changed_contract_bytes_cannot_be_confirmed_or_used_for_pickup():
+    store = RentalStore()
+    with patch.object(documents.odoo, "execute", side_effect=store.execute):
+        verified_customer(store)
+        prepared = contracts.prepare_contract(42, contracts.ContractPrepare())
+        contracts.confirm_printed(42, contracts.ContractPrinted(contract_id=prepared["contract_id"]))
+        store.attachments[-1]["datas"] = base64.b64encode(b"<script>changed</script>").decode()
+        with pytest.raises(HTTPException):
+            contracts.ensure_pickup_paperwork(42)
+        with pytest.raises(HTTPException):
+            contracts.confirm_printed(42, contracts.ContractPrinted(contract_id=prepared["contract_id"]))
+
+
+def test_expired_identity_requires_a_valid_alternative_and_current_licence():
+    store = RentalStore()
+    routes = documents.document_router("res.partner", documents.CUSTOMER_KINDS).routes
+    with patch.object(documents.odoo, "execute", side_effect=store.execute):
+        verified_customer(store)
+        routes[2].endpoint(3, 1, documents.DocumentUpdate(number="123", expiry_date=date.today() - timedelta(days=1)))
+        assert not contracts.paperwork(42)[2]["documents_ready"]
+        verified_customer(store, "passport")
+        assert contracts.paperwork(42)[2]["documents_ready"]
+        routes[2].endpoint(3, store.attachments[-1]["id"], documents.DocumentUpdate(number="123", expiry_date=date.today() - timedelta(days=1)))
+        assert not contracts.paperwork(42)[2]["documents_ready"]
+
+
+@pytest.mark.parametrize("positions", [{"unknown": {"x": 0, "y": 0}}, {"customer": {"x": 90, "y": 10, "width": 25}}, {"customer": {"x": float("nan"), "y": 10}}])
+def test_template_rejects_unknown_or_outside_page_fields(positions):
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
+        contracts.TemplateSetup(mode="image", positions=positions)

@@ -70,6 +70,7 @@ type SaleData = {
   returned?: boolean;
   picked_up?: boolean;
   booking_status?: string;
+  paperwork?: {documents_ready: boolean; contract_ready: boolean};
 };
 
 type InvoiceData = {
@@ -148,7 +149,7 @@ export default function DashboardPage() {
       const [carsRes, customersRes, salesRes, invoicesRes] = await Promise.all([
         apiRequest(`${API_URL}/cars`, { cache: "no-store" }),
         apiRequest(`${API_URL}/customers`, { cache: "no-store" }),
-        apiRequest(`${API_URL}/sales?for_fleet=true`, { cache: "no-store" }),
+        apiRequest(`${API_URL}/sales?for_fleet=true&with_paperwork=true`, { cache: "no-store" }),
         apiRequest(`${API_URL}/invoices`, { cache: "no-store" }),
       ]);
 
@@ -283,7 +284,8 @@ export default function DashboardPage() {
   }, [activeSales]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const latePickups = activeSales.filter(sale => getRentalState(sale) === "pickup_due");
-  const attentionCount = overdue.length + latePickups.length;
+  const missingPaperwork = pickupsToday.filter(sale => !sale.paperwork?.contract_ready);
+  const attentionCount = overdue.length + latePickups.length + missingPaperwork.length;
 
   // Recent rentals: quotations first, then confirmed/ongoing, then
   // completed/cancelled last — the full list (cancelled included),
@@ -341,7 +343,7 @@ export default function DashboardPage() {
       {/* QUICK METRICS — glance-only, each links to where the action happens */}
       <section aria-label="Overview metrics" className="mt-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
         <Link href="/dashboard/fleet" className="rounded-xl"><StatCard icon={<Car size={15} />} label="Available vehicles" value={availableCars.toString()} detail={`of ${cars.length} in fleet`} loading={loading} /></Link>
-        <a href="#attention" className="rounded-xl"><StatCard icon={<span className={attentionCount ? "klynx-attention-flicker inline-flex" : "inline-flex"}><AlertTriangle size={15} /></span>} label="Needs attention" value={attentionCount.toString()} detail="late pickups / overdue returns" tone={attentionCount ? "danger" : undefined} loading={loading} /></a>
+        <a href="#attention" className="rounded-xl"><StatCard icon={<span className={attentionCount ? "klynx-attention-flicker inline-flex" : "inline-flex"}><AlertTriangle size={15} /></span>} label="Needs attention" value={attentionCount.toString()} detail="pickup paperwork / late pickups / overdue returns" tone={attentionCount ? "danger" : undefined} loading={loading} /></a>
         <Link href="/dashboard/customers" className="rounded-xl"><StatCard icon={<Users size={15} />} label="Customers" value={customers.length.toString()} detail="customer records" tone="pink" loading={loading} /></Link>
         <Link href="/dashboard/rentals" className="rounded-xl"><StatCard icon={<ArrowUpRight size={15} />} label="Outstanding" value={formatCurrency(outstandingAmount)} detail="posted invoices to collect" tone="danger" loading={loading} /></Link>
       </section>
@@ -352,10 +354,11 @@ export default function DashboardPage() {
           <Card className="border-danger/30">
             <CardHeader
               title="Needs attention"
-              subtitle={`${latePickups.length} late pickup${latePickups.length === 1 ? "" : "s"} · ${overdue.length} overdue return${overdue.length === 1 ? "" : "s"}`}
+              subtitle={`${missingPaperwork.length} pickup paperwork incomplete · ${latePickups.length} late pickup${latePickups.length === 1 ? "" : "s"} · ${overdue.length} overdue return${overdue.length === 1 ? "" : "s"}`}
             />
             <div className="p-4">
               <div className="space-y-1">
+                {missingPaperwork.map(sale => <ScheduleRow key={`paperwork-${sale.id}`} sale={sale} vehicleLabel={vehicleLabel(sale)} icon={<AlertTriangle size={14} />} urgent kind="pickup" onPickedUp={handlePickedUp} onCancel={handleCancel} />)}
                 {latePickups.map(sale => <ScheduleRow key={sale.id} sale={sale} vehicleLabel={vehicleLabel(sale)}
                   icon={<AlertTriangle size={14} />} urgent kind="pickup" onPickedUp={handlePickedUp} onCancel={handleCancel} />)}
                 {overdue.map((sale) => (
@@ -474,6 +477,7 @@ function ScheduleRow({
       <div className="min-w-0 flex-1">
         <div className="truncate text-xs font-medium text-text">{customerName}</div>
         <div className="mt-0.5 truncate text-[10px] text-muted">{vehicleLabel} · {dateLabel}</div>
+        {kind === "pickup" && !sale.paperwork?.contract_ready && <Link href={`/dashboard/rentals/${sale.id}#paperwork`} className="text-xs text-danger underline">{sale.paperwork?.documents_ready ? "Contract not ready" : "Identity / licence to verify"} →</Link>}
       </div>
 
       <StatusBadge meta={rentalMeta} withDot={false} />

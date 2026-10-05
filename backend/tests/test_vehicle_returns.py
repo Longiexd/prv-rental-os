@@ -101,6 +101,16 @@ def test_second_collected_booking_is_not_returned(database):
     assert RETURNED_TAG not in database.orders[43]["note"]
 
 
+def test_return_moves_vehicle_to_native_odoo_return_location(database):
+    database.orders[42]["note"] = write_metadata(database.orders[42]["note"], "rental_logistics",
+        {"pickup_location": "Sousse", "return_location": "Tunis agency"})
+    cars.confirm_return(4, request())
+    assert database.vehicle["location"] == "Tunis agency"
+    database.vehicle["location"] = "Maintenance depot"
+    cars.confirm_return(4, request())
+    assert database.vehicle["location"] == "Maintenance depot"
+
+
 def test_completed_retry_never_overwrites_later_manual_state_or_mileage(database):
     cars.confirm_return(4, request())
     database.vehicle.update(state_id=[5, "Maintenance"], odometer=13000)

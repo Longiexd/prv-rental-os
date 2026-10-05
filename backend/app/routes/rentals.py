@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.odoo_client import odoo
+from app.core.record_metadata import write_metadata
 from app.routes.calendar import QUOTATION_TAG, booking_status, rental_vehicle_id
 from app.routes.cars import RETURNED_TAG
 from app.verticals.car_rental.states import blocking_booking_domain, is_booking_state, is_operational_state
@@ -80,6 +81,8 @@ class RentalCreate(BaseModel):
 
     end_date: date
     end_time: time | None = None
+    pickup_location: str | None = Field(default=None, max_length=250)
+    return_location: str | None = Field(default=None, max_length=250)
 
     products: list[RentalProductLine] = Field(
         min_length=1,
@@ -208,6 +211,7 @@ def get_rental_options(
                 "state_id",
                 "category_id",
                 "brand_id",
+                "location",
             ],
             "order": "name",
             "limit": 500,
@@ -400,6 +404,7 @@ def get_rental_options(
                 "category": vehicle.get("category"),
                 "brand": vehicle.get("brand"),
                 "available": vehicle.get("available", True),
+                "location": vehicle.get("location") or "",
             }
             for vehicle in vehicles
         ],
@@ -546,6 +551,7 @@ def create_rental(
             "license_plate",
             "active",
             "state_id",
+            "location",
         ],
     )
 
@@ -729,6 +735,10 @@ def create_rental(
     # LINK CRM OPPORTUNITY
     # ========================================================
 
+    sale_values["note"] = write_metadata(sale_values["note"], "rental_logistics", {
+        "pickup_location": (rental.pickup_location if rental.pickup_location is not None else vehicle.get("location") or "").strip(),
+        "return_location": (rental.return_location if rental.return_location is not None else vehicle.get("location") or "").strip(),
+    })
     if opportunity is not None:
         sale_values[
             "opportunity_id"

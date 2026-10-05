@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 from app.odoo_client import odoo
 from app.core.documents import document_router
-from app.core.record_metadata import write_metadata
+from app.core.record_metadata import read_metadata, write_metadata
 from app.verticals.car_rental.returns import (
     RETURN_RECORD_KEY, ReturnRecord, can_return, return_record,
 )
@@ -278,6 +278,9 @@ def confirm_return(vehicle_id: int, body: ReturnRequest = ReturnRequest()):
     # Odoo's inverse creates a history entry. Equal-reading retries must not write it again.
     if body.odometer is not None and body.odometer > current_odometer:
         values["odometer"] = body.odometer
+    location = (read_metadata(order.get("note"), "rental_logistics") or {}).get("return_location")
+    if location:
+        values["location"] = location
     if values:
         if not odoo.execute("fleet.vehicle", "write", [[vehicle_id], values]):
             raise HTTPException(502, "Return details saved, but the vehicle could not be updated. Retry with the saved details.")

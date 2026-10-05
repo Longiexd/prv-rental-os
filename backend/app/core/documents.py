@@ -12,6 +12,7 @@ from app.odoo_client import odoo
 
 MAX_FILE_BYTES = 600 * 1024  # Base64 plus metadata stays below the existing 1 MiB proxy limit.
 KEY = "document"
+CUSTOMER_KINDS = {"cin": "CIN", "passport": "Passport", "driving_license": "Driving licence"}
 
 
 class DocumentUpload(BaseModel):
@@ -71,12 +72,7 @@ def tracked_attachment(model, record_id, attachment_id, kinds):
     return records[0], value
 
 
-def document_checklist(model, record_id, kinds):
-    parent(model, record_id)
-    records = odoo.execute("ir.attachment", "search_read", [[
-        ["res_model", "=", model], ["res_id", "=", record_id], ["type", "=", "binary"],
-        ["public", "=", False], ["description", "ilike", "[Klynx metadata:document:"],
-    ]], {"fields": ["id", "name", "description"], "order": "id desc"})
+def checklist_from_records(records, kinds):
     latest = {}
     for attachment in records:
         value = metadata(attachment)
@@ -87,18 +83,64 @@ def document_checklist(model, record_id, kinds):
     documents = []
     for kind, label in kinds.items():
         item = {"kind": kind, "label": label, "status": "missing", "id": None,
-                "filename": None, "number": "", "expiry_date": None, "verified": False}
+                "filename": None, "number": "", "expiry_date": None, "verified": False, "checksum": None}
         if kind in latest:
             attachment, value = latest[kind]
             expired = bool(value.get("expiry_date") and value["expiry_date"] < date.today().isoformat())
-            item.update(id=attachment["id"], filename=attachment["name"], number=value["number"],
+            item.update(id=attachment["id"], filename=attachment["name"], number=value["number"], checksum=attachment.get("checksum"),
                         expiry_date=value.get("expiry_date"), verified=value["verified"],
                         status="expired" if expired else "verified" if value["verified"] else "uploaded")
         documents.append(item)
-    return {"documents": documents, "ready": all(item["status"] == "verified" for item in documents)}
+    valid = {item["kind"] for item in documents if item["status"] == "verified" and item["number"].strip()}
+    ready = bool(valid & {"cin", "passport"}) and "driving_license" in valid if "cin" in kinds else all(item["status"] == "verified" for item in documents)
+    return {"documents": documents, "ready": ready}
 
 
-def document_router(model: Literal["res.partner", "fleet.vehicle"], kinds: dict[str, str]):
+def document_checklist(model, record_id, kinds):
+    parent(model, record_id)
+    records = odoo.execute("ir.attachment", "search_read", [[
+        ["res_model", "=", model], ["res_id", "=", record_id], ["type", "=", "binary"],
+        ["public", "=", False], ["description", "ilike", "[Klynx metadata:document:"],
+    ]], {"fields": ["id", "name", "description", "checksum"], "order": "id desc"})
+    return checklist_from_records(records, kinds)
+
+
+def attachment_content(attachment_id, limit=MAX_FILE_BYTES):
+    # Odoo can return a human-readable size in datas; explicitly request the bytes.
+    rows = odoo.execute("ir.attachment", "read", [[attachment_id]],
+                        {"fields": ["datas", "db_datas"], "context": {"bin_size": False}})
+    for field in ("datas", "db_datas"):
+        try:
+            content = base64.b64decode(rows[0].get(field) or "", validate=True)
+        except (ValueError, TypeError, IndexError, binascii.Error):
+            continue
+        if content and len(content) <= limit:
+            return content
+    raise HTTPException(409, "The scan cannot be read from Odoo storage. Upload it again; if this repeats, check the Odoo filestore.")
+
+
+def save_attachment(values, limit=MAX_FILE_BYTES):
+    """Only acknowledge an upload after it can be read back through the same user session."""
+    attachment_id = odoo.execute("ir.attachment", "create", [values], {"context": {"image_no_postprocess": True}})
+    if not attachment_id:
+        raise HTTPException(502, "The document could not be saved.")
+    expected = base64.b64decode(values["datas"])
+    try:
+        stored = attachment_content(attachment_id, limit)
+    except HTTPException as error:
+        if error.status_code != 409:
+            raise
+        # Odoo may acknowledge creation even when its filestore write failed.
+        # Keep a bounded private database copy in that case, without changing global storage.
+        if not odoo.execute("ir.attachment", "write", [[attachment_id], {"db_datas": values["datas"]}]):
+            raise HTTPException(502, "The scan could not be persisted. Check Odoo storage before retrying.")
+        stored = attachment_content(attachment_id, limit)
+    if stored != expected:
+        raise HTTPException(409, "The saved scan differs from the uploaded file. Review Odoo storage before retrying.")
+    return attachment_id
+
+
+def document_router(model: Literal["res.partner", "fleet.vehicle", "sale.order"], kinds: dict[str, str]):
     """Reuse the same workflow under customers and the fleet without exposing arbitrary models."""
     router = APIRouter(prefix="/{record_id}/documents", tags=["Documents"])
 
@@ -120,13 +162,11 @@ def document_router(model: Literal["res.partner", "fleet.vehicle"], kinds: dict[
         mime, extension = file_type(content)
         value = {"version": 1, "kind": data.kind, "number": data.number.strip(),
                  "expiry_date": data.expiry_date.isoformat() if data.expiry_date else None, "verified": False}
-        attachment_id = odoo.execute("ir.attachment", "create", [{
+        attachment_id = save_attachment({
             "name": f"{data.kind}.{extension}", "type": "binary", "datas": data.content,
             "mimetype": mime, "res_model": model, "res_id": record_id, "public": False,
             "description": write_metadata("", KEY, value),
-        }])
-        if not attachment_id:
-            raise HTTPException(502, "The document could not be saved.")
+        })
         return {"success": True, "attachment_id": attachment_id}
 
     @router.patch("/{attachment_id}")
@@ -136,6 +176,10 @@ def document_router(model: Literal["res.partner", "fleet.vehicle"], kinds: dict[
                      expiry_date=data.expiry_date.isoformat() if data.expiry_date else None)
         if data.verified and data.expiry_date and data.expiry_date < date.today():
             raise HTTPException(422, "An expired document cannot be marked verified.")
+        if data.verified:
+            if model == "res.partner" and not value["number"]:
+                raise HTTPException(422, "Enter the document number before verifying identity or licence.")
+            file_type(attachment_content(attachment_id))
         if not odoo.execute("ir.attachment", "write", [[attachment_id],
                             {"description": write_metadata(attachment["description"], KEY, value)}]):
             raise HTTPException(502, "Document changes could not be saved.")
@@ -144,13 +188,7 @@ def document_router(model: Literal["res.partner", "fleet.vehicle"], kinds: dict[
     @router.get("/{attachment_id}/download")
     def download(record_id: int, attachment_id: int):
         tracked_attachment(model, record_id, attachment_id, kinds)
-        records = odoo.execute("ir.attachment", "read", [[attachment_id]], {"fields": ["datas"]})
-        try:
-            content = base64.b64decode(records[0].get("datas") or "", validate=True)
-        except (ValueError, IndexError, binascii.Error):
-            raise HTTPException(409, "The stored document is unavailable.") from None
-        if not content or len(content) > MAX_FILE_BYTES:
-            raise HTTPException(409, "The stored document is unavailable.")
+        content = attachment_content(attachment_id)
         mime, extension = file_type(content)
         return {"content": base64.b64encode(content).decode(), "mime": mime,
                 "filename": f"document-{attachment_id}.{extension}"}

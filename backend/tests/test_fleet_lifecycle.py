@@ -102,17 +102,20 @@ def test_pickup_rejects_returned_booking_before_any_write():
 
 
 def test_pickup_marks_only_this_booking_and_refreshes_linked_car():
-    with patch.object(changes, "get_record", side_effect=[booking(), {"active": True, "state_id": [1, "Réservé"]}]), \
+    with patch.object(changes, "ensure_pickup_paperwork", return_value=booking()) as paperwork, \
+         patch.object(changes, "get_record", side_effect=[booking(), {"active": True, "state_id": [1, "Réservé"]}]), \
          patch.object(changes.odoo, "execute", return_value=True) as rpc, \
          patch.object(changes, "refresh_fleet") as refresh:
         assert changes.mark_picked_up(12) == {"success": True}
     assert rpc.call_args.args[2][0] == [12]
     assert PICKED_UP_TAG in rpc.call_args.args[2][1]["note"]
     refresh.assert_called_once_with(4)
+    paperwork.assert_called_once_with(12)
 
 
 def test_pickup_captures_the_actual_vehicle_reading_once():
-    with patch.object(changes, "get_record", side_effect=[booking(), {"active": True, "state_id": [1, "Réservé"],
+    with patch.object(changes, "ensure_pickup_paperwork", return_value=booking()), \
+         patch.object(changes, "get_record", side_effect=[booking(), {"active": True, "state_id": [1, "Réservé"],
                       "odometer": 10000, "odometer_unit": "kilometers"}]), \
          patch.object(changes.odoo, "execute", return_value=True) as rpc, patch.object(changes, "refresh_fleet"):
         changes.mark_picked_up(12)
@@ -126,7 +129,8 @@ def test_pickup_captures_the_actual_vehicle_reading_once():
 
 
 def test_pickup_false_write_does_not_report_success_or_refresh_fleet():
-    with patch.object(changes, "get_record", side_effect=[booking(), {"active": True, "state_id": [1, "Réservé"]}]), \
+    with patch.object(changes, "ensure_pickup_paperwork", return_value=booking()), \
+         patch.object(changes, "get_record", side_effect=[booking(), {"active": True, "state_id": [1, "Réservé"]}]), \
          patch.object(changes.odoo, "execute", return_value=False), patch.object(changes, "refresh_fleet") as refresh, \
          pytest.raises(HTTPException) as error:
         changes.mark_picked_up(12)
