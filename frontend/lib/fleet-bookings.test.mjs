@@ -1,12 +1,29 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { getVehicleBookings, buildReturnPayload, odometerUnit } from "./fleet-bookings.ts";
+import { getRentalState } from "./status.ts";
 import { readFileSync, readdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const today = new Date(2026, 9, 4, 12);
 const sale = { id: 1, vehicle_id: 4, state: "sale", date_order: "2026-10-04 09:00:00", commitment_date: "2026-10-06 09:00:00" };
+
+test("confirmed past pickup stays pickup due, even after its planned return, until actual handover", () => {
+  const missed = { ...sale, booking_status: "confirmed", date_order: "2026-10-01", commitment_date: "2026-10-02" };
+  assert.equal(getRentalState(missed, today), "pickup_due");
+  assert.equal(getVehicleBookings(4, [missed], today).rental.id, missed.id);
+  assert.equal(getRentalState({ ...missed, picked_up: true }, today), "return_due");
+  assert.equal(getRentalState({ ...missed, returned: true }, today), "completed");
+});
+
+test("only actual pickup makes a confirmed booking ongoing and drafts never become pickup due", () => {
+  assert.equal(getRentalState(sale, today), "confirmed");
+  assert.equal(getRentalState({ ...sale, picked_up: true }, today), "ongoing");
+  assert.equal(getRentalState({ ...sale, booking_status: "quotation", date_order: "2026-10-01" }, today), "draft");
+  assert.equal(getRentalState({ ...sale, state: "cancel", date_order: "2026-10-01" }, today), "cancelled");
+  assert.equal(getRentalState({ ...sale, state: "done", date_order: "2026-10-01" }, today), "pickup_due");
+});
 
 test("drafts appear as quotations without becoming the fleet card's active rental", () => {
   const draft = { ...sale, state: "draft" };

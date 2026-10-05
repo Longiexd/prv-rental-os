@@ -164,8 +164,8 @@ export default function RentalDetailPage() {
   const pickupDate = parseDate(quotation.date_order);
   const returnDate = parseDate(quotation.commitment_date);
   const now = new Date();
-  const startsToday = Boolean(pickupDate && isSameDay(pickupDate, now));
-  const overdueReturn = Boolean(returnDate && returnDate < now && !isSameDay(returnDate, now));
+  const pickupDue = Boolean(pickupDate && (pickupDate < now || isSameDay(pickupDate, now)));
+  const overdueReturn = Boolean(quotation.picked_up && returnDate && returnDate < now && !isSameDay(returnDate, now));
 
 
   return (
@@ -195,10 +195,10 @@ export default function RentalDetailPage() {
           {!cancelled && <button disabled={!!busy} className={`${buttonClass} text-danger`} onClick={() => { if (window.confirm("Cancel this booking and mark its prospect as lost? Financial records are kept.")) void act(`/rentals/${rentalId}/cancel`, "POST", undefined, "Booking cancelled and removed from the calendar."); }}>Cancel booking</button>}
         </div>
         {!cancelled && !confirmed && <div className="mt-4 rounded-lg bg-black/20 p-4"><div className="flex flex-wrap justify-between gap-2 font-semibold"><span>Deposit target · 30%</span><span>{formatCurrency(paid)} / {formatCurrency(requiredDeposit)}</span></div><progress aria-label="Deposit progress" className="mt-2 h-3 w-full accent-green-400" value={Math.min(paid, requiredDeposit)} max={requiredDeposit || 1} /><p className="mt-2 text-sm">{committed ? "Ready to confirm the reservation." : `${formatCurrency(depositRemaining)} still required. This booking stays incomplete until the deposit is recorded and the reservation is confirmed.`}</p>{!editable && <a href="#payments" className="mt-3 inline-block rounded-lg bg-blue-500 px-4 py-2 font-semibold text-text">Continue to payment →</a>}</div>}
-        {confirmed && !quotation.returned && startsToday && !quotation.picked_up && (
-          <div className="mt-4 rounded-lg border border-blue-400/30 bg-blue-500/10 p-4">
-            <p className="font-semibold">Rental starts today</p>
-            <p className="mt-1 text-sm">The customer is due to collect the vehicle today. Confirm once they have.</p>
+        {confirmed && !quotation.returned && pickupDue && !quotation.picked_up && (
+          <div id="handover" className="mt-4 scroll-mt-5 rounded-lg border border-blue-400/30 bg-blue-500/10 p-4">
+            <p className="font-semibold">{getRentalState(quotation) === "pickup_due" ? "Pickup overdue" : "Pickup due today"}</p>
+            <p className="mt-1 text-sm">The vehicle is reserved but has not been handed over. Confirm pickup only when the customer actually collects it.</p>
             <div className="mt-3 flex flex-wrap gap-2">
               <button disabled={!!busy} className={primaryClass} onClick={() => act(`/rentals/${rentalId}/picked-up`, "POST", undefined, "Pickup confirmed.")}>Validate pickup</button>
               <a className={buttonClass} href="#follow-ups">Not picked up · schedule a call</a>

@@ -35,6 +35,7 @@ import {
 import { SortableHeader, type SortDirection } from "@/components/ui/SortableHeader";
 import { API_URL, apiRequest } from "@/lib/api-config";
 import { getVehicleBookings } from "@/lib/fleet-bookings";
+import { getRentalState, rentalStateMeta } from "@/lib/status";
 import ReturnVehicleModal from "@/components/rentals/ReturnVehicleModal";
 import type { NextVehicleState } from "@/lib/fleet-bookings";
 
@@ -803,6 +804,14 @@ function VehicleModal({
           </div>
 
           {/* LINKS */}
+
+          {rental && <div className="mt-4 rounded-xl border border-border bg-surface p-4">
+            <p className="text-sm font-medium text-text">{rentalStateMeta(getRentalState(rental)).label}</p>
+            <Link href={`/dashboard/rentals/${rental.id}#handover`} onClick={onClose}
+              className="mt-3 inline-block rounded-lg bg-lime px-4 py-2 text-sm font-semibold text-black">
+              {!rental.picked_up ? "Open booking / confirm pickup" : "Open booking / return"}
+            </Link>
+          </div>}
 
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
             {rental?.customer && (

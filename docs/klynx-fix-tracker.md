@@ -57,3 +57,10 @@ Each block should have its own reviewed commit and ZIP. Validate the exact candi
 - Frontend helpers/tests are consolidated into existing fleet-bookings files; menu positioning remains in RentalActionMenu. The only new frontend component is the shared return form used by three pages, avoiding duplicated form logic.
 - Final frontend checks: 38 tests passed; TypeScript and focused ESLint passed. Menu placement boundary checks passed before its unchanged helper was inlined. Workflow lint and diff checks passed. Backend remains 197 passed, 5 Linux-only skipped, one existing warning.
 - Local Worker build was attempted with the required development API URL but failed on sandbox EPERM resolving Vite/react-dom. Browser verification was attempted twice; the browser tool failed to start. Complete Worker build, Linux integration tests, return workflow in Odoo, and desktop/mobile visual checks remain pending staging CI/manual verification.
+
+## Post-Block 02 pickup correction
+
+- User verified staging login/deployment, returns and odometer updates on f6dc558.
+- Actual handover is required before showing rented/return due. Missed pickups stay reserved and appear separately in Needs attention, with pickup, follow-up and cancellation actions. Past-day pickup is available on rental detail and linked from fleet/calendar. Drafts, returned and cancelled records are excluded from attention.
+- Overview reads all open fleet bookings; calendar can request all sales without the ordinary 100-record limit. Default API pagination and authentication/deployment remain unchanged.
+- Targeted fleet/return tests: 75 passed. Frontend tests: 40 passed; TypeScript passed. Full backend run stopped after stalling on Windows; rerun in the isolated Docker test project before push.

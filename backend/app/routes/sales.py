@@ -20,7 +20,7 @@ router = APIRouter(
 # =========================================================
 
 @router.get("")
-def get_sales(for_fleet: bool = False):
+def get_sales(for_fleet: bool = False, for_calendar: bool = False):
 
     domain = []
     if for_fleet:
@@ -47,7 +47,7 @@ def get_sales(for_fleet: bool = False):
                 "note",
             ],
             "order": "id desc",
-            **({} if for_fleet else {"limit": 100}),
+            **({} if for_fleet or for_calendar else {"limit": 100}),
         }
     )
 

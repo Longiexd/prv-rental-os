@@ -46,7 +46,7 @@ def booking_state(orders: list[dict], today: date | None = None) -> str | None:
     if not active:
         return None
     current_date = (today or date.today()).isoformat()
-    if any((order.get("commitment_date") or "")[:10]
+    if any(PICKED_UP_TAG in (order.get("note") or "") and (order.get("commitment_date") or "")[:10]
            and order["commitment_date"][:10] < current_date for order in active):
         return "Retour dû"
     if any(PICKED_UP_TAG in (order.get("note") or "") for order in active):

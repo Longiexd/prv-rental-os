@@ -42,10 +42,17 @@ def test_confirmed_booking_stays_reserved_until_actual_handover():
 
 
 def test_overdue_booking_wins_over_current_and_future_bookings():
-    overdue = booking(commitment_date=str(date.today() - timedelta(days=1)))
+    overdue = booking(commitment_date=str(date.today() - timedelta(days=1)), note=f"[Rental OS fleet.vehicle:4]{PICKED_UP_TAG}")
     picked_up = booking(note=f"[Rental OS fleet.vehicle:4]{PICKED_UP_TAG}")
     future = booking(date_order=str(date.today() + timedelta(days=2)))
     assert booking_state([picked_up, future, overdue]) == "Retour dû"
+
+
+def test_missed_pickup_stays_reserved_even_after_the_planned_return():
+    missed = booking(date_order=str(date.today() - timedelta(days=3)),
+                     commitment_date=str(date.today() - timedelta(days=1)))
+    assert booking_state([missed]) == "Réservé"
+    assert target_state("Louée", [missed]) == "Réservé"
 
 
 @pytest.mark.parametrize("state", ["Réservé", "Louée", "Loué", "Retour dû", "Reserved", "Rented"])

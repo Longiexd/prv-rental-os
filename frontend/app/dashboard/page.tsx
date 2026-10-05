@@ -83,6 +83,8 @@ type InvoiceData = {
 // confirmed/ongoing (in progress), then completed/cancelled last —
 // matches the priority the dashboard is meant to surface.
 const STATUS_PRIORITY: Record<RentalState, number> = {
+  pickup_due: 0,
+  return_due: 0,
   draft: 0,
   confirmed: 1,
   ongoing: 1,
@@ -146,7 +148,7 @@ export default function DashboardPage() {
       const [carsRes, customersRes, salesRes, invoicesRes] = await Promise.all([
         apiRequest(`${API_URL}/cars`, { cache: "no-store" }),
         apiRequest(`${API_URL}/customers`, { cache: "no-store" }),
-        apiRequest(`${API_URL}/sales`, { cache: "no-store" }),
+        apiRequest(`${API_URL}/sales?for_fleet=true`, { cache: "no-store" }),
         apiRequest(`${API_URL}/invoices`, { cache: "no-store" }),
       ]);
 
@@ -229,7 +231,7 @@ export default function DashboardPage() {
   );
 
   const activeSales = useMemo(
-    () => sales.filter((sale) => sale.state !== "cancel"),
+    () => sales.filter((sale) => sale.state !== "cancel" && sale.booking_status !== "cancelled" && !sale.returned && (sale.booking_status === "confirmed" || (sale.booking_status !== "quotation" && ["sale", "done"].includes(sale.state)))),
     [sales]
   );
 
@@ -248,7 +250,7 @@ export default function DashboardPage() {
   const pickupsToday = useMemo(() => {
     return activeSales.filter((sale) => {
       const date = parseDate(sale.date_order);
-      return date && isSameDay(date, today) && sale.state !== "done" && !sale.picked_up;
+      return date && isSameDay(date, today) && !sale.picked_up;
     });
   }, [activeSales]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -259,7 +261,7 @@ export default function DashboardPage() {
       return (
         date &&
         isSameDay(date, today) &&
-        sale.state !== "done" &&
+        sale.picked_up &&
         !sale.returned
       );
     });
@@ -274,11 +276,14 @@ export default function DashboardPage() {
         date &&
         date < today &&
         !isSameDay(date, today) &&
-        sale.state !== "done" &&
+        sale.picked_up &&
         !sale.returned
       );
     });
   }, [activeSales]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const latePickups = activeSales.filter(sale => getRentalState(sale) === "pickup_due");
+  const attentionCount = overdue.length + latePickups.length;
 
   // Recent rentals: quotations first, then confirmed/ongoing, then
   // completed/cancelled last — the full list (cancelled included),
@@ -336,21 +341,23 @@ export default function DashboardPage() {
       {/* QUICK METRICS — glance-only, each links to where the action happens */}
       <section aria-label="Overview metrics" className="mt-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
         <Link href="/dashboard/fleet" className="rounded-xl"><StatCard icon={<Car size={15} />} label="Available vehicles" value={availableCars.toString()} detail={`of ${cars.length} in fleet`} loading={loading} /></Link>
-        <a href="#attention" className="rounded-xl"><StatCard icon={<span className={overdue.length ? "klynx-attention-flicker inline-flex" : "inline-flex"}><AlertTriangle size={15} /></span>} label="Needs attention" value={overdue.length.toString()} detail="overdue for return" tone={overdue.length ? "danger" : undefined} loading={loading} /></a>
+        <a href="#attention" className="rounded-xl"><StatCard icon={<span className={attentionCount ? "klynx-attention-flicker inline-flex" : "inline-flex"}><AlertTriangle size={15} /></span>} label="Needs attention" value={attentionCount.toString()} detail="late pickups / overdue returns" tone={attentionCount ? "danger" : undefined} loading={loading} /></a>
         <Link href="/dashboard/customers" className="rounded-xl"><StatCard icon={<Users size={15} />} label="Customers" value={customers.length.toString()} detail="customer records" tone="pink" loading={loading} /></Link>
         <Link href="/dashboard/rentals" className="rounded-xl"><StatCard icon={<ArrowUpRight size={15} />} label="Outstanding" value={formatCurrency(outstandingAmount)} detail="posted invoices to collect" tone="danger" loading={loading} /></Link>
       </section>
 
       {/* 1. VEHICLE ATTENTION — overdue returns need a decision before anything else */}
-      {!loading && overdue.length > 0 && (
+      {!loading && attentionCount > 0 && (
         <section id="attention" className="mt-4 scroll-mt-5">
           <Card className="border-danger/30">
             <CardHeader
               title="Needs attention"
-              subtitle={`${overdue.length} rental${overdue.length === 1 ? "" : "s"} overdue for return`}
+              subtitle={`${latePickups.length} late pickup${latePickups.length === 1 ? "" : "s"} · ${overdue.length} overdue return${overdue.length === 1 ? "" : "s"}`}
             />
             <div className="p-4">
               <div className="space-y-1">
+                {latePickups.map(sale => <ScheduleRow key={sale.id} sale={sale} vehicleLabel={vehicleLabel(sale)}
+                  icon={<AlertTriangle size={14} />} urgent kind="pickup" onPickedUp={handlePickedUp} onCancel={handleCancel} />)}
                 {overdue.map((sale) => (
                   <ScheduleRow
                     key={sale.id}
@@ -453,7 +460,7 @@ function ScheduleRow({
   const customerName = displayValue(sale.customer) || "Unknown customer";
   const rentalMeta = rentalStateMeta(getRentalState(sale));
   const dateLabel = urgent
-    ? `Due ${formatDateShort(sale.commitment_date)}`
+    ? `${kind === "pickup" ? "Pickup due" : "Return due"} ${formatDateShort(kind === "pickup" ? sale.date_order : sale.commitment_date)}`
     : sale.name;
 
   // Clicking the row opens the action menu, not the rental page directly —

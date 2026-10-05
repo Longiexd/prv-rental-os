@@ -428,7 +428,7 @@ export default function RentalsPage() {
   // SEARCH
   // =========================================================
 
-  const matchingSales = sales.filter(sale => bookingFilter === "all" || (bookingFilter === "confirmed" ? ["confirmed", "completed"].includes(classifyRentalState(sale)) : classifyRentalState(sale) === bookingFilter));
+  const matchingSales = sales.filter(sale => bookingFilter === "all" || (bookingFilter === "confirmed" ? ["confirmed", "pickup_due", "ongoing", "return_due", "completed"].includes(classifyRentalState(sale)) : classifyRentalState(sale) === bookingFilter));
 
   const filteredSales =
     useMemo(() => {
@@ -476,7 +476,7 @@ export default function RentalsPage() {
   const confirmed =
     sales.filter(
       (sale) =>
-        ["confirmed", "completed"].includes(classifyRentalState(sale))
+        ["confirmed", "pickup_due", "ongoing", "return_due", "completed"].includes(classifyRentalState(sale))
     ).length;
 
 

@@ -51,6 +51,7 @@ type Sale = {
   vehicle_id?: number | null;
   booking_status?: string;
   returned?: boolean;
+  picked_up?: boolean;
   activity?: Activity;
 };
 
@@ -514,7 +515,7 @@ function getStatusMeta(
 
 function getRentalState(sale: Sale) {
   if (sale.activity) return { className: "border-[var(--todo-border)] bg-[var(--todo-bg)] text-[var(--todo-text)]", dot: "bg-[var(--todo-text)]" };
-  const meta = sale.booking_status === "confirmed" ? { tone: "pink" as const } : rentalStateMeta(classifyRentalState(sale));
+  const meta = rentalStateMeta(classifyRentalState(sale));
   const classes = toneClasses(meta.tone);
 
   return {
@@ -643,13 +644,7 @@ function RentalModal({
             <span
               className={`rounded-full border px-3 py-1.5 text-[10px] font-semibold ${rentalState.className}`}
             >
-              {rental.state ===
-              "sale"
-                ? "Confirmed"
-                : rental.state ===
-                    "cancel"
-                  ? "Cancelled"
-                  : "Quotation"}
+              {rentalStateMeta(classifyRentalState(rental)).label}
             </span>
 
             <span className="font-mono text-[10px] text-muted">
@@ -808,7 +803,7 @@ function RentalModal({
             onClick={onClose}
             className="flex h-11 items-center justify-between rounded-xl bg-lime px-4 text-xs font-semibold text-black hover:bg-lime-dark"
           >
-            View rentals
+            {rental.picked_up ? "View rental / return" : "Open booking / confirm pickup"}
             <ArrowRight
               size={14}
             />
@@ -921,7 +916,7 @@ function MonthRentalBar({
     <button
       type="button"
       onClick={onClick}
-      aria-label={rental.activity ? `${rental.name} · ${rental.activity.res_name}` : `${rental.name} · ${vehicle?.name || "Rental"} · ${rental.customer?.name || ""}`}
+      aria-label={rental.activity ? `${rental.name} · ${rental.activity.res_name}` : `${rentalStateMeta(classifyRentalState(rental)).label} · ${rental.name} · ${vehicle?.name || "Rental"} · ${rental.customer?.name || ""}`}
       className={`absolute z-20 flex h-9 items-center overflow-hidden rounded-lg border px-2.5 text-left shadow-sm transition hover:z-30 hover:brightness-110 ${rentalState.className}`}
       style={{
         left: `calc(${startIndex} * (100% / 7) + 4px)`,
@@ -933,7 +928,7 @@ function MonthRentalBar({
       />
 
       <span className="truncate text-[10px] font-semibold">
-        {rental.activity?.summary || vehicle?.model ||
+        {!rental.activity && classifyRentalState(rental) === "pickup_due" ? `Pickup due · ${vehicle?.model || vehicle?.name || "Rental"}` : rental.activity?.summary || vehicle?.model ||
           vehicle?.name ||
           "Rental"}
       </span>
@@ -1834,7 +1829,7 @@ export default function CalendarPage() {
           carsResponse,
         ] = await Promise.all([
           apiRequest(
-            `${API_URL}/sales`,
+            `${API_URL}/sales?for_calendar=true`,
             {
               cache:
                 "no-store",

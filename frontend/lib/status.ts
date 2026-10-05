@@ -165,6 +165,8 @@ export function fleetStatusMeta(status: FleetStatus): StatusMeta {
 
 export type RentalState =
   | "draft"
+  | "pickup_due"
+  | "return_due"
   | "confirmed"
   | "ongoing"
   | "completed"
@@ -174,21 +176,29 @@ export function getRentalState(sale: {
   state?: string | null;
   booking_status?: string;
   returned?: boolean;
-}): RentalState {
+  picked_up?: boolean;
+  date_order?: string | null;
+  commitment_date?: string | null;
+}, now = new Date()): RentalState {
   const raw = (sale.state || "").toLowerCase();
 
   if (raw === "cancel" || sale.booking_status === "cancelled") return "cancelled";
   if (sale.returned) return "completed";
   if (sale.booking_status === "quotation") return "draft";
-  if (raw === "done") return "completed";
-  if (raw === "sale") return "confirmed";
+  if (sale.booking_status === "confirmed" || raw === "sale" || raw === "done") {
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    if (sale.picked_up) return sale.commitment_date && sale.commitment_date.slice(0, 10) < today ? "return_due" : "ongoing";
+    return sale.date_order && sale.date_order.slice(0, 10) < today ? "pickup_due" : "confirmed";
+  }
 
   return "draft";
 }
 
 const RENTAL_STATE_META: Record<RentalState, StatusMeta> = {
   draft: { label: "Quotation", tone: "muted" },
-  confirmed: { label: "Confirmed", tone: "lime" },
+  confirmed: { label: "Reserved · awaiting pickup", tone: "amber" },
+  pickup_due: { label: "Pickup due", tone: "amber" },
+  return_due: { label: "Return due", tone: "danger" },
   ongoing: { label: "Ongoing", tone: "pink" },
   completed: { label: "Completed", tone: "lime" },
   cancelled: { label: "Cancelled", tone: "danger" },
