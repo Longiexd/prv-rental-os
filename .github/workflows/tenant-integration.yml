@@ -5,6 +5,10 @@ on:
   pull_request:
     branches: [staging, main]
 
+concurrency:
+  group: tenant-integration-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
 
