@@ -16,12 +16,8 @@ def run(env, operation, data):
             raise ValueError("Unknown country or currency")
         currency.active = True
         company.write({"name": data["name"], "country_id": country.id, "currency_id": currency.id})
-        if not company.chart_template:
-            env["account.chart.template"].try_loading(data["chart"], company, install_demo=False)
-        if company.chart_template != data["chart"]:
-            raise ValueError("Existing accounting template differs; refusing to replace it")
-        if company.currency_id != currency:
-            raise ValueError("Accounting template currency differs; review the company configuration")
+        # Accounting localization and chart setup are completed later in Odoo.
+        # Ignore legacy manifests' chart field when resuming provisioning.
         # Close standard administrator credentials. Only the host's Odoo shell administers accounts.
         for xmlid in ("base.user_admin", "base.user_root"):
             user = env.ref(xmlid)
@@ -57,7 +53,6 @@ def run(env, operation, data):
         user.write(values)
         result = {"uid": user.id}
     elif operation == "check":
-        assert company.chart_template
         assert not env.ref("base.user_admin").active
         for user in users.search([("active", "=", True), ("share", "=", False)]):
             if user.id != env.ref("base.user_root").id:

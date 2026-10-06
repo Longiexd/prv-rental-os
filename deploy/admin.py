@@ -186,10 +186,10 @@ class Admin:
                 return json.loads(line.partition("=")[2])
         raise RuntimeError("Odoo did not confirm the operation")
 
-    def add_company(self, code, name, country, currency, chart):
+    def add_company(self, code, name, country, currency):
         project, host, database = names(self.environment, code)
-        if not name.strip() or len(name) > 120 or not country.isalpha() or len(country) != 2 or not currency.isalpha() or len(currency) != 3 or not chart or len(chart) > 64:
-            raise ValueError("Company name, ISO country/currency, and accounting template are required")
+        if not name.strip() or len(name) > 120 or not country.isalpha() or len(country) != 2 or not currency.isalpha() or len(currency) != 3:
+            raise ValueError("Company name and ISO country/currency are required")
         control = self.control()
         directory = self.directory(code)
         with control.db() as db:
@@ -202,7 +202,7 @@ class Admin:
         directory = directory.with_name("." + code + "-" + secrets.token_hex(8))
         directory.mkdir(mode=0o700)
         images = json.loads((self.root / "images.json").read_text())
-        manifest = {"code": code, "name": name, "country": country.upper(), "currency": currency.upper(), "chart": chart}
+        manifest = {"code": code, "name": name, "country": country.upper(), "currency": currency.upper()}
         write_new(directory / "company.json", json.dumps(manifest))
         password = secrets.token_hex(32)
         write_new(directory / "postgres-password", secrets.token_hex(32), 0o444)
@@ -392,7 +392,7 @@ def menu(admin):
             code = input("Company code: ").strip().lower()
             # Do not hold a deployment/provisioning lock while waiting for terminal input.
             if choice == "1":
-                details = (code, input("Company name: ").strip(), input("Country (ISO, e.g. FR): ").strip(), input("Currency (e.g. EUR): ").strip(), input("Odoo accounting template code (e.g. fr): ").strip())
+                details = (code, input("Company name: ").strip(), input("Country (ISO, e.g. FR): ").strip(), input("Currency (e.g. EUR): ").strip())
                 with admin.lock():
                     admin.add_company(*details)
             elif choice in {"2", "3", "4", "5"}:

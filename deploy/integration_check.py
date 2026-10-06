@@ -26,7 +26,7 @@ def main():
             admin.initialize(os.environ["ODOO_IMAGE"], os.environ["POSTGRES_IMAGE"])
             credentials = []
             for code in codes:
-                admin.add_company(code, code, "US", "USD", "generic_coa")
+                admin.add_company(code, code, "US", "USD")
                 privileges = admin.compose(code, "exec", "-T", "postgres", "psql", "-U", "postgres", "-d", "postgres", "-tAc", "SELECT rolsuper,rolcreatedb,rolcreaterole FROM pg_roles WHERE rolname='odoo'").strip()
                 assert privileges == "f|f|f", "Odoo database role has excessive privileges"
                 connections = admin.compose(code, "exec", "-T", "postgres", "psql", "-U", "postgres", "-d", "postgres", "-tAc", "SELECT has_database_privilege('odoo','postgres','CONNECT'),EXISTS (SELECT 1 FROM pg_database d, LATERAL aclexplode(d.datacl) a WHERE d.datname='postgres' AND a.grantee=0 AND a.privilege_type='CONNECT')").strip()
