@@ -143,6 +143,20 @@ export async function POST(request: Request) {
   }
 }
 
+export async function GET() {
+  try {
+    const upstream = await backendRequest("/auth/session", { method: "GET" });
+    if (!upstream.ok) return message("Session unavailable", upstream.status === 401 ? 401 : 503);
+    const data = await upstream.json();
+    return NextResponse.json(
+      { username: data.username, company: data.company },
+      { headers: { "Cache-Control": "no-store" } },
+    );
+  } catch {
+    return message("Session unavailable", 503);
+  }
+}
+
 export async function DELETE(request: Request) {
   try {
     if (!sameOrigin(request, configuration(process.env).origin)) {

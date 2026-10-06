@@ -269,7 +269,7 @@ log_level = warn
                 db.execute("UPDATE companies SET status='active' WHERE code=?", (code,))
             self.attach_api(allow_absent=True)
             control.audit("klynx", code, "provision-complete")
-            print(f"{code}: company ready. Use Add user to issue worker credentials.")
+            print(f"{code}: company ready. Odoo administrator: admin (initial password: admin; change it in Odoo). Use Add user to issue worker credentials.")
         except Exception:
             with control.db(True) as db:
                 db.execute("UPDATE companies SET status='failed' WHERE code=?", (code,))

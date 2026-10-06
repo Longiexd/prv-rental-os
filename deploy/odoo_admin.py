@@ -6,6 +6,25 @@ import json
 import secrets
 
 
+def bootstrap_admin(env):
+    parameters = env["ir.config_parameter"].sudo()
+    if parameters.get_param("klynx.admin_bootstrapped") == "1":
+        return
+    administrator = env.ref("base.user_admin")
+    other = env["res.users"].with_context(active_test=False).search([
+        ("login", "=", "admin"), ("id", "!=", administrator.id),
+    ], limit=1)
+    if other:
+        raise ValueError("Admin login is already assigned to another account")
+    administrator.with_context(no_reset_password=True).write({
+        "login": "admin", "password": "admin", "active": True,
+        "groups_id": [(4, env.ref("base.group_system").id),
+                      (4, env.ref("base.group_erp_manager").id),
+                      (4, env.ref("account.group_account_manager").id)],
+    })
+    parameters.set_param("klynx.admin_bootstrapped", "1")
+
+
 def run(env, operation, data):
     company = env.ref("base.main_company")
     users = env["res.users"].with_context(active_test=False, no_reset_password=True)
@@ -18,11 +37,9 @@ def run(env, operation, data):
         company.write({"name": data["name"], "country_id": country.id, "currency_id": currency.id})
         # Accounting localization and chart setup are completed later in Odoo.
         # Ignore legacy manifests' chart field when resuming provisioning.
-        # Close standard administrator credentials. Only the host's Odoo shell administers accounts.
-        for xmlid in ("base.user_admin", "base.user_root"):
-            user = env.ref(xmlid)
-            user.write({"password": secrets.token_urlsafe(48)})
-        env.ref("base.user_admin").active = False
+        # Bootstrap only once so provisioning retries preserve changed credentials.
+        bootstrap_admin(env)
+        env.ref("base.user_root").write({"password": secrets.token_urlsafe(48)})
         env["ir.config_parameter"].set_param("auth_signup.invitation_scope", "b2b")
         for name in ("Disponible", "Réservé", "Loué", "Retour dû"):
             if not env["fleet.vehicle.state"].search_count([("name", "=", name)]):
@@ -52,10 +69,16 @@ def run(env, operation, data):
         values = {"password": data["password"]} if operation == "reset-user" else {"active": operation == "enable-user"}
         user.write(values)
         result = {"uid": user.id}
+    elif operation == "bootstrap-admin":
+        bootstrap_admin(env)
+        result = {"configured": True}
     elif operation == "check":
-        assert not env.ref("base.user_admin").active
         for user in users.search([("active", "=", True), ("share", "=", False)]):
-            if user.id != env.ref("base.user_root").id:
+            owner_id = int(env["ir.config_parameter"].sudo().get_param("klynx.owner_user_id", "0"))
+            if user.id == owner_id:
+                assert user.login == "klynx-owner"
+                continue
+            if user.id not in {env.ref("base.user_root").id, env.ref("base.user_admin").id}:
                 assert not user.has_group("base.group_system") and not user.has_group("base.group_erp_manager")
         result = {"configured": True, "company": company.name}
     else:

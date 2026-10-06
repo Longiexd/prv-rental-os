@@ -18,7 +18,7 @@ import {
   Moon,
   ArrowUpRight,
 } from "lucide-react";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 import AddCustomerModal from "@/components/customers/AddCustomerModal";
 import CreateRentalModal from "@/components/rentals/CreateRentalModal";
@@ -90,6 +90,25 @@ export default function OSLayout({
   const [addRentalOpen, setAddRentalOpen] = useState(false);
   const [addCustomerOpen, setAddCustomerOpen] = useState(false);
   const [bellOpen, setBellOpen] = useState(false);
+
+  const [identity, setIdentity] = useState<{ username: string; company: string } | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/auth", { cache: "no-store", signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) return;
+        const data = await response.json();
+        if (!controller.signal.aborted && typeof data.username === "string" && typeof data.company === "string") {
+          setIdentity({ username: data.username, company: data.company });
+        }
+      })
+      .catch(() => { /* Leave identity blank when the session cannot be loaded. */ });
+    return () => controller.abort();
+  }, []);
+
+  const userName = identity?.username.split(".").slice(1).join(".") || identity?.username || "";
+  const initials = userName.trim().split(/\s+/).filter(Boolean).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
 
   const { due } = useReminders();
 
@@ -358,21 +377,31 @@ export default function OSLayout({
                 )}
               </div>
 
-              {/* Admin identity - desktop */}
+              {/* Signed-in identity - desktop */}
               <div className="hidden items-center gap-2 sm:flex">
                 <span className="text-right">
                   <span className="block text-xs font-medium leading-tight text-text">
-                    Klynx Admin
+                    {userName}
                   </span>
 
                   <span className="block text-[10px] leading-tight text-muted">
-                    {t("Administrator")}
+                    {identity?.company || ""}
                   </span>
                 </span>
 
                 <span className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-surface-secondary text-xs font-medium">
-                  KL
+                  {initials}
                 </span>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  aria-label={t("Log out")}
+                  title={t("Log out")}
+                  className="flex h-9 items-center gap-2 rounded-lg border border-border px-3 text-xs text-text-secondary transition hover:border-pink/40 hover:text-pink-ink"
+                >
+                  <LogOut size={16} />
+                  <span>{t("Log out")}</span>
+                </button>
               </div>
 
               {/* Mobile logout */}
@@ -381,7 +410,7 @@ export default function OSLayout({
                 onClick={handleLogout}
                 aria-label="Log out"
                 title="Log out"
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-text-secondary transition hover:border-pink/40 hover:text-pink-ink lg:hidden"
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-text-secondary transition hover:border-pink/40 hover:text-pink-ink sm:hidden"
               >
                 <LogOut size={16} />
               </button>
