@@ -88,12 +88,29 @@ jobs:
 
       - name: Guard environment wiring
         shell: bash
+        env:
+          PRODUCTION_DEPLOY_READY: ${{ vars.PRODUCTION_DEPLOY_READY }}
         run: |
           set -Eeuo pipefail
-          test "$GITHUB_REF" = "refs/heads/main"
-          test "${{ vars.PRODUCTION_DEPLOY_READY }}" = "true"
-          test "$NEXT_PUBLIC_API_URL" = "https://api.rental-os.klynx.net"
-          test -n "$CLOUDFLARE_ACCOUNT_ID"
+
+          fail() {
+            echo "::error::$1"
+            exit 1
+          }
+
+          [[ "$GITHUB_REF" == "refs/heads/main" ]] ||
+            fail "Production deployment must run from main."
+
+          [[ "$PRODUCTION_DEPLOY_READY" == "true" ]] ||
+            fail "Set production variable PRODUCTION_DEPLOY_READY=true after completing production bootstrap."
+
+          [[ "$NEXT_PUBLIC_API_URL" == "https://api.rental-os.klynx.net" ]] ||
+            fail "Production NEXT_PUBLIC_API_URL is missing or incorrect."
+
+          [[ -n "$CLOUDFLARE_ACCOUNT_ID" ]] ||
+            fail "Production CLOUDFLARE_ACCOUNT_ID is missing."
+
+          echo "Production environment wiring passed."
 
       - uses: actions/setup-python@v7
         with:
