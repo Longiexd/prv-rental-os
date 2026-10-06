@@ -20,10 +20,7 @@ import {
   X,
 
 } from "lucide-react";
-
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://api.rental-os.klynx.net";
+import { API_URL, apiRequest } from "@/lib/api-config";
 
 function formDateAfter(value: string) {
   const day = new Date(`${value}T12:00:00`);
@@ -56,6 +53,7 @@ type Vehicle = {
   category: { id: number; name: string } | null;
   brand: { id: number; name: string } | null;
   available: boolean;
+  location?: string;
 };
 
 type VehicleOption = {
@@ -76,6 +74,16 @@ type Product = {
   is_deposit: boolean;
   suggested_product_ids: number[];
 };
+
+export function matchesVehicleProduct(reference: string | null, typeName: string) {
+  const code = typeName.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").slice(0, 3);
+  const ref = (reference || "").trim().toUpperCase();
+  return Boolean(code && /^(LOC|DEP)-/.test(ref) && ref.includes(code));
+}
+
+export function isOptionalProduct(reference: string | null) {
+  return (reference || "").trim().toUpperCase().startsWith("OPT-");
+}
 
 type RentalOptionsResponse = {
   customers: Customer[];
@@ -108,7 +116,7 @@ type CreateRentalModalProps = {
   onClose: () => void;
   onCreated?: (result: unknown) => void;
   rentalId?: number;
-  initialRental?: { partner_id: number; vehicle_id: number; start_date: string; end_date: string; products: SelectedProduct[] };
+  initialRental?: { partner_id: number; vehicle_id: number; start_date: string; end_date: string; start_time?: string; end_time?: string; pickup_location?: string; return_location?: string; products: SelectedProduct[] };
 
   // Optional CRM opportunity.
   opportunityId?: number | null;
@@ -222,6 +230,7 @@ export default function CreateRentalModal({
     start_date: startDate,
 
     end_date: endDate,
+    start_time: "", end_time: "", pickup_location: "", return_location: "",
   });
 
   // ==========================================================
@@ -259,7 +268,7 @@ export default function CreateRentalModal({
         setLoading(true);
         setError(null);
 
-        const rentalOptionsResponse = await fetch(`${API_URL}/rentals/options`, { cache: "no-store" });
+        const rentalOptionsResponse = await apiRequest(`${API_URL}/rentals/options`, { cache: "no-store" });
 
         if (!rentalOptionsResponse.ok) {
           throw new Error(
@@ -280,7 +289,7 @@ export default function CreateRentalModal({
         });
 
         if (initialRental) {
-          setForm({ partner_id: String(initialRental.partner_id), vehicle_id: String(initialRental.vehicle_id), start_date: initialRental.start_date, end_date: initialRental.end_date });
+          setForm({ partner_id: String(initialRental.partner_id), vehicle_id: String(initialRental.vehicle_id), start_date: initialRental.start_date, end_date: initialRental.end_date, start_time: initialRental.start_time || "", end_time: initialRental.end_time || "", pickup_location: initialRental.pickup_location || "", return_location: initialRental.return_location || "" });
           setSelectedProducts(initialRental.products);
           setSelectedCustomerName(data.customers.find(customer => customer.id === initialRental.partner_id)?.name || "Current customer");
           setShowAllVehicles(true);
@@ -333,7 +342,7 @@ export default function CreateRentalModal({
 
     async function refreshVehicles() {
       try {
-        const response = await fetch(
+        const response = await apiRequest(
           `${API_URL}/rentals/options?start_date=${form.start_date}&end_date=${form.end_date}${rentalId ? `&exclude_order_id=${rentalId}` : ""}`,
           { cache: "no-store" }
         );
@@ -387,6 +396,7 @@ export default function CreateRentalModal({
       start_date: startDate,
 
       end_date: endDate,
+      start_time: "", end_time: "", pickup_location: "", return_location: "",
     });
 
     setError(null);
@@ -472,7 +482,7 @@ export default function CreateRentalModal({
       try {
         setSearchingCustomers(true);
 
-        const response = await fetch(
+        const response = await apiRequest(
           `${API_URL}/customers/search?q=${encodeURIComponent(
             query
           )}`,
@@ -517,7 +527,7 @@ export default function CreateRentalModal({
       setCreatingCustomer(true);
       setCreateCustomerError(null);
 
-      const response = await fetch(`${API_URL}/customers`, {
+      const response = await apiRequest(`${API_URL}/customers`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -629,8 +639,7 @@ export default function CreateRentalModal({
   // ==========================================================
   // VEHICLE-TYPE PRODUCT SUGGESTIONS
   //
-  // Separate from the addon suggestions above (which come from
-  // Odoo's own optional_product_ids and stay untouched). This
+  // Separate from OPT-reference extras. This
   // matches the selected vehicle type/category against product
   // references — e.g. "Economy" -> a 3-letter code "ECO" -> any
   // product whose reference contains it (LOC-ECO, DEP-ECO).
@@ -654,20 +663,8 @@ export default function CreateRentalModal({
 
     if (!typeName) return [];
 
-    const code = typeName
-      .toUpperCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .slice(0, 3);
-
-    if (!code) return [];
-
-    return options.products.filter(
-      (product) =>
-        !selectedProductIds.has(product.id) &&
-        (product.reference || "")
-          .toUpperCase()
-          .includes(code)
+    return options.products.filter(product =>
+      !selectedProductIds.has(product.id) && matchesVehicleProduct(product.reference, typeName)
     );
   }, [
     options,
@@ -685,51 +682,13 @@ export default function CreateRentalModal({
     useMemo(() => {
       if (!options) return [];
 
-      const suggestedIds =
-        new Set<number>();
-
-      for (
-        const selected of selectedProducts
-      ) {
-        const product =
-          options.products.find(
-            (item) =>
-              item.id ===
-              selected.product_id
-          );
-
-        if (!product) continue;
-
-        for (
-          const suggestedId
-          of product.suggested_product_ids
-        ) {
-          if (
-            !selectedProductIds.has(
-              suggestedId
-            )
-          ) {
-            suggestedIds.add(
-              suggestedId
-            );
-          }
-        }
-      }
-
-      return options.products.filter(
-        (product) =>
-          suggestedIds.has(
-            product.id
-          ) &&
-          !vehicleTypeProducts.some(
-            (typeProduct) => typeProduct.id === product.id
-          )
+      return options.products.filter(product =>
+        isOptionalProduct(product.reference) &&
+        !selectedProductIds.has(product.id)
       );
     }, [
       options,
-      selectedProducts,
       selectedProductIds,
-      vehicleTypeProducts,
     ]);
 
   // ==========================================================
@@ -890,7 +849,7 @@ export default function CreateRentalModal({
   const linkedOpportunity = opportunityId || (createdProspect?.partner_id === Number(form.partner_id) ? createdProspect.lead_id : undefined);
 
   async function submitRental(): Promise<CreatedSale> {
-    const response = await fetch(`${API_URL}/rentals${rentalId ? `/${rentalId}` : ""}`, {
+    const response = await apiRequest(`${API_URL}/rentals${rentalId ? `/${rentalId}` : ""}`, {
       method: rentalId ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -898,6 +857,8 @@ export default function CreateRentalModal({
         vehicle_id: Number(form.vehicle_id),
         start_date: form.start_date,
         end_date: form.end_date,
+        start_time: form.start_time || null, end_time: form.end_time || null,
+        pickup_location: form.pickup_location, return_location: form.return_location,
         products: selectedProducts,
         ...(linkedOpportunity ? { opportunity_id: linkedOpportunity } : {}),
       }),
@@ -913,7 +874,7 @@ export default function CreateRentalModal({
   }
 
   async function submitAsLead(): Promise<{ lead_id: number }> {
-    const response = await fetch(`${API_URL}/crm/leads`, {
+    const response = await apiRequest(`${API_URL}/crm/leads`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -953,10 +914,10 @@ export default function CreateRentalModal({
     if (
       form.start_date &&
       form.end_date &&
-      form.end_date <= form.start_date
+      `${form.end_date}T${form.end_time || "00:00"}` <= `${form.start_date}T${form.start_time || "00:00"}`
     ) {
       setError(
-        "The return date must be after the pickup date."
+        "Return date and time must be after pickup."
       );
       return;
     }
@@ -1008,7 +969,7 @@ export default function CreateRentalModal({
     <div className="fixed inset-0 z-50 flex items-end bg-black/70 p-0 sm:items-center sm:justify-center sm:p-6">
 
       <div
-        className="max-h-[94vh] w-full max-w-3xl overflow-y-auto rounded-t-2xl border border-[#2B2B30] bg-[#111113] shadow-2xl sm:rounded-2xl"
+        className="max-h-[94vh] w-full max-w-3xl overflow-y-auto rounded-t-2xl border border-border bg-surface shadow-2xl sm:rounded-2xl"
         role="dialog"
         aria-modal="true"
         aria-labelledby="new-rental-title"
@@ -1018,21 +979,21 @@ export default function CreateRentalModal({
             HEADER
         ==================================================== */}
 
-        <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-[#2B2B30] bg-[#111113] p-5 sm:p-6">
+        <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-border bg-surface p-5 sm:p-6">
 
           <div>
-            <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-[#C8F065]">
+            <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-lime-ink">
               {rentalId ? "Edit booking" : "New booking"}
             </div>
 
             <h2
               id="new-rental-title"
-              className="mt-1 text-xl font-semibold text-white"
+              className="mt-1 text-xl font-semibold text-text"
             >
-              New booking
+              {rentalId ? "Edit booking" : "New booking"}
             </h2>
 
-            <p className="mt-1 text-sm text-zinc-500">
+            <p className="mt-1 text-sm text-muted">
               {isRentalReady
                 ? rentalId ? "Update dates, vehicle or extras. Invoiced articles stay protected." : "Save the quotation, then record a payment to confirm the booking."
                 : "This will be saved as a prospect until dates, a vehicle and a price are added."}
@@ -1042,7 +1003,8 @@ export default function CreateRentalModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-2 text-zinc-500 transition hover:bg-[#1B1B1E] hover:text-white"
+            aria-label="Close"
+            className="rounded-lg p-2 text-muted transition hover:bg-surface-secondary hover:text-text"
           >
             <X size={18} />
           </button>
@@ -1054,7 +1016,7 @@ export default function CreateRentalModal({
         ==================================================== */}
 
         {loading ? (
-          <div className="flex h-72 items-center justify-center gap-2 text-sm text-zinc-500">
+          <div className="flex h-72 items-center justify-center gap-2 text-sm text-muted">
             <LoaderCircle
               size={17}
               className="animate-spin"
@@ -1064,7 +1026,7 @@ export default function CreateRentalModal({
         ) : !options ? (
           <div className="p-6">
             {error && (
-              <div className="rounded-xl border border-red-900/40 bg-red-950/20 px-4 py-3 text-sm text-red-300">
+              <div className="rounded-xl border border-red-900/40 bg-red-950/20 px-4 py-3 text-sm text-danger">
                 {error}
               </div>
             )}
@@ -1084,15 +1046,15 @@ export default function CreateRentalModal({
               {/* CUSTOMER */}
 
               <div className="relative space-y-2">
-                <label className="text-xs font-medium text-zinc-400">
+                <label className="text-xs font-medium text-text-secondary">
                   Customer
-                  <span className="ml-1 text-[#F06AAA]">*</span>
+                  <span className="ml-1 text-pink-ink">*</span>
                 </label>
 
                 <div className="relative">
                   <Search
                     size={14}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-muted"
                   />
 
                   <input
@@ -1111,13 +1073,13 @@ export default function CreateRentalModal({
                     }}
                     onFocus={() => setCustomerDropdownOpen(true)}
                     placeholder="Search customers..."
-                    className="h-10 w-full rounded-lg border border-[#2B2B30] bg-[#17171A] pl-9 pr-9 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-[#C8F065]/50"
+                    className="h-10 w-full rounded-lg border border-border bg-surface-secondary pl-9 pr-9 text-sm text-text outline-none placeholder:text-muted focus:border-[#C8F065]/50"
                   />
 
                   {searchingCustomers && (
                     <LoaderCircle
                       size={14}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-zinc-500"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-muted"
                     />
                   )}
                 </div>
@@ -1126,10 +1088,10 @@ export default function CreateRentalModal({
                   !form.partner_id &&
                   customerSearch.trim().length >= 2 &&
                   !showCreateCustomer && (
-                    <div className="absolute left-0 right-0 z-10 mt-1 max-h-64 overflow-y-auto rounded-lg border border-[#2B2B30] bg-[#17171A] shadow-2xl">
+                    <div className="absolute left-0 right-0 z-10 mt-1 max-h-64 overflow-y-auto rounded-lg border border-border bg-surface-secondary shadow-2xl">
                       {customerMatches.length === 0 &&
                         !searchingCustomers && (
-                          <div className="px-3 py-2.5 text-xs text-zinc-500">
+                          <div className="px-3 py-2.5 text-xs text-muted">
                             No matching customers.
                           </div>
                         )}
@@ -1149,13 +1111,13 @@ export default function CreateRentalModal({
                             setSelectedCustomerName(customer.name);
                             setCustomerDropdownOpen(false);
                           }}
-                          className="flex w-full flex-col items-start gap-0.5 border-b border-[#2B2B30] px-3 py-2.5 text-left transition last:border-0 hover:bg-[#C8F065]/10"
+                          className="flex w-full flex-col items-start gap-0.5 border-b border-border px-3 py-2.5 text-left transition last:border-0 hover:bg-[#C8F065]/10"
                         >
-                          <span className="text-xs font-medium text-white">
+                          <span className="text-xs font-medium text-text">
                             {customer.name}
                           </span>
 
-                          <span className="flex flex-wrap gap-x-2 text-[10px] text-zinc-500">
+                          <span className="flex flex-wrap gap-x-2 text-[10px] text-muted">
                             {customer.phone && (
                               <span>{customer.phone}</span>
                             )}
@@ -1167,8 +1129,8 @@ export default function CreateRentalModal({
                             <span
                               className={
                                 customer.is_customer
-                                  ? "text-[#C8F065]"
-                                  : "text-zinc-500"
+                                  ? "text-lime-ink"
+                                  : "text-muted"
                               }
                             >
                               {customer.is_customer
@@ -1188,7 +1150,7 @@ export default function CreateRentalModal({
                           onClick={() =>
                             setShowCreateCustomer(true)
                           }
-                          className="flex w-full items-center gap-2 border-t border-[#2B2B30] bg-[#0D0D0F] px-3 py-2.5 text-left text-xs font-medium text-[#C8F065] transition hover:bg-[#C8F065]/10"
+                          className="flex w-full items-center gap-2 border-t border-border bg-background px-3 py-2.5 text-left text-xs font-medium text-lime-ink transition hover:bg-[#C8F065]/10"
                         >
                           <Plus size={13} />
                           Create new customer
@@ -1203,8 +1165,8 @@ export default function CreateRentalModal({
                 {/* INLINE QUICK-CREATE */}
 
                 {showCreateCustomer && (
-                  <div className="absolute left-0 right-0 z-10 mt-1 space-y-2.5 rounded-lg border border-[#C8F065]/25 bg-[#17171A] p-3 shadow-2xl">
-                    <div className="text-xs font-medium text-white">
+                  <div className="absolute left-0 right-0 z-10 mt-1 space-y-2.5 rounded-lg border border-[#C8F065]/25 bg-surface-secondary p-3 shadow-2xl">
+                    <div className="text-xs font-medium text-text">
                       New customer: {customerSearch.trim()}
                     </div>
 
@@ -1214,7 +1176,7 @@ export default function CreateRentalModal({
                         setNewCustomerPhone(event.target.value)
                       }
                       placeholder="Phone (optional)"
-                      className="h-9 w-full rounded-lg border border-[#2B2B30] bg-[#0D0D0F] px-3 text-xs text-white outline-none placeholder:text-zinc-600 focus:border-[#C8F065]/50"
+                      className="h-9 w-full rounded-lg border border-border bg-background px-3 text-xs text-text outline-none placeholder:text-muted focus:border-[#C8F065]/50"
                     />
 
                     <input
@@ -1223,7 +1185,7 @@ export default function CreateRentalModal({
                         setNewCustomerEmail(event.target.value)
                       }
                       placeholder="Email (optional)"
-                      className="h-9 w-full rounded-lg border border-[#2B2B30] bg-[#0D0D0F] px-3 text-xs text-white outline-none placeholder:text-zinc-600 focus:border-[#C8F065]/50"
+                      className="h-9 w-full rounded-lg border border-border bg-background px-3 text-xs text-text outline-none placeholder:text-muted focus:border-[#C8F065]/50"
                     />
 
                     {createCustomerError && (
@@ -1253,7 +1215,7 @@ export default function CreateRentalModal({
                       <button
                         type="button"
                         onClick={() => setShowCreateCustomer(false)}
-                        className="h-8 rounded-lg border border-[#2B2B30] px-3 text-[11px] text-zinc-400 transition hover:text-white"
+                        className="h-8 rounded-lg border border-border px-3 text-[11px] text-text-secondary transition hover:text-text"
                       >
                         Back
                       </button>
@@ -1280,10 +1242,10 @@ export default function CreateRentalModal({
 
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
 
-              <label className="space-y-2 text-xs font-medium text-zinc-400">
+              <label className="space-y-2 text-xs font-medium text-text-secondary">
 
                 Rental start
-                <span className="ml-1 text-zinc-600">
+                <span className="ml-1 text-muted">
                   (required for a rental)
                 </span>
 
@@ -1297,21 +1259,21 @@ export default function CreateRentalModal({
                       start_date: event.target.value,
                     })
                   }
-                  className="h-10 w-full rounded-lg border border-[#2B2B30] bg-[#17171A] px-3 text-sm text-white outline-none focus:border-[#C8F065]/50"
+                  className="h-10 w-full rounded-lg border border-border bg-surface-secondary px-3 text-sm text-text outline-none focus:border-[#C8F065]/50"
                 />
 
               </label>
 
-              <label className="space-y-2 text-xs font-medium text-zinc-400">
+              <label className="space-y-2 text-xs font-medium text-text-secondary">
 
                 Return date
-                <span className="ml-1 text-zinc-600">
+                <span className="ml-1 text-muted">
                   (required for a rental)
                 </span>
 
                 <input
                   type="date"
-                  min={form.start_date ? formDateAfter(form.start_date) : minimumReturn}
+                  min={form.start_date || minimumReturn}
                   value={form.end_date}
                   onChange={(event) =>
                     setForm({
@@ -1319,11 +1281,21 @@ export default function CreateRentalModal({
                       end_date: event.target.value,
                     })
                   }
-                  className="h-10 w-full rounded-lg border border-[#2B2B30] bg-[#17171A] px-3 text-sm text-white outline-none focus:border-[#C8F065]/50"
+                  className="h-10 w-full rounded-lg border border-border bg-surface-secondary px-3 text-sm text-text outline-none focus:border-[#C8F065]/50"
                 />
 
               </label>
 
+            </div>
+
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              {(["start_time", "end_time", "pickup_location", "return_location"] as const).map(key => <label key={key} className="space-y-2 text-xs font-medium text-text-secondary">
+                {{start_time: "Pickup time (agency local time)", end_time: "Return time (agency local time)", pickup_location: "Pickup agency / location", return_location: "Return agency / location"}[key]}
+                <input type={key.endsWith("time") ? "time" : "text"} list={key.endsWith("location") ? "odoo-fleet-locations" : undefined} maxLength={250} value={form[key]} onChange={event => setForm({...form, [key]: event.target.value})}
+                  placeholder={key.endsWith("location") ? "Agency name or address" : undefined} className="h-10 w-full rounded-lg border border-border bg-surface-secondary px-3 text-sm text-text" />
+              </label>)}
+              <datalist id="odoo-fleet-locations">{Array.from(new Set(options?.vehicles.map(vehicle => vehicle.location).filter(Boolean))).map(location => <option key={location} value={location} />)}</datalist>
+              <p className="text-xs text-muted sm:col-span-2">Agency suggestions come from Odoo Fleet → vehicle Location. Actual return updates that field.</p>
             </div>
 
             {/* ==================================================
@@ -1335,7 +1307,7 @@ export default function CreateRentalModal({
             {leadOptions && (
               <div className="mt-5 grid gap-4 sm:grid-cols-2">
 
-                <label className="space-y-2 text-xs font-medium text-zinc-400">
+                <label className="space-y-2 text-xs font-medium text-text-secondary">
                   Vehicle type
 
                   <select
@@ -1350,7 +1322,7 @@ export default function CreateRentalModal({
                           : null
                       );
                     }}
-                    className="h-10 w-full rounded-lg border border-[#2B2B30] bg-[#17171A] px-3 text-sm text-white outline-none focus:border-[#C8F065]/50"
+                    className="h-10 w-full rounded-lg border border-border bg-surface-secondary px-3 text-sm text-text outline-none focus:border-[#C8F065]/50"
                   >
                     <option value="">Any type</option>
 
@@ -1362,7 +1334,7 @@ export default function CreateRentalModal({
                   </select>
                 </label>
 
-                <label className="space-y-2 text-xs font-medium text-zinc-400">
+                <label className="space-y-2 text-xs font-medium text-text-secondary">
                   Brand
 
                   <select
@@ -1375,7 +1347,7 @@ export default function CreateRentalModal({
                           : null
                       )
                     }
-                    className="h-10 w-full rounded-lg border border-[#2B2B30] bg-[#17171A] px-3 text-sm text-white outline-none focus:border-[#C8F065]/50"
+                    className="h-10 w-full rounded-lg border border-border bg-surface-secondary px-3 text-sm text-text outline-none focus:border-[#C8F065]/50"
                   >
                     <option value="">Any brand</option>
 
@@ -1401,9 +1373,9 @@ export default function CreateRentalModal({
             <div className="mt-5 space-y-2">
 
               <div className="flex items-center justify-between">
-                <label className="text-xs font-medium text-zinc-400">
+                <label className="text-xs font-medium text-text-secondary">
                   Fleet vehicle
-                  <span className="ml-1 text-zinc-600">
+                  <span className="ml-1 text-muted">
                     (required for a rental)
                   </span>
                 </label>
@@ -1414,7 +1386,7 @@ export default function CreateRentalModal({
                     onClick={() =>
                       setShowAllVehicles((current) => !current)
                     }
-                    className="text-[10px] text-zinc-500 underline-offset-2 hover:text-zinc-300 hover:underline"
+                    className="text-[10px] text-muted underline-offset-2 hover:text-text hover:underline"
                   >
                     {showAllVehicles
                       ? "Show only available"
@@ -1423,9 +1395,9 @@ export default function CreateRentalModal({
                 )}
               </div>
 
-              <div className="max-h-52 overflow-y-auto rounded-lg border border-[#2B2B30] bg-[#17171A]">
+              <div className="max-h-52 overflow-y-auto rounded-lg border border-border bg-surface-secondary">
                 {filteredVehicles.length === 0 && (
-                  <div className="px-3 py-3 text-xs text-zinc-500">
+                  <div className="px-3 py-3 text-xs text-muted">
                     {form.start_date && form.end_date
                       ? "No vehicles available for these dates and preferences."
                       : "No matching vehicles."}
@@ -1440,23 +1412,25 @@ export default function CreateRentalModal({
                       setForm({
                         ...form,
                         vehicle_id: String(vehicle.id),
+                        pickup_location: form.pickup_location || vehicle.location || "",
+                        return_location: form.return_location || vehicle.location || "",
                       })
                     }
-                    className={`flex w-full items-center justify-between border-b border-[#2B2B30] px-3 py-2.5 text-left transition last:border-0 hover:bg-[#C8F065]/10 ${
+                    className={`flex w-full items-center justify-between border-b border-border px-3 py-2.5 text-left transition last:border-0 hover:bg-[#C8F065]/10 ${
                       String(vehicle.id) === form.vehicle_id
                         ? "bg-[#C8F065]/10"
                         : ""
                     }`}
                   >
                     <div className="min-w-0">
-                      <div className="truncate text-xs font-medium text-white">
+                      <div className="truncate text-xs font-medium text-text">
                         {vehicle.name}
                         {vehicle.license_plate
                           ? ` — ${vehicle.license_plate}`
                           : ""}
                       </div>
 
-                      <div className="mt-0.5 flex flex-wrap gap-x-2 text-[10px] text-zinc-500">
+                      <div className="mt-0.5 flex flex-wrap gap-x-2 text-[10px] text-muted">
                         {vehicle.category && (
                           <span>{vehicle.category.name}</span>
                         )}
@@ -1472,7 +1446,7 @@ export default function CreateRentalModal({
                     </div>
 
                     {String(vehicle.id) === form.vehicle_id && (
-                      <Check size={14} className="shrink-0 text-[#C8F065]" />
+                      <Check size={14} className="shrink-0 text-lime-ink" />
                     )}
                   </button>
                 ))}
@@ -1488,22 +1462,22 @@ export default function CreateRentalModal({
               <div className="flex items-end justify-between gap-4">
 
                 <div>
-                  <div className="text-xs font-medium text-zinc-400">
+                  <div className="text-xs font-medium text-text-secondary">
                     Products
                   </div>
 
-                  <p className="mt-1 text-[11px] text-zinc-600">
+                  <p className="mt-1 text-[11px] text-muted">
                     Add the rental product and any extras.
                   </p>
                 </div>
 
                 <div className="text-right">
 
-                  <div className="text-[10px] uppercase tracking-wider text-zinc-600">
+                  <div className="text-[10px] uppercase tracking-wider text-muted">
                     Estimated
                   </div>
 
-                  <div className="mt-0.5 text-sm font-semibold text-white">
+                  <div className="mt-0.5 text-sm font-semibold text-text">
                     {estimatedTotal.toLocaleString()}{" "}
                     TND
                   </div>
@@ -1518,7 +1492,7 @@ export default function CreateRentalModal({
 
                 <Search
                   size={15}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-muted"
                 />
 
                 <input
@@ -1531,18 +1505,18 @@ export default function CreateRentalModal({
                     )
                   }
                   placeholder="Search products..."
-                  className="h-10 w-full rounded-lg border border-[#2B2B30] bg-[#17171A] pl-9 pr-3 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-[#C8F065]/50"
+                  className="h-10 w-full rounded-lg border border-border bg-surface-secondary pl-9 pr-3 text-sm text-text outline-none placeholder:text-muted focus:border-[#C8F065]/50"
                 />
 
               </div>
 
               {/* PRODUCT LIST */}
 
-              <div className="mt-2 max-h-48 overflow-y-auto rounded-xl border border-[#2B2B30] bg-[#17171A]">
+              <div className="mt-2 max-h-48 overflow-y-auto rounded-xl border border-border bg-surface-secondary">
 
                 {filteredProducts.length ===
                 0 ? (
-                  <div className="px-4 py-8 text-center text-xs text-zinc-600">
+                  <div className="px-4 py-8 text-center text-xs text-muted">
                     No products found.
                   </div>
                 ) : (
@@ -1564,18 +1538,18 @@ export default function CreateRentalModal({
                               product
                             )
                           }
-                          className="flex w-full items-center justify-between border-b border-[#2B2B30] px-4 py-3 text-left last:border-0 hover:bg-[#1B1B1E]"
+                          className="flex w-full items-center justify-between border-b border-border px-4 py-3 text-left last:border-0 hover:bg-surface-secondary"
                         >
 
                           <div className="min-w-0">
 
-                            <div className="truncate text-sm text-white">
+                            <div className="truncate text-sm text-text">
                               {
                                 product.name
                               }
                             </div>
 
-                            <div className="mt-0.5 text-[11px] text-zinc-600">
+                            <div className="mt-0.5 text-[11px] text-muted">
                               {product.list_price.toLocaleString()}{" "}
                               TND
                             </div>
@@ -1583,7 +1557,7 @@ export default function CreateRentalModal({
                           </div>
 
                           {selected ? (
-                            <span className="flex shrink-0 items-center gap-1 text-[10px] font-medium text-[#C8F065]">
+                            <span className="flex shrink-0 items-center gap-1 text-[10px] font-medium text-lime-ink">
                               <Check
                                 size={
                                   13
@@ -1592,7 +1566,7 @@ export default function CreateRentalModal({
                               Added
                             </span>
                           ) : (
-                            <span className="flex shrink-0 items-center gap-1 rounded-md border border-[#2B2B30] px-2 py-1 text-[10px] text-zinc-400">
+                            <span className="flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] text-text-secondary">
                               <Plus
                                 size={
                                   12
@@ -1620,7 +1594,7 @@ export default function CreateRentalModal({
                 <div className="mt-4">
                   <div className="mb-2 flex items-center gap-2">
                     <span className="h-1.5 w-1.5 rounded-full bg-[#F06AAA]" />
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[#F06AAA]">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-pink-ink">
                       Matches this vehicle type
                     </span>
                   </div>
@@ -1634,18 +1608,18 @@ export default function CreateRentalModal({
                         className="flex items-center justify-between rounded-xl border border-[#F06AAA]/20 bg-[#F06AAA]/[0.04] px-3 py-3 text-left transition hover:border-[#F06AAA]/40 hover:bg-[#F06AAA]/[0.08]"
                       >
                         <div className="min-w-0">
-                          <div className="truncate text-xs font-medium text-white">
+                          <div className="truncate text-xs font-medium text-text">
                             {product.name}
                           </div>
 
-                          <div className="mt-1 text-[10px] text-zinc-500">
+                          <div className="mt-1 text-[10px] text-muted">
                             {product.list_price.toLocaleString()} TND
                           </div>
                         </div>
 
                         <Plus
                           size={14}
-                          className="shrink-0 text-[#F06AAA]"
+                          className="shrink-0 text-pink-ink"
                         />
                       </button>
                     ))}
@@ -1663,9 +1637,9 @@ export default function CreateRentalModal({
 
                   <div className="mb-2 flex items-center gap-2">
 
-                    <span className="h-1.5 w-1.5 rounded-full bg-[#C8F065]" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-lime-ink" />
 
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[#C8F065]">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-lime-ink">
                       Suggested for this rental
                     </span>
 
@@ -1690,13 +1664,13 @@ export default function CreateRentalModal({
 
                           <div className="min-w-0">
 
-                            <div className="truncate text-xs font-medium text-white">
+                            <div className="truncate text-xs font-medium text-text">
                               {
                                 product.name
                               }
                             </div>
 
-                            <div className="mt-1 text-[10px] text-zinc-500">
+                            <div className="mt-1 text-[10px] text-muted">
                               {product.list_price.toLocaleString()}{" "}
                               TND
                             </div>
@@ -1707,7 +1681,7 @@ export default function CreateRentalModal({
                             size={
                               14
                             }
-                            className="shrink-0 text-[#C8F065]"
+                            className="shrink-0 text-lime-ink"
                           />
 
                         </button>
@@ -1727,11 +1701,11 @@ export default function CreateRentalModal({
                 0 && (
                 <div className="mt-5">
 
-                  <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.15em] text-zinc-600">
+                  <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.15em] text-muted">
                     Selected products
                   </div>
 
-                  <div className="overflow-hidden rounded-xl border border-[#2B2B30]">
+                  <div className="overflow-hidden rounded-xl border border-border">
 
                     {selectedProductObjects.map(
                       (item) => (
@@ -1739,19 +1713,19 @@ export default function CreateRentalModal({
                           key={
                             item.product_id
                           }
-                          className="flex items-center gap-3 border-b border-[#2B2B30] bg-[#17171A] px-4 py-3 last:border-0"
+                          className="flex items-center gap-3 border-b border-border bg-surface-secondary px-4 py-3 last:border-0"
                         >
 
                           <div className="min-w-0 flex-1">
 
-                            <div className="truncate text-sm text-white">
+                            <div className="truncate text-sm text-text">
                               {
                                 item.product
                                   .name
                               }
                             </div>
 
-                            <div className="mt-0.5 text-[10px] text-zinc-600">
+                            <div className="mt-0.5 text-[10px] text-muted">
                               {item.product.list_price.toLocaleString()}{" "}
                               TND / unit
                             </div>
@@ -1777,10 +1751,10 @@ export default function CreateRentalModal({
                                 )
                               )
                             }
-                            className="h-8 w-20 rounded-md border border-[#2B2B30] bg-[#111113] px-2 text-center text-xs text-white outline-none focus:border-[#C8F065]/50"
+                            className="h-8 w-20 rounded-md border border-border bg-surface px-2 text-center text-xs text-text outline-none focus:border-[#C8F065]/50"
                           />
 
-                          <div className="w-24 text-right text-xs font-medium text-white">
+                          <div className="w-24 text-right text-xs font-medium text-text">
 
                             {(
                               item.product
@@ -1798,7 +1772,7 @@ export default function CreateRentalModal({
                                 item.product_id
                               )
                             }
-                            className="rounded-md p-1.5 text-zinc-600 hover:bg-red-500/10 hover:text-red-400"
+                            className="rounded-md p-1.5 text-muted hover:bg-red-500/10 hover:text-red-400"
                           >
                             <Trash2
                               size={
@@ -1823,7 +1797,7 @@ export default function CreateRentalModal({
             ================================================== */}
 
             {error && (
-              <div className="mt-5 rounded-xl border border-red-900/40 bg-red-950/20 px-4 py-3 text-sm text-red-300">
+              <div className="mt-5 rounded-xl border border-red-900/40 bg-red-950/20 px-4 py-3 text-sm text-danger">
                 {error}
               </div>
             )}
@@ -1832,9 +1806,9 @@ export default function CreateRentalModal({
                 FOOTER
             ================================================== */}
 
-            <div className="mt-6 flex items-center justify-between gap-3 border-t border-[#2B2B30] pt-5">
+            <div className="mt-6 flex items-center justify-between gap-3 border-t border-border pt-5">
 
-              <div className="text-[11px] text-zinc-600">
+              <div className="text-[11px] text-muted">
                 {selectedProducts.length}{" "}
                 {selectedProducts.length === 1
                   ? "product"
@@ -1847,7 +1821,7 @@ export default function CreateRentalModal({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="h-9 rounded-lg px-4 text-xs font-medium text-zinc-400 transition hover:bg-[#1B1B1E] hover:text-white"
+                  className="h-9 rounded-lg px-4 text-xs font-medium text-text-secondary transition hover:bg-surface-secondary hover:text-text"
                 >
                   Cancel
                 </button>

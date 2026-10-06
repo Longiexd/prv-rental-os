@@ -1,35 +1,33 @@
 """Booking edits reuse the existing sale-order and fleet links in Odoo."""
 import re
-from datetime import date, timedelta
+import math
+from datetime import date, datetime, time, timezone
 
 from fastapi import APIRouter, HTTPException
 
 from app.odoo_client import odoo
+from app.core.record_metadata import read_metadata, write_metadata
+from app.verticals.car_rental.contracts import ensure_pickup_paperwork
 from app.routes.calendar import CONFIRMED_TAG, QUOTATION_TAG, booking_status, rental_vehicle_id
-from app.routes.cars import PICKED_UP_TAG, RETURNED_TAG, sync_vehicle_state, find_state_id
+from app.routes.cars import PICKED_UP_TAG, RETURNED_TAG, sync_vehicle_state
 from app.routes.rentals import RentalCreate, get_record
+from app.verticals.car_rental.states import is_operational_state, blocking_booking_domain
 
 router = APIRouter(prefix="/rentals", tags=["Rentals"])
 
 
 def ensure_available(vehicle_id, start, end, order_id):
-    orders = odoo.execute("sale.order", "search_read", [[
-        ["id", "!=", order_id], ["state", "in", ["sale", "done"]],
-        ["date_order", "<", f"{(end + timedelta(days=1)).isoformat()} 00:00:00"],
-        ["commitment_date", ">=", f"{start.isoformat()} 00:00:00"],
-    ]], {"fields": ["note", "state"]})
+    orders = odoo.execute("sale.order", "search_read",
+                         [blocking_booking_domain(start, end, order_id)],
+                         {"fields": ["note", "state"]})
     if any(rental_vehicle_id(row.get("note")) == vehicle_id and booking_status(row) == "confirmed"
            and RETURNED_TAG not in (row.get("note") or "") for row in orders):
         raise HTTPException(409, "This vehicle already has a confirmed booking for these dates. Choose another vehicle or dates.")
 
 
 def refresh_fleet(vehicle_id):
-    if not vehicle_id or sync_vehicle_state(vehicle_id):
-        return
-    vehicle = get_record("fleet.vehicle", vehicle_id, ["state_id"])
-    state = (vehicle.get("state_id") or [None, ""])[1].lower()
-    if any(word in state for word in ("réserv", "reserv", "loué", "loue", "rented", "retour d", "return due")):
-        odoo.execute("fleet.vehicle", "write", [[vehicle_id], {"state_id": find_state_id("Disponible")}])
+    if vehicle_id:
+        return sync_vehicle_state(vehicle_id)
 
 
 @router.patch("/{order_id}")
@@ -38,13 +36,21 @@ def update_booking(order_id: int, rental: RentalCreate):
     if order["state"] not in ("draft", "sent", "sale") or order.get("locked") or RETURNED_TAG in (order.get("note") or ""):
         raise HTTPException(409, "This booking is cancelled, returned or locked.")
     original_start = (order.get("date_order") or "")[:10]
-    if rental.end_date <= rental.start_date or (rental.start_date < date.today() and rental.start_date.isoformat() != original_start):
+    pickup_time = rental.start_time or (datetime.fromisoformat(order["date_order"]).time()
+                                       if order.get("date_order") else time.min)
+    return_time = rental.end_time or (datetime.fromisoformat(order["commitment_date"]).time()
+                                     if order.get("commitment_date") else time.min)
+    pickup_at = datetime.combine(rental.start_date, pickup_time)
+    return_at = datetime.combine(rental.end_date, return_time)
+    if return_at <= pickup_at or (rental.start_date < date.today() and rental.start_date.isoformat() != original_start):
         raise HTTPException(422, "Pickup cannot move into the past; return must be after pickup.")
     if rental.partner_id != order["partner_id"][0]:
         raise HTTPException(409, "Keep the original customer when editing this booking.")
     vehicle = get_record("fleet.vehicle", rental.vehicle_id, ["active"])
     if not vehicle.get("active"):
         raise HTTPException(422, "The selected vehicle is inactive.")
+    if PICKED_UP_TAG in (order.get("note") or "") and rental.vehicle_id != rental_vehicle_id(order.get("note")):
+        raise HTTPException(409, "A vehicle already handed over cannot be replaced through a booking edit.")
     if booking_status(order) == "confirmed":
         ensure_available(rental.vehicle_id, rental.start_date, rental.end_date, order_id)
     lines = odoo.execute("sale.order.line", "search_read", [[["order_id", "=", order_id]]], {
@@ -80,9 +86,16 @@ def update_booking(order_id: int, rental: RentalCreate):
     note = re.sub(r"\[Rental OS fleet\.vehicle:\d+\]", f"[Rental OS fleet.vehicle:{rental.vehicle_id}]", order.get("note") or "")
     if old_vehicle is None:
         note += f"\n[Rental OS fleet.vehicle:{rental.vehicle_id}]"
+    logistics = read_metadata(note, "rental_logistics") or {}
+    for key in ("pickup_location", "return_location"):
+        value = getattr(rental, key)
+        if value is not None:
+            logistics[key] = value.strip()
+    if logistics:
+        note = write_metadata(note, "rental_logistics", logistics)
     odoo.execute("sale.order", "write", [[order_id], {
-        "date_order": f"{rental.start_date.isoformat()} 00:00:00",
-        "commitment_date": f"{rental.end_date.isoformat()} 00:00:00", "note": note, "order_line": commands,
+        "date_order": pickup_at.strftime("%Y-%m-%d %H:%M:%S"),
+        "commitment_date": return_at.strftime("%Y-%m-%d %H:%M:%S"), "note": note, "order_line": commands,
     }])
     if booking_status(order) == "confirmed":
         for vehicle_id in {old_vehicle, rental.vehicle_id}:
@@ -102,15 +115,15 @@ def confirm_booking(order_id: int):
         ["move_type", "in", ["out_invoice", "out_refund"]],
     ]], {"fields": ["amount_total", "amount_residual", "move_type"]})
     paid = sum((row["amount_total"] - row["amount_residual"]) * (-1 if row["move_type"] == "out_refund" else 1) for row in invoices)
-    required = round(order["amount_total"] * 0.30, 2)
-    if paid <= 0 or round(paid, 2) < required:
-        raise HTTPException(409, f"A 30% deposit is required to confirm this booking. Minimum: {required:.2f}; recorded: {paid:.2f}.")
+    if paid <= 0:
+        raise HTTPException(409, "Record a partial or full payment before confirming this booking.")
     vehicle_id = rental_vehicle_id(order.get("note"))
     if not vehicle_id or not order.get("date_order") or not order.get("commitment_date"):
         raise HTTPException(409, "Choose a vehicle and pickup/return dates first.")
     ensure_available(vehicle_id, date.fromisoformat(order["date_order"][:10]), date.fromisoformat(order["commitment_date"][:10]), order_id)
     note = (order.get("note") or "").replace(QUOTATION_TAG, "")
-    odoo.execute("sale.order", "write", [[order_id], {"note": f"{note}\n{CONFIRMED_TAG}"}])
+    if not odoo.execute("sale.order", "write", [[order_id], {"note": f"{note}\n{CONFIRMED_TAG}"}]):
+        raise HTTPException(502, "Booking confirmation could not be saved.")
     refresh_fleet(vehicle_id)
     return {"booking_status": "confirmed"}
 
@@ -118,12 +131,33 @@ def confirm_booking(order_id: int):
 @router.post("/{order_id}/picked-up")
 def mark_picked_up(order_id: int):
     """Records that the customer actually collected the vehicle today."""
-    order = get_record("sale.order", order_id, ["state", "note"])
+    order = get_record("sale.order", order_id, ["state", "note", "date_order"])
+    if RETURNED_TAG in (order.get("note") or ""):
+        raise HTTPException(409, "A returned booking cannot be picked up again.")
     if booking_status(order) != "confirmed":
         raise HTTPException(409, "Only a confirmed booking can be marked as picked up.")
+    vehicle_id = rental_vehicle_id(order.get("note"))
+    if not vehicle_id:
+        raise HTTPException(409, "Choose a vehicle before confirming pickup.")
     if PICKED_UP_TAG in (order.get("note") or ""):
+        refresh_fleet(vehicle_id)
         return {"success": True, "already": True}
-    odoo.execute("sale.order", "write", [[order_id], {"note": f"{(order.get('note') or '')}\n{PICKED_UP_TAG}".strip()}])
+    if not order.get("date_order") or order["date_order"][:10] > date.today().isoformat():
+        raise HTTPException(409, "Pickup is not due yet. Update the booking dates first.")
+    vehicle = get_record("fleet.vehicle", vehicle_id, ["active", "state_id", "odometer", "odometer_unit"])
+    state = vehicle.get("state_id")
+    if not vehicle.get("active") or is_operational_state(state[1] if state else None):
+        raise HTTPException(409, "Finish vehicle cleaning or maintenance and mark it available before pickup.")
+    order = ensure_pickup_paperwork(order_id)
+    note = f"{(order.get('note') or '')}\n{PICKED_UP_TAG}".strip()
+    reading = vehicle.get("odometer")
+    unit = vehicle.get("odometer_unit")
+    if isinstance(reading, (int, float)) and not isinstance(reading, bool) and math.isfinite(reading) and reading >= 0 and unit in ("kilometers", "miles"):
+        note = write_metadata(note, "rental_pickup", {"order_id": order_id, "vehicle_id": vehicle_id,
+            "odometer": reading, "odometer_unit": unit, "picked_up_at": datetime.now(timezone.utc).isoformat()})
+    if not odoo.execute("sale.order", "write", [[order_id], {"note": note}]):
+        raise HTTPException(502, "Pickup could not be saved. Refresh before retrying.")
+    refresh_fleet(vehicle_id)
     return {"success": True}
 
 

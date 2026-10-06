@@ -1,0 +1,9 @@
+tunnel: REPLACE_WITH_TUNNEL_UUID
+credentials-file: /etc/cloudflared/REPLACE_WITH_TUNNEL_UUID.json
+
+ingress:
+  - hostname: api-staging.rental-os.klynx.net
+    service: http://127.0.0.1:8001
+  - hostname: api.rental-os.klynx.net
+    service: https://localhost:443
+  - service: http_status:404

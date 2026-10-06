@@ -12,13 +12,13 @@ function SortIcon({
   direction: SortDirection;
 }) {
   if (!active) {
-    return <span className="text-muted/50">↕</span>;
+    return <span className="text-muted">↕</span>;
   }
 
   return direction === "asc" ? (
-    <ChevronUp size={12} className="text-lime" />
+    <ChevronUp size={12} className="text-lime-ink" />
   ) : (
-    <ChevronDown size={12} className="text-lime" />
+    <ChevronDown size={12} className="text-lime-ink" />
   );
 }
 
@@ -55,7 +55,7 @@ export function SortableHeader<K extends string>({
         onClick={() => onSort(sortKey)}
         className={cn(
           "inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.12em] transition",
-          active ? "text-lime" : "text-muted hover:text-text-secondary"
+          active ? "text-lime-ink" : "text-muted hover:text-text-secondary"
         )}
       >
         {label}

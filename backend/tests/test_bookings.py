@@ -51,6 +51,48 @@ class BookingTests(unittest.TestCase):
         self.assertEqual(values["order_line"], [])
         self.assertEqual(values["commitment_date"], f"{self.end + timedelta(days=1)} 00:00:00")
 
+    def test_edit_preserves_times_and_locations_when_old_client_omits_them(self):
+        from app.core.record_metadata import read_metadata, write_metadata
+        self.order.update(date_order=f"{self.start} 09:30:00", commitment_date=f"{self.end} 17:00:00")
+        self.order["note"] = write_metadata(self.order["note"], "rental_logistics", {"pickup_location": "Sousse", "return_location": "Tunis"})
+        with patch.object(changes, "get_record", side_effect=self.records), patch.object(changes, "ensure_available"), \
+             patch.object(changes, "refresh_fleet"), patch.object(changes.odoo, "execute", side_effect=[[self.line], True]) as rpc:
+            changes.update_booking(1, self.payload())
+        values = rpc.call_args.args[2][1]
+        self.assertEqual(values["date_order"], f"{self.start} 09:30:00")
+        self.assertEqual(values["commitment_date"], f"{self.end} 17:00:00")
+        self.assertEqual(read_metadata(values["note"], "rental_logistics"), {"pickup_location": "Sousse", "return_location": "Tunis"})
+
+    def test_same_day_booking_with_explicit_times_can_update_native_schedule(self):
+        from app.core.record_metadata import read_metadata
+        with patch.object(changes, "get_record", side_effect=self.records), patch.object(changes, "ensure_available"), \
+             patch.object(changes, "refresh_fleet"), patch.object(changes.odoo, "execute", side_effect=[[self.line], True]) as rpc:
+            changes.update_booking(1, self.payload(end_date=self.start, start_time="09:30", end_time="17:00", pickup_location="Sousse", return_location="Tunis"))
+        values = rpc.call_args.args[2][1]
+        self.assertEqual(values["commitment_date"], f"{self.start} 17:00:00")
+        self.assertEqual(read_metadata(values["note"], "rental_logistics")["return_location"], "Tunis")
+
+    def test_new_quotation_uses_native_times_and_vehicle_location_without_moving_vehicle(self):
+        from app.core.record_metadata import read_metadata
+        created = {}
+        def records(model, record_id, fields):
+            if model == "sale.order":
+                return {"id": 1, "name": "S0001", "state": "draft", **created, "partner_id": [2, "Client"], "opportunity_id": [20, "Lead"]}
+            return {"id": record_id, "name": "Record", "active": True, "sale_ok": True, "location": "Sousse"}
+        def execute(model, method, args):
+            if model == "crm.lead" and method == "create":
+                return 20
+            self.assertEqual((model, method), ("sale.order", "create"))
+            created.update(args[0])
+            return 1
+        with patch.object(rentals, "get_record", side_effect=records), patch.object(rentals.odoo, "execute", side_effect=execute):
+            result = rentals.create_rental(self.payload(end_date=self.start, start_time="09:30", end_time="17:00", return_location="Tunis"))
+        self.assertTrue(result["success"])
+        self.assertEqual(created["date_order"], f"{self.start} 09:30:00")
+        self.assertEqual(created["commitment_date"], f"{self.start} 17:00:00")
+        self.assertEqual(read_metadata(created["note"], "rental_logistics"), {"pickup_location": "Sousse", "return_location": "Tunis"})
+        self.assertEqual(calendar.booking_status(created | {"state": "draft"}), "quotation")
+
     def test_invoiced_line_cannot_be_changed_or_removed(self):
         for products in [[{"product_id": 9, "line_id": 7, "quantity": 4}], [{"product_id": 12, "quantity": 1}]]:
             with patch.object(changes, "get_record", side_effect=self.records), patch.object(changes, "ensure_available"), \
@@ -67,7 +109,7 @@ class BookingTests(unittest.TestCase):
 
     def test_confirm_requires_net_payment(self):
         self.order["note"] += calendar.QUOTATION_TAG
-        for invoices in [[], [{"amount_total": 300, "amount_residual": 210.01, "move_type": "out_invoice"}], [{"amount_total": 300, "amount_residual": 300, "move_type": "out_invoice"}],
+        for invoices in [[], [{"amount_total": 300, "amount_residual": 300, "move_type": "out_invoice"}],
                          [{"amount_total": 300, "amount_residual": 0, "move_type": "out_invoice"},
                           {"amount_total": 300, "amount_residual": 0, "move_type": "out_refund"}]]:
             with patch.object(changes, "get_record", return_value=self.order), patch.object(changes.odoo, "execute", return_value=invoices) as rpc, \
@@ -76,7 +118,7 @@ class BookingTests(unittest.TestCase):
 
     def test_partial_payment_secures_booking_and_keeps_vehicle_link(self):
         self.order["note"] += calendar.QUOTATION_TAG
-        invoice = {"amount_total": 300, "amount_residual": 210, "move_type": "out_invoice"}
+        invoice = {"amount_total": 300, "amount_residual": 299, "move_type": "out_invoice"}
         with patch.object(changes, "get_record", return_value=self.order), patch.object(changes, "ensure_available"), \
              patch.object(changes, "refresh_fleet"), patch.object(changes.odoo, "execute", side_effect=[[invoice], True]) as rpc:
             self.assertEqual(changes.confirm_booking(1)["booking_status"], "confirmed")

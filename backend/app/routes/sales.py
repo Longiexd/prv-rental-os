@@ -1,12 +1,15 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
-from urllib.parse import urljoin
+from fastapi.responses import Response
 
-from app.config import ODOO_URL
 
 from app.odoo_client import odoo
 from app.routes.calendar import QUOTATION_TAG, rental_vehicle_id, booking_status
 from app.routes.cars import PICKED_UP_TAG, RETURNED_TAG
+from app.verticals.car_rental.returns import can_return, return_record
+from app.core.documents import CUSTOMER_KINDS, document_router, checklist_from_records
+from app.core.record_metadata import read_metadata
+from app.verticals.car_rental import contracts
 
 
 router = APIRouter(
@@ -20,14 +23,20 @@ router = APIRouter(
 # =========================================================
 
 @router.get("")
-def get_sales():
+def get_sales(for_fleet: bool = False, for_calendar: bool = False, with_paperwork: bool = False):
+
+    domain = []
+    if for_fleet:
+        domain = [["state", "!=", "cancel"],
+                  ["note", "ilike", "[Rental OS fleet.vehicle:"],
+                  ["note", "not ilike", RETURNED_TAG]]
 
     orders = odoo.execute(
         "sale.order",
         "search_read",
-        [],
+        [domain],
         {
-            "fields": [
+            "fields": (["company_id", "currency_id"] if with_paperwork else []) + [
                 "id",
                 "name",
                 "partner_id",
@@ -41,10 +50,11 @@ def get_sales():
                 "note",
             ],
             "order": "id desc",
-            "limit": 100,
+            **({} if for_fleet or for_calendar else {"limit": 100}),
         }
     )
 
+    paperwork = contracts.batch_paperwork(orders) if with_paperwork else {}
     result = []
 
     for order in orders:
@@ -80,9 +90,11 @@ def get_sales():
 
             "order_line_ids": order["order_line"],
             "vehicle_id": rental_vehicle_id(order.get("note")),
+            "logistics": read_metadata(order.get("note"), "rental_logistics") or {},
             "booking_status": booking_status(order),
             "returned": RETURNED_TAG in (order.get("note") or ""),
             "picked_up": PICKED_UP_TAG in (order.get("note") or ""),
+            **({"paperwork": paperwork.get(order["id"])} if with_paperwork else {}),
         })
 
     return {
@@ -276,9 +288,12 @@ def get_sale(order_id: int):
 
         "returned": RETURNED_TAG in (order.get("note") or ""),
         "picked_up": PICKED_UP_TAG in (order.get("note") or ""),
+        "return_record": record.model_dump(mode="json") if (record := return_record(order.get("note"))) else None,
+        "can_return": can_return(order),
         "order_line_ids": order["order_line"],
         "vehicle_id": rental_vehicle_id(order.get("note")),
-            "booking_status": booking_status(order),
+        "logistics": read_metadata(order.get("note"), "rental_logistics") or {},
+        "booking_status": booking_status(order),
     }
 
 
@@ -416,8 +431,101 @@ def create_invoice(order_id: int, request: InvoiceCreate | None = None):
 @router.get("/{order_id}/print-link")
 def quotation_print_link(order_id: int):
     sale_record(order_id)
-    path = odoo.execute("sale.order", "get_portal_url", [[order_id]], {"report_type": "pdf", "download": True})
-    return {"url": urljoin(ODOO_URL or "", path)}
+    return {"url": f"/api/backend/sales/{order_id}/document"}
+
+
+@router.get("/{order_id}/paperwork")
+def rental_paperwork(order_id: int):
+    order, checklist, status = contracts.paperwork(order_id)
+    driver = status["additional_driver"]
+    if driver["profile"] and driver["profile"]["active"]:
+        driver["fee_status"] = contracts.driver_fee_status(order)
+    copies = rental_document_copies(order_id, order)
+    driver["rental_documents"] = checklist_from_records(copies, CUSTOMER_KINDS, "additional_driver_snapshot")["documents"]
+    status["rental_documents"] = checklist_from_records(copies, CUSTOMER_KINDS)["documents"]
+    return {**status, "details": {**contracts.customer_details(checklist), **(read_metadata(order.get("note"), "rental_paperwork") or {})}}
+
+
+@router.put("/{order_id}/additional-driver")
+def save_additional_driver(order_id: int, data: contracts.AdditionalDriver):
+    return contracts.save_driver(order_id, data)
+
+
+_driver_documents = document_router("sale.order", CUSTOMER_KINDS, "additional_driver", contracts.driver_document_guard)
+for _route in _driver_documents.routes:
+    if _route.methods != {"GET"} or "attachment_id" in _route.path:
+        router.add_api_route("/{record_id}/additional-driver/documents" + _route.path.removeprefix("/{record_id}/documents"),
+                             _route.endpoint, methods=list(_route.methods))
+
+
+@router.get("/{record_id}/additional-driver/documents")
+def additional_driver_documents(record_id: int):
+    state = contracts.driver_state(contracts.order_record(record_id))
+    return {"documents": state["documents"], "ready": state["ready"]}
+
+
+@router.get("/{order_id}/contract")
+def rental_contract(order_id: int):
+    order = contracts.order_record(order_id)
+    if booking_status(order) == "cancelled":
+        raise HTTPException(409, "A cancelled booking cannot open a rental contract.")
+    record = read_metadata(order.get("note"), "rental_contract")
+    if not record:
+        raise HTTPException(409, "Verify the client documents, then prepare the rental contract.")
+    return {"contract_id": record["contract_id"], "html": contracts.stored_contract(order)}
+
+
+@router.post("/{order_id}/contract/prepare")
+def prepare_rental_contract(order_id: int, data: contracts.ContractPrepare):
+    return contracts.prepare_contract(order_id, data)
+
+
+@router.post("/{order_id}/contract/printed")
+def confirm_rental_contract(order_id: int, data: contracts.ContractPrinted):
+    return contracts.confirm_printed(order_id, data)
+
+
+@router.get("/{order_id}/contract/template")
+def rental_template(order_id: int):
+    return {**contracts.company_template(contracts.order_record(order_id), True), "fields": contracts.FIELDS}
+
+
+@router.put("/{order_id}/contract/template")
+def update_rental_template(order_id: int, data: contracts.TemplateSetup):
+    return contracts.save_template(order_id, data)
+
+
+# Rental snapshots are immutable. Agents edit the reusable customer originals instead.
+_snapshots = document_router("sale.order", CUSTOMER_KINDS)
+for _route in _snapshots.routes:
+    if "GET" in _route.methods and "attachment_id" in _route.path:
+        router.add_api_route("/{record_id}/documents" + _route.path.removeprefix("/{record_id}/documents"), _route.endpoint, methods=["GET"])
+
+
+def rental_document_copies(order_id, order=None):
+    order = order or contracts.order_record(order_id)
+    record = read_metadata(order.get("note"), "rental_contract") or {}
+    return odoo.execute("ir.attachment", "search_read", [[["id", "in", record.get("snapshot_ids") or []],
+        ["res_model", "=", "sale.order"], ["res_id", "=", order_id], ["type", "=", "binary"], ["public", "=", False]]],
+        {"fields": ["id", "name", "description", "checksum"], "order": "id desc"}) if record.get("snapshot_ids") else []
+
+
+@router.get("/{record_id}/documents")
+def rental_documents(record_id: int):
+    return checklist_from_records(rental_document_copies(record_id), CUSTOMER_KINDS)
+
+
+_driver_snapshots = document_router("sale.order", CUSTOMER_KINDS, "additional_driver_snapshot")
+for _route in _driver_snapshots.routes:
+    if "GET" in _route.methods and "attachment_id" in _route.path:
+        router.add_api_route("/{record_id}/additional-driver/copies" + _route.path.removeprefix("/{record_id}/documents"), _route.endpoint, methods=["GET"])
+
+
+@router.get("/{order_id}/document")
+def quotation_document(order_id: int):
+    sale_record(order_id)
+    return Response(odoo.document("sale.report_saleorder", order_id), media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="quotation-{order_id}.pdf"'})
 
 
 @router.post("/{order_id}/send")

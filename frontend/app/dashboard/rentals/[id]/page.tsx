@@ -4,8 +4,12 @@ import { ArrowLeft, Calendar, Car, Check, FileText, Receipt, User } from "lucide
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { useKlynxUI } from "@/components/providers/UIProvider";
 import ActivitiesPanel from "@/components/activities/ActivitiesPanel";
 import CreateRentalModal from "@/components/rentals/CreateRentalModal";
+import ReturnVehicleModal from "@/components/rentals/ReturnVehicleModal";
+import { PaperworkPanel, type PaperworkStatus } from "@/components/ui/DocumentsPanel";
+import { odometerUnit, type ReturnRecord } from "@/lib/fleet-bookings";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard } from "@/components/ui/StatCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -31,18 +35,23 @@ type Quotation = {
   amount_invoiced: number; amount_to_invoice: number; amount_paid: number; amount_outstanding: number;
   opportunity?: { id: number; name: string } | null; lines: QuotationLine[]; invoices: QuotationInvoice[]; vehicle_id: number | null;
   booking_status: "quotation" | "confirmed" | "cancelled"; returned: boolean; picked_up: boolean;
+  logistics?: { pickup_location?: string; return_location?: string };
+  can_return?: boolean; return_record?: ReturnRecord | null;
 };
 type Payment = { amount: number; date: string | null; reference: string | null };
 type Product = { id: number; name: string; list_price: number };
 const inputClass = "h-10 min-w-0 rounded-lg border border-border bg-surface-secondary px-3 text-sm text-text outline-none focus:border-lime/60";
 const buttonClass = "rounded-lg border border-border px-3 py-2 text-sm text-text transition hover:bg-surface-secondary disabled:opacity-50";
-const primaryClass = `${buttonClass} border-lime/40 bg-lime/15 text-lime`;
+const primaryClass = `${buttonClass} border-lime/40 bg-lime/15 text-lime-ink`;
 
 export default function RentalDetailPage() {
+  const { t } = useKlynxUI();
   const { id } = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   const rentalId = Number(id);
   const [quotation, setQuotation] = useState<Quotation | null>(null);
+  const [paperwork, setPaperwork] = useState<PaperworkStatus | null>(null);
+  const [paperworkError, setPaperworkError] = useState("");
   const [cars, setCars] = useState<{ id: number; name: string; license_plate: string | null }[]>([]);
   const [journals, setJournals] = useState<{ id: number; name: string }[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -51,6 +60,7 @@ export default function RentalDetailPage() {
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState("");
   const [editingBooking, setEditingBooking] = useState(false);
+  const [returningVehicle, setReturningVehicle] = useState(false);
   const [editingLineId, setEditingLineId] = useState<number | null>(null);
   const [lineEdit, setLineEdit] = useState({ quantity: "1", unit_price: "0", discount_percent: "0" });
   const [newProduct, setNewProduct] = useState("");
@@ -62,10 +72,21 @@ export default function RentalDetailPage() {
   const [paymentHistory, setPaymentHistory] = useState<Record<number, Payment[]>>({});
   const [expandedInvoiceId, setExpandedInvoiceId] = useState<number | null>(null);
 
+  const loadPaperwork = useCallback(async () => {
+    try { setPaperwork(await apiFetch<PaperworkStatus>(`/sales/${rentalId}/paperwork`)); setPaperworkError(""); }
+    catch (err) { setPaperwork(null); setPaperworkError(err instanceof Error ? err.message : "Paperwork could not load."); }
+  }, [rentalId]);
+  useEffect(() => {
+    let active = true;
+    apiFetch<PaperworkStatus>(`/sales/${rentalId}/paperwork`).then(data => { if (active) { setPaperwork(data); setPaperworkError(""); } })
+      .catch((err: unknown) => { if (active) setPaperworkError(err instanceof Error ? err.message : "Paperwork could not load."); });
+    return () => { active = false; };
+  }, [rentalId]);
+
   const loadQuotation = useCallback(async () => {
     const data = await apiFetch<Quotation>(`/sales/${rentalId}`);
-    setQuotation(data);
-  }, [rentalId]);
+    setQuotation(data); await loadPaperwork();
+  }, [rentalId, loadPaperwork]);
 
   useEffect(() => {
     let active = true;
@@ -140,9 +161,8 @@ export default function RentalDetailPage() {
   const cancelled = quotation.booking_status === "cancelled";
   const confirmed = quotation.booking_status === "confirmed";
   const paid = quotation.amount_paid;
-  const requiredDeposit = Math.round(quotation.amount_total * 30) / 100;
-  const depositRemaining = Math.max(0, Math.round((requiredDeposit - paid) * 100) / 100);
-  const committed = paid > 0 && depositRemaining === 0;
+  const committed = paid > 0;
+  const paperworkMissing = confirmed && !quotation.picked_up && !quotation.returned && !paperwork?.contract_ready;
   const printableInvoice = quotation.invoices.find(invoice => invoice.type === "out_invoice" && invoice.state === "posted");
   const fullyPaid = quotation.amount_total > 0 && quotation.amount_outstanding <= 0.01;
   const pendingInvoice = quotation.invoices.find((invoice) => invoice.draft && invoice.type === "out_invoice");
@@ -150,18 +170,19 @@ export default function RentalDetailPage() {
   const nextStep = cancelled ? "Booking cancelled. Financial records remain available below."
     : quotation.returned ? "Rental completed. Review the balance and payment history below."
     : editable ? "Review, print or email the quotation. When the client agrees, confirm the quotation to prepare their deposit."
-    : !confirmed && committed ? "30% commitment reached. Confirm the booking to secure the vehicle, then print the invoice."
+    : !confirmed && committed ? "Payment received. Confirm the booking to reserve the vehicle, then complete its paperwork."
     : pendingInvoice ? "Validate the draft invoice below, then record the amount actually received."
-    : !confirmed ? `Reservation incomplete: ${formatCurrency(depositRemaining)} more is needed to reach the 30% deposit. Record the payment below.`
-    : fullyPaid ? "Payment complete. Print the invoice and continue to pickup from the vehicle calendar."
+    : !confirmed ? "Record any agreed partial or full payment below, then confirm the booking."
+    : fullyPaid ? "Payment complete. Verify the documents and print the contract before handing over the keys."
     : "Reservation secured. Print the invoice, prepare pickup and collect the remaining balance when due.";
-  const workflowStep = quotation.returned ? 6 : confirmed ? 5 : committed ? 4 : editable ? 2 : 3;
-  const steps = ["Demand & client", "Rental requirements", "Quotation", "30% commitment", "Confirm booking", "Invoice & pickup", "Fulfilment"];
+  const workflowStep = quotation.returned ? 7 : quotation.picked_up ? 6 : confirmed ? (paperwork?.contract_ready ? 5 : 4) : editable ? 2 : 3;
+  const steps = ["Demand & client", "Rental requirements", "Quotation", "Confirm booking", "Documents & contract", "Pickup", "Return"];
+  const stepTargets = ["#booking", "#booking", "#quotation", "#payments", "#paperwork", "#handover", "#return"];
   const pickupDate = parseDate(quotation.date_order);
   const returnDate = parseDate(quotation.commitment_date);
   const now = new Date();
-  const startsToday = Boolean(pickupDate && isSameDay(pickupDate, now));
-  const overdueReturn = Boolean(returnDate && returnDate < now && !isSameDay(returnDate, now));
+  const pickupDue = Boolean(pickupDate && (pickupDate < now || isSameDay(pickupDate, now)));
+  const overdueReturn = Boolean(quotation.picked_up && returnDate && returnDate < now && !isSameDay(returnDate, now));
 
 
   return (
@@ -170,54 +191,64 @@ export default function RentalDetailPage() {
       <PageHeader breadcrumb="Rentals" title={quotation.customer?.name || quotation.name} subtitle={quotation.name} action={<StatusBadge meta={rentalStateMeta(getRentalState(quotation))} />} />
       {error && <div role="alert" className="mt-4 rounded-xl border border-danger/30 bg-danger/5 p-4 text-sm text-danger">{error}</div>}
       {notice && <div role="status" className="mt-4 rounded-xl border border-green-500/30 bg-green-500/10 p-4 text-sm text-green-400">{notice}</div>}
-      <nav aria-label="Booking progress" className="mt-5 rounded-xl border border-border p-4">
-        <ol className="flex flex-wrap gap-2">{steps.map((step, index) => <li key={step} aria-current={index === workflowStep ? "step" : undefined} className={`rounded-lg px-3 py-2 text-sm ${index < workflowStep ? "bg-green-500/10 text-green-300" : index === workflowStep ? "bg-blue-500/20 font-semibold text-blue-200" : "text-text-secondary"}`}>{index < workflowStep ? "✓" : index + 1} {step}</li>)}</ol>
+      <nav aria-label="Booking progress" className="klynx-booking-progress mt-5 rounded-xl border border-border p-4">
+        <ol className="flex flex-wrap gap-2">{steps.map((step, index) => <li key={step} aria-current={index === workflowStep ? "step" : undefined} className={`rounded-lg px-3 py-2 text-sm ${index < workflowStep ? "bg-green-500/10 text-green-300" : index === workflowStep ? "bg-blue-500/20 font-semibold text-blue-200" : "text-text-secondary"}`}><a href={stepTargets[index]} className={index === 4 && paperworkMissing ? "klynx-attention-flicker text-danger" : ""}>{index < workflowStep ? "✓" : index + 1} {step}{index === 4 && paperworkMissing ? " · missing" : ""}</a></li>)}</ol>
         <p className="mt-3 text-sm text-text-secondary">Progress is saved automatically. Resume here anytime, or use the actions below directly.</p>
       </nav>
-      <section className={`mt-5 rounded-xl border p-5 ${financeColor}`}>
+      <section id="booking" className={`mt-5 scroll-mt-5 rounded-xl border p-5 ${financeColor}`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div><p className="font-semibold">{cancelled ? "Cancelled" : fullyPaid ? "Paid" : editable ? "Quotation" : "Quotation confirmed"}</p><p className="mt-1 text-sm">{nextStep}</p></div>
-          <span className={`rounded-full px-3 py-1 text-sm ${confirmed ? "bg-green-500/15 text-green-400" : "bg-zinc-500/20 text-zinc-300"}`}>{confirmed ? "Booking confirmed" : cancelled ? "Booking cancelled" : "Booking unconfirmed"}</span>
+          <span className={`rounded-full px-3 py-1 text-sm ${confirmed ? "bg-green-500/15 text-green-400" : "bg-zinc-500/20 text-text"}`}>{confirmed ? "Booking confirmed" : cancelled ? "Booking cancelled" : "Booking unconfirmed"}</span>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
-          {printableInvoice && <button className="rounded-lg bg-blue-500 px-5 py-3 font-semibold text-white hover:bg-blue-400" onClick={() => printDocument(`/invoices/${printableInvoice.id}/print-link`)}>Print invoice · {printableInvoice.name}</button>}
+          {printableInvoice && <button className="rounded-lg bg-blue-500 px-5 py-3 font-semibold text-text hover:bg-blue-400" onClick={() => printDocument(`/invoices/${printableInvoice.id}/print-link`)}>Print invoice · {printableInvoice.name}</button>}
           <a className={buttonClass} href="#follow-ups">Schedule call / email</a>
           <button className={buttonClass} onClick={() => printDocument(`/sales/${rentalId}/print-link`)}>Print quotation</button>
-          {!cancelled && <button disabled={!!busy} className={buttonClass} onClick={() => { if (window.confirm("Send this quotation to the customer's saved email address?")) void act(`/sales/${rentalId}/send`, "POST", undefined, "Quotation sent."); }}>Email quotation</button>}
+          <a className={buttonClass} href="#paperwork">Documents / rental contract</a>
+          {!cancelled && <button disabled={!!busy} className={buttonClass} onClick={() => { if (window.confirm(t("Send this quotation to the customer's saved email address?"))) void act(`/sales/${rentalId}/send`, "POST", undefined, "Quotation sent."); }}>Email quotation</button>}
           {!cancelled && <button disabled={!!busy} className={buttonClass} onClick={() => setEditingBooking(true)}>Edit booking</button>}
           {editable && <button disabled={!!busy || !quotation.lines.length} className={primaryClass} onClick={() => act(`/sales/${rentalId}/confirm`, "POST", undefined, "Quotation confirmed. Generate the invoice next.")}>Confirm quotation</button>}
           {!editable && !cancelled && quotation.amount_to_invoice > 0 && !pendingInvoice && <button disabled={!!busy} className={primaryClass} onClick={() => act(`/sales/${rentalId}/invoice`, "POST", undefined, "Invoice created. Validate it below to record payment.")}>Generate invoice</button>}
-          {!cancelled && !confirmed && <button disabled={!!busy || !committed} title={!committed ? "Record at least 30% of the booking total first" : "Secure this paid reservation"} className={primaryClass} onClick={() => act(`/rentals/${rentalId}/confirm`, "POST", undefined, "Booking confirmed.")}>Confirm booking</button>}
-          {!cancelled && <button disabled={!!busy} className={`${buttonClass} text-danger`} onClick={() => { if (window.confirm("Cancel this booking and mark its prospect as lost? Financial records are kept.")) void act(`/rentals/${rentalId}/cancel`, "POST", undefined, "Booking cancelled and removed from the calendar."); }}>Cancel booking</button>}
+          {!cancelled && !confirmed && <button disabled={!!busy || !committed} title={!committed ? "Record an agreed partial or full payment first" : "Secure this paid reservation"} className={primaryClass} onClick={() => act(`/rentals/${rentalId}/confirm`, "POST", undefined, "Booking confirmed.")}>Confirm booking</button>}
+          {!cancelled && <button disabled={!!busy} className={`${buttonClass} text-danger`} onClick={() => { if (window.confirm(t("Cancel this booking and mark its prospect as lost? Financial records are kept."))) void act(`/rentals/${rentalId}/cancel`, "POST", undefined, "Booking cancelled and removed from the calendar."); }}>Cancel booking</button>}
         </div>
-        {!cancelled && !confirmed && <div className="mt-4 rounded-lg bg-black/20 p-4"><div className="flex flex-wrap justify-between gap-2 font-semibold"><span>Deposit target · 30%</span><span>{formatCurrency(paid)} / {formatCurrency(requiredDeposit)}</span></div><progress aria-label="Deposit progress" className="mt-2 h-3 w-full accent-green-400" value={Math.min(paid, requiredDeposit)} max={requiredDeposit || 1} /><p className="mt-2 text-sm">{committed ? "Ready to confirm the reservation." : `${formatCurrency(depositRemaining)} still required. This booking stays incomplete until the deposit is recorded and the reservation is confirmed.`}</p>{!editable && <a href="#payments" className="mt-3 inline-block rounded-lg bg-blue-500 px-4 py-2 font-semibold text-white">Continue to payment →</a>}</div>}
-        {confirmed && !quotation.returned && startsToday && !quotation.picked_up && (
-          <div className="mt-4 rounded-lg border border-blue-400/30 bg-blue-500/10 p-4">
-            <p className="font-semibold">Rental starts today</p>
-            <p className="mt-1 text-sm">The customer is due to collect the vehicle today. Confirm once they have.</p>
+        {!cancelled && !confirmed && <p className="mt-4 text-sm">{committed ? `Payment received: ${formatCurrency(paid)}. Confirm the booking when agreed with the client.` : "No payment recorded. The vehicle stays available until you receive a payment and confirm the booking."} {!editable && <a className="underline" href="#payments">Record payment →</a>}</p>}
+        {confirmed && !quotation.returned && pickupDue && !quotation.picked_up && (
+          <div id="handover" className="mt-4 scroll-mt-5 rounded-lg border border-blue-400/30 bg-blue-500/10 p-4">
+            <p className="font-semibold">{getRentalState(quotation) === "pickup_due" ? "Pickup overdue" : "Pickup due today"}</p>
+            <p className="mt-1 text-sm">The vehicle is reserved but has not been handed over. Confirm pickup only when the customer actually collects it.</p>
+            {!paperwork?.contract_ready && <a href="#paperwork" className="mt-2 block font-medium text-danger underline">{!paperwork?.documents_ready ? "Verify identity and driving licence before pickup" : "Rental contract still needs to be printed / saved and confirmed"} →</a>}
             <div className="mt-3 flex flex-wrap gap-2">
-              <button disabled={!!busy} className={primaryClass} onClick={() => act(`/rentals/${rentalId}/picked-up`, "POST", undefined, "Pickup confirmed.")}>Validate pickup</button>
+              <button disabled={!!busy || !paperwork?.contract_ready} title={!paperwork?.contract_ready ? "Verify identity and licence, then print and confirm the contract" : "Record actual vehicle handover"} className={primaryClass} onClick={() => act(`/rentals/${rentalId}/picked-up`, "POST", undefined, "Pickup confirmed.")}>Validate pickup</button>
               <a className={buttonClass} href="#follow-ups">Not picked up · schedule a call</a>
-              <button disabled={!!busy} className={`${buttonClass} text-danger`} onClick={() => { if (window.confirm("Cancel this booking and mark its prospect as lost? Financial records are kept.")) void act(`/rentals/${rentalId}/cancel`, "POST", undefined, "Booking cancelled and removed from the calendar."); }}>Not picked up · cancel booking</button>
+              <button disabled={!!busy} className={`${buttonClass} text-danger`} onClick={() => { if (window.confirm(t("Cancel this booking and mark its prospect as lost? Financial records are kept."))) void act(`/rentals/${rentalId}/cancel`, "POST", undefined, "Booking cancelled and removed from the calendar."); }}>Not picked up · cancel booking</button>
             </div>
           </div>
         )}
-        {confirmed && quotation.picked_up && !quotation.returned && (
-          <div className="mt-4 rounded-lg border border-border bg-black/20 p-4">
+        {confirmed && (quotation.can_return || quotation.picked_up) && !quotation.returned && (
+          <div id="return" className="mt-4 scroll-mt-5 rounded-lg border border-border bg-black/20 p-4">
             <p className="font-semibold">{overdueReturn ? "Return is overdue" : "Vehicle is out with the customer"}</p>
             <p className="mt-1 text-sm">{overdueReturn ? `Was due back ${formatDate(quotation.commitment_date)}.` : `Due back ${formatDate(quotation.commitment_date)}.`}</p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <button disabled={!!busy} className={primaryClass} onClick={() => act(`/cars/${quotation.vehicle_id}/return`, "POST", { next_state: "Nettoyage" }, "Vehicle marked returned.")}>Mark returned</button>
+              <button disabled={!!busy || !quotation.vehicle_id} className={primaryClass} onClick={() => setReturningVehicle(true)}>{quotation.return_record?.status === "pending" ? "Finish saved return" : "Record return"}</button>
               <Link href={`/dashboard/rentals/${rentalId}?edit=1`} className={buttonClass}>Not returned · extend booking</Link>
               <a className={buttonClass} href="#payments">Not returned · invoice extra hours</a>
             </div>
           </div>
         )}
       </section>
-      {!editable && !cancelled && quotation.amount_to_invoice > 0 && !pendingInvoice && <form className="mt-3 flex flex-wrap items-end gap-3 rounded-xl border border-border p-4" onSubmit={event => { event.preventDefault(); void act(`/sales/${rentalId}/invoice`, "POST", { deposit_amount: Number(depositAmount || Math.min(depositRemaining, quotation.amount_to_invoice)) }, "Deposit invoice created. Validate it below, then record the amount received."); }}>
-        <label className="text-sm text-text-secondary">Invoice a deposit<input required type="number" min="0.01" max={quotation.amount_to_invoice} step="0.01" className={`${inputClass} ml-3 w-32`} value={depositAmount || String(Math.min(depositRemaining, quotation.amount_to_invoice))} onChange={event => setDepositAmount(event.target.value)} /></label><button disabled={!!busy} className={buttonClass}>Create deposit invoice</button><p className="text-sm text-muted">Suggested: the remaining 30% deposit. Advances are recorded on a deposit invoice before the final invoice.</p>
+      {quotation.return_record?.status === "completed" && <section id="return" className="mt-5 scroll-mt-5 rounded-xl border border-border bg-surface p-5">
+        <h2 className="font-semibold text-text">Return recorded</h2>
+        <p className="mt-2 text-sm text-text-secondary">{formatDate(quotation.return_record.returned_at)} · {quotation.return_record.next_state}</p>
+        <p className="mt-1 text-sm text-text-secondary">Odometer: {quotation.return_record.odometer ?? quotation.return_record.previous_odometer} {odometerUnit(quotation.return_record.odometer_unit)}{quotation.return_record.odometer === null ? " · existing reading retained" : ""}</p>
+        {quotation.return_record.return_notes && <p className="mt-3 whitespace-pre-wrap break-words text-sm text-text-secondary"><span className="font-medium text-text">Return notes: </span>{quotation.return_record.return_notes}</p>}
+        {quotation.return_record.damage_notes && <p className="mt-3 whitespace-pre-wrap break-words text-sm text-text-secondary"><span className="font-medium text-text">Damage notes: </span>{quotation.return_record.damage_notes}</p>}
+      </section>}
+      {!editable && !cancelled && quotation.amount_to_invoice > 0 && !pendingInvoice && <form className="mt-3 flex flex-wrap items-end gap-3 rounded-xl border border-border p-4" onSubmit={event => { event.preventDefault(); void act(`/sales/${rentalId}/invoice`, "POST", { deposit_amount: Number(depositAmount) }, "Deposit invoice created. Validate it below, then record the amount received."); }}>
+        <label className="text-sm text-text-secondary">Invoice a deposit<input required type="number" min="0.01" max={quotation.amount_to_invoice} step="0.01" className={`${inputClass} ml-3 w-32`} value={depositAmount} onChange={event => setDepositAmount(event.target.value)} /></label><button disabled={!!busy} className={buttonClass}>Create deposit invoice</button><p className="text-sm text-muted">Enter the partial amount agreed with the client. Advances are recorded before the final invoice.</p>
       </form>}
-      {quotation.opportunity && <Link href={`/crm/leads/${quotation.opportunity.id}`} className="mt-4 inline-block text-sm text-lime">Open prospect & follow-ups →</Link>}
+      {quotation.opportunity && <Link href={`/crm/leads/${quotation.opportunity.id}`} className="mt-4 inline-flex items-center gap-2 rounded-lg border border-[var(--todo-border)] bg-[var(--todo-bg)] px-4 py-2.5 text-sm font-semibold text-[var(--todo-text)] transition hover:bg-[var(--todo-bg-soft)]"><User size={16} />Open prospect & follow-ups →</Link>}
+      <p className="mt-4 text-sm text-text-secondary">Pickup: {quotation.date_order || "Not set"}{quotation.logistics?.pickup_location ? ` · ${quotation.logistics.pickup_location}` : ""} · Return: {quotation.commitment_date || "Not set"}{quotation.logistics?.return_location ? ` · ${quotation.logistics.return_location}` : ""}</p>
       <section className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard icon={<Receipt size={17} />} label="Total" value={formatCurrency(quotation.amount_total)} />
         <StatCard icon={<FileText size={17} />} label="Invoiced" value={formatCurrency(quotation.amount_invoiced)} tone="pink" />
@@ -225,12 +256,12 @@ export default function RentalDetailPage() {
         <StatCard icon={<Receipt size={17} />} label="Outstanding" value={formatCurrency(quotation.amount_outstanding)} tone={quotation.amount_outstanding > 0 ? "danger" : "lime"} />
       </section>
       <section className="mt-4 grid min-w-0 gap-3 md:grid-cols-3">
-        <Card className="min-w-0 p-5"><div className="flex items-center gap-2 text-sm text-muted"><User size={16} />Customer</div>{quotation.customer ? <Link href={`/dashboard/customers/${quotation.customer.id}`} className="mt-2 block break-words text-base font-medium text-text hover:text-lime">{quotation.customer.name}</Link> : <p className="mt-2 text-muted">—</p>}</Card>
-        <Card className="min-w-0 p-5"><div className="flex items-center gap-2 text-sm text-muted"><Car size={16} />Vehicle</div><Link href={`/dashboard/calendar?vehicle=${quotation.vehicle_id}`} className="mt-2 block break-words text-base font-medium text-text hover:text-lime">{vehicle?.name || "—"} →</Link>{vehicle?.license_plate && <p className="mt-1 break-words text-sm text-muted">{vehicle.license_plate}</p>}</Card>
+        <Card className="min-w-0 p-5"><div className="flex items-center gap-2 text-sm text-muted"><User size={16} />Customer</div>{quotation.customer ? <Link href={`/dashboard/customers/${quotation.customer.id}`} className="mt-2 block break-words text-base font-medium text-text hover:text-lime-ink">{quotation.customer.name}</Link> : <p className="mt-2 text-muted">—</p>}</Card>
+        <Card className="min-w-0 p-5"><div className="flex items-center gap-2 text-sm text-muted"><Car size={16} />Vehicle</div><Link href={`/dashboard/calendar?vehicle=${quotation.vehicle_id}`} className="mt-2 block break-words text-base font-medium text-text hover:text-lime-ink">{vehicle?.name || "—"} →</Link>{vehicle?.license_plate && <p className="mt-1 break-words text-sm text-muted">{vehicle.license_plate}</p>}</Card>
         <Card className="min-w-0 p-5"><div className="flex items-center gap-2 text-sm text-muted"><Calendar size={16} />Dates</div><dl className="mt-2 space-y-2 text-sm"><div><dt className="text-muted">Pickup</dt><dd className="break-words text-text">{formatDate(quotation.date_order)}</dd></div><div><dt className="text-muted">Return</dt><dd className="break-words text-text">{formatDate(quotation.commitment_date)}</dd></div></dl></Card>
       </section>
       <section className="mt-4"><Card>
-        <CardHeader title="Quotation" subtitle={editable ? "Add products, adjust prices and discounts, then confirm." : "Quotation confirmed. Financial changes are protected after invoicing."} />
+        <div id="quotation" className="scroll-mt-5" /><CardHeader title="Quotation" subtitle={editable ? "Add products, adjust prices and discounts, then confirm." : "Quotation confirmed. Financial changes are protected after invoicing."} />
         <div className="overflow-x-auto"><table className="w-full min-w-[700px] text-left text-sm"><thead><tr className="border-b border-border text-muted"><th className="px-5 py-3">Item</th><th className="p-3">Qty</th><th className="p-3">Unit price</th><th className="p-3">Discount</th><th className="p-3 text-right">Total</th>{editable && <th className="p-3">Actions</th>}</tr></thead><tbody className="divide-y divide-border">
           {quotation.lines.map((line) => <tr key={line.id} className="text-text-secondary">
             <td className="max-w-[300px] break-words px-5 py-3 text-text">{line.description}</td>
@@ -241,20 +272,20 @@ export default function RentalDetailPage() {
         </tbody></table></div>
         {editable && <div className="space-y-4 border-t border-border p-5">
           <form onSubmit={addLine} className="flex flex-wrap items-end gap-3"><label className="min-w-0 flex-1 text-sm text-muted">Product<select required className={`${inputClass} mt-1 w-full`} value={newProduct} onChange={(event) => setNewProduct(event.target.value)}><option value="">Choose an item...</option>{products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}</select></label><label className="text-sm text-muted">Quantity<input required type="number" min="0.01" step="0.01" value={newQuantity} onChange={(event) => setNewQuantity(event.target.value)} className={`${inputClass} mt-1 block w-24`} /></label><button disabled={!!busy} className={primaryClass}>Add item</button></form>
-          <form className="flex flex-wrap items-end gap-3" onSubmit={(event) => { event.preventDefault(); if (window.confirm("Apply this percentage to every quotation line? This replaces existing line discounts.")) void act(`/sales/${rentalId}/discount`, "PATCH", { discount_percent: Number(discount) }); }}><label className="text-sm text-muted">Discount on total (%)<input required type="number" min="0" max="100" step="0.01" value={discount} onChange={(event) => setDiscount(event.target.value)} className={`${inputClass} mt-1 block w-28`} /></label><button disabled={!!busy} className={buttonClass}>Apply to all items</button><p className="text-sm text-muted">Replaces line discounts; Taxes and total recalculate automatically.</p></form>
+          <form className="flex flex-wrap items-end gap-3" onSubmit={(event) => { event.preventDefault(); if (window.confirm(t("Apply this percentage to every quotation line? This replaces existing line discounts."))) void act(`/sales/${rentalId}/discount`, "PATCH", { discount_percent: Number(discount) }); }}><label className="text-sm text-muted">Discount on total (%)<input required type="number" min="0" max="100" step="0.01" value={discount} onChange={(event) => setDiscount(event.target.value)} className={`${inputClass} mt-1 block w-28`} /></label><button disabled={!!busy} className={buttonClass}>Apply to all items</button><p className="text-sm text-muted">Replaces line discounts; Taxes and total recalculate automatically.</p></form>
         </div>}
         <div className="flex flex-wrap justify-end gap-5 border-t border-border px-5 py-4 text-sm text-muted"><span>Untaxed: {formatCurrency(quotation.amount_untaxed)}</span><span>Tax: {formatCurrency(quotation.amount_tax)}</span><strong className="text-text">Total: {formatCurrency(quotation.amount_total)}</strong></div>
       </Card></section>
       <section id="payments" className="mt-6 scroll-mt-5 rounded-xl border border-blue-400/40 bg-blue-500/5"><Card><CardHeader title="Invoices & payments" subtitle="Validate the invoice, record each instalment, then print the final invoice." />
         {!quotation.invoices.length && <div className="p-6"><EmptyState icon={<Receipt />} title="No invoice yet" description={editable ? "Confirm the quotation above to generate an invoice." : "Generate the invoice above to record payment."} /></div>}
         {quotation.invoices.map((invoice) => <div key={invoice.id} className="border-t border-border p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="break-words text-base font-medium text-text">{invoice.name || "Draft invoice"}{invoice.type === "out_refund" ? " · Credit note" : ""}</p><p className="mt-1 text-sm text-muted">{formatDate(invoice.date)}{invoice.due_date ? ` · Due ${formatDate(invoice.due_date)}` : ""}</p></div><span className={`rounded-full px-3 py-1 text-sm ${invoice.draft ? "bg-yellow-500/10 text-yellow-400" : invoice.outstanding <= 0.01 ? "bg-green-500/10 text-green-400" : "bg-blue-500/10 text-blue-400"}`}>{invoice.draft ? "Draft · validate next" : invoice.payment_status === "in_payment" ? "Payment recorded · clearing" : invoice.outstanding <= 0.01 ? "Paid" : invoice.paid > 0 ? "Partly paid" : "Confirmed · awaiting payment"}</span></div>
+          <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="break-words text-base font-medium text-text">{invoice.name || "Draft invoice"}{invoice.type === "out_refund" ? " · Credit note" : ""}</p><p className="mt-1 text-sm text-muted">{formatDate(invoice.date)}{invoice.due_date ? ` · ${t("Due")} ${formatDate(invoice.due_date)}` : ""}</p></div><span className={`rounded-full px-3 py-1 text-sm ${invoice.draft ? "bg-yellow-500/10 text-yellow-400" : invoice.outstanding <= 0.01 ? "bg-green-500/10 text-green-400" : "bg-blue-500/10 text-blue-400"}`}>{invoice.draft ? "Draft · validate next" : invoice.payment_status === "in_payment" ? "Payment recorded · clearing" : invoice.outstanding <= 0.01 ? "Paid" : invoice.paid > 0 ? "Partly paid" : "Confirmed · awaiting payment"}</span></div>
           <div className="mt-4 grid gap-3 text-lg font-semibold text-text sm:grid-cols-3"><span>Total: {formatCurrency(invoice.total)}</span><span>Paid: {formatCurrency(invoice.paid)}</span><span>Outstanding: {formatCurrency(invoice.outstanding)}</span></div>
           <div className="mt-4 flex flex-wrap items-center gap-2">
-            {invoice.type === "out_invoice" && <button className="rounded-lg bg-blue-500 px-5 py-3 font-semibold text-white hover:bg-blue-400" onClick={() => printDocument(`/invoices/${invoice.id}/print-link`)}>Print invoice</button>}
+            {invoice.type === "out_invoice" && <button className="rounded-lg bg-blue-500 px-5 py-3 font-semibold text-text hover:bg-blue-400" onClick={() => printDocument(`/invoices/${invoice.id}/print-link`)}>Print invoice</button>}
             {invoice.draft && invoice.type === "out_invoice" && <button disabled={!!busy} className={primaryClass} onClick={() => act(`/invoices/${invoice.id}/post`, "POST", undefined, "Invoice validated. Record payment below.")}>Validate invoice</button>}
           </div>
-          {!invoice.draft && invoice.type === "out_invoice" && invoice.outstanding > 0 && <form className="mt-4 flex flex-wrap items-end gap-3" onSubmit={(event) => { event.preventDefault(); const amount = Number(paymentAmounts[invoice.id]); if (window.confirm(`Record ${formatCurrency(amount)} as received from the customer?`)) void act(`/invoices/${invoice.id}/payments`, "POST", { amount, journal_id: Number(paymentJournals[invoice.id]) }, "Payment recorded. Balances updated."); }}>
+          {!invoice.draft && invoice.type === "out_invoice" && invoice.outstanding > 0 && <form className="mt-4 flex flex-wrap items-end gap-3" onSubmit={(event) => { event.preventDefault(); const amount = Number(paymentAmounts[invoice.id]); if (window.confirm(`${t("Record payment received?")} ${formatCurrency(amount)}`)) void act(`/invoices/${invoice.id}/payments`, "POST", { amount, journal_id: Number(paymentJournals[invoice.id]) }, "Payment recorded. Balances updated."); }}>
             <label className="font-medium text-text">Amount received<input required aria-label="Amount received" type="number" min="0.01" max={invoice.outstanding} step="0.01" className={`${inputClass} mt-1 block w-36`} value={paymentAmounts[invoice.id] || ""} onChange={(event) => setPaymentAmounts({ ...paymentAmounts, [invoice.id]: event.target.value })} /></label>
             <button type="button" className={buttonClass} onClick={() => setPaymentAmounts({ ...paymentAmounts, [invoice.id]: String(invoice.outstanding) })}>Full balance</button>
             <label className="min-w-0 font-medium text-text">Received into<select required className={`${inputClass} mt-1 block max-w-full`} value={paymentJournals[invoice.id] || ""} onChange={(event) => setPaymentJournals({ ...paymentJournals, [invoice.id]: event.target.value })}><option value="">Select account...</option>{journals.map((journal) => <option key={journal.id} value={journal.id}>{journal.name}</option>)}</select></label>
@@ -264,8 +295,14 @@ export default function RentalDetailPage() {
           {expandedInvoiceId === invoice.id && <div className="mt-2 space-y-2 rounded-lg bg-surface-secondary p-3 text-sm text-muted">{!paymentHistory[invoice.id]?.length ? "No payments recorded yet." : paymentHistory[invoice.id].map((payment, index) => <div key={index} className="flex flex-wrap justify-between gap-2"><span>{formatDate(payment.date)} · {payment.reference}</span><span>{formatCurrency(payment.amount)}</span></div>)}</div>}
         </div>)}
       </Card></section>
-      <div id="follow-ups" className="mt-5 scroll-mt-5"><ActivitiesPanel saleId={rentalId} /></div>
-      {quotation.customer && quotation.vehicle_id && <CreateRentalModal open={editingBooking} onClose={() => setEditingBooking(false)} rentalId={rentalId} initialRental={{ partner_id: quotation.customer.id, vehicle_id: quotation.vehicle_id, start_date: (quotation.date_order || "").slice(0, 10) || "", end_date: (quotation.commitment_date || "").slice(0, 10) || "", products: quotation.lines.filter((line) => line.product && !line.is_downpayment && line.quantity > 0).map((line) => ({ product_id: line.product!.id, quantity: line.quantity, unit_price: line.unit_price, discount_percent: line.discount_percent, line_id: line.id })) }} onCreated={() => { setEditingBooking(false); void loadQuotation().catch((err: unknown) => setError(err instanceof Error ? err.message : "Unable to refresh the booking.")); }} />}
+      {paperworkError && <p role="alert" className="mt-4 text-danger">{paperworkError} <button className={buttonClass} onClick={() => void loadPaperwork()}>Retry paperwork</button></p>}
+      {quotation.customer && <PaperworkPanel key={quotation.id} rentalId={rentalId} customerId={quotation.customer.id} confirmed={confirmed} collected={quotation.picked_up || quotation.returned} status={paperwork} refresh={loadPaperwork} editBooking={() => setEditingBooking(true)} />}
+      <div id="follow-ups" className="mt-5 scroll-mt-5"><ActivitiesPanel key={`${rentalId}-${quotation.opportunity?.id || "booking"}`} leadId={quotation.opportunity?.id} saleId={rentalId} compact /></div>
+      {returningVehicle && quotation.vehicle_id && <ReturnVehicleModal vehicleId={quotation.vehicle_id} orderId={rentalId}
+        onClose={() => setReturningVehicle(false)} onReturned={async () => {
+          await loadQuotation(); setReturningVehicle(false); setNotice("Return recorded and vehicle updated.");
+        }} />}
+      {quotation.customer && quotation.vehicle_id && <CreateRentalModal open={editingBooking} onClose={() => setEditingBooking(false)} rentalId={rentalId} initialRental={{ partner_id: quotation.customer.id, vehicle_id: quotation.vehicle_id, start_time: (quotation.date_order || "").slice(11, 16), end_time: (quotation.commitment_date || "").slice(11, 16), pickup_location: quotation.logistics?.pickup_location, return_location: quotation.logistics?.return_location, start_date: (quotation.date_order || "").slice(0, 10) || "", end_date: (quotation.commitment_date || "").slice(0, 10) || "", products: quotation.lines.filter((line) => line.product && !line.is_downpayment && line.quantity > 0).map((line) => ({ product_id: line.product!.id, quantity: line.quantity, unit_price: line.unit_price, discount_percent: line.discount_percent, line_id: line.id })) }} onCreated={() => { setEditingBooking(false); void loadQuotation().catch((err: unknown) => setError(err instanceof Error ? err.message : "Unable to refresh the booking.")); }} />}
     </main>
   );
 }

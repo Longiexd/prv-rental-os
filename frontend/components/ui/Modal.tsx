@@ -56,6 +56,7 @@ export function Modal({
 
           <button
             type="button"
+            aria-label="Close"
             onClick={onClose}
             className="rounded-lg p-1.5 text-muted transition hover:bg-surface-secondary hover:text-text"
           >

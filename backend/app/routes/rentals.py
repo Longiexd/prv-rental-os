@@ -1,11 +1,13 @@
-from datetime import date, timedelta
+from datetime import date, datetime, time
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.odoo_client import odoo
+from app.core.record_metadata import write_metadata
 from app.routes.calendar import QUOTATION_TAG, booking_status, rental_vehicle_id
 from app.routes.cars import RETURNED_TAG
+from app.verticals.car_rental.states import blocking_booking_domain, is_booking_state, is_operational_state
 
 
 router = APIRouter(
@@ -69,14 +71,18 @@ class RentalCreate(BaseModel):
     One customer can have unlimited rentals/orders.
     One rental can contain multiple Odoo products.
     """
-
+    
     partner_id: int
 
     vehicle_id: int
 
     start_date: date
+    start_time: time | None = None
 
     end_date: date
+    end_time: time | None = None
+    pickup_location: str | None = Field(default=None, max_length=250)
+    return_location: str | None = Field(default=None, max_length=250)
 
     products: list[RentalProductLine] = Field(
         min_length=1,
@@ -205,6 +211,7 @@ def get_rental_options(
                 "state_id",
                 "category_id",
                 "brand_id",
+                "location",
             ],
             "order": "name",
             "limit": 500,
@@ -223,26 +230,10 @@ def get_rental_options(
     booked_vehicle_ids: set[int] = set()
 
     if start_date and end_date and end_date >= start_date:
-        end_exclusive = end_date + timedelta(days=1)
-
         overlapping_orders = odoo.execute(
             "sale.order",
             "search_read",
-            [
-                [
-                    [
-                        "date_order",
-                        "<",
-                        f"{end_exclusive.isoformat()} 00:00:00",
-                    ],
-                    [
-                        "commitment_date",
-                        ">=",
-                        f"{start_date.isoformat()} 00:00:00",
-                    ],
-                    ["state", "in", ["sale", "done"]],
-                ]
-            ],
+            [blocking_booking_domain(start_date, end_date, exclude_order_id)],
             {"fields": ["id", "note", "state"]},
         )
 
@@ -277,10 +268,8 @@ def get_rental_options(
             else None
         )
 
-        is_fleet_available = is_vehicle_available(state_label) or any(
-            word in (state_label or "").lower() for word in ("réserv", "reserv")
-        )
-        if vehicle["id"] == editing_vehicle_id:
+        is_fleet_available = is_vehicle_available(state_label) or is_booking_state(state_label)
+        if vehicle["id"] == editing_vehicle_id and not is_operational_state(state_label):
             is_fleet_available = True
 
         vehicle["available"] = (
@@ -312,80 +301,20 @@ def get_rental_options(
                 "display_name",
                 "lst_price",
                 "default_code",
-                "product_tmpl_id",
             ],
             "order": "name",
             "limit": 500,
         },
     )
 
-    # ========================================================
-    # OPTIONAL PRODUCT RELATIONSHIPS
-    #
-    # Keep this compatible with the existing Odoo
-    # optional_product_ids configuration for now.
-    #
-    # Later we can replace/extend this with the exact
-    # product-tag relationship used in your Odoo setup.
-    # ========================================================
-
-    template_ids = [
-        product["product_tmpl_id"][0]
-        for product in products
-        if product.get("product_tmpl_id")
-    ]
-
-    templates = []
-
-    if template_ids:
-        templates = odoo.execute(
-            "product.template",
-            "search_read",
-            [
-                [
-                    ["id", "in", template_ids],
-                ]
-            ],
-            {
-                "fields": [
-                    "id",
-                    "optional_product_ids",
-                ],
-                "limit": 500,
-            },
-        )
-
-    optional_templates = {
-        template["id"]:
-            template.get(
-                "optional_product_ids"
-            ) or []
-        for template in templates
-    }
-
-    # ========================================================
-    # PRODUCT VARIANTS BY TEMPLATE
-    # ========================================================
-
-    variants_by_template: dict[int, list[int]] = {}
-
-    for product in products:
-
-        product_template = product.get(
-            "product_tmpl_id"
-        )
-
-        if not product_template:
-            continue
-
-        template_id = product_template[0]
-
-        variants_by_template.setdefault(
-            template_id,
-            [],
-        ).append(
-            product["id"]
-        )
+    # References are the agency's explicit rule: OPT extras, DEP deposits, LOC rentals.
+    if len(products) == 500:
+        extras = odoo.execute("product.product", "search_read", [[["active", "=", True], ["sale_ok", "=", True],
+            ["default_code", "=ilike", "OPT-%"]]], {"fields": ["id", "name", "display_name", "lst_price", "default_code"], "order": "name"})
+        known = {product["id"] for product in products}
+        products.extend(product for product in extras if product["id"] not in known)
+    extra_ids = {product["id"] for product in products
+                 if (product.get("default_code") or "").strip().upper().startswith("OPT-")}
 
     # ========================================================
     # RESPONSE
@@ -415,6 +344,7 @@ def get_rental_options(
                 "category": vehicle.get("category"),
                 "brand": vehicle.get("brand"),
                 "available": vehicle.get("available", True),
+                "location": vehicle.get("location") or "",
             }
             for vehicle in vehicles
         ],
@@ -437,31 +367,9 @@ def get_rental_options(
 
                 "is_deposit": (
                     product.get("default_code") or ""
-                ).upper().startswith("DEP-"),
+                ).strip().upper().startswith("DEP-"),
 
-                "suggested_product_ids": [
-                    variant_id
-
-                    for template_id
-                    in optional_templates.get(
-                        product[
-                            "product_tmpl_id"
-                        ][0],
-                        [],
-                    )
-
-                    for variant_id
-                    in variants_by_template.get(
-                        template_id,
-                        [],
-                    )
-                ]
-
-                if product.get(
-                    "product_tmpl_id"
-                )
-
-                else [],
+                "suggested_product_ids": sorted(extra_ids - {product["id"]}),
             }
 
             for product in products
@@ -502,13 +410,24 @@ def create_rental(
     # ========================================================
     # DATE VALIDATION
     # ========================================================
+  
+    pickup_at = datetime.combine(
+        rental.start_date,
+        rental.start_time or time.min,
+    )
 
-    if rental.start_date < date.today() or rental.end_date <= rental.start_date:
+    return_at = datetime.combine(
+        rental.end_date,
+        rental.end_time or time.min,
+    )
+
+    if (
+        rental.start_date < date.today()
+        or return_at <= pickup_at
+    ):
         raise HTTPException(
             status_code=422,
-            detail=(
-                "Pickup cannot be in the past; return must be after pickup."
-            ),
+            detail="Pickup cannot be in the past; return must be after pickup.",
         )
 
     # ========================================================
@@ -550,6 +469,7 @@ def create_rental(
             "license_plate",
             "active",
             "state_id",
+            "location",
         ],
     )
 
@@ -714,15 +634,8 @@ def create_rental(
     sale_values = {
         "partner_id": customer["id"],
 
-        "date_order": (
-            f"{rental.start_date.isoformat()}"
-            " 00:00:00"
-        ),
-
-        "commitment_date": (
-            f"{rental.end_date.isoformat()}"
-            " 00:00:00"
-        ),
+        "date_order": pickup_at.strftime("%Y-%m-%d %H:%M:%S"),
+        "commitment_date": return_at.strftime("%Y-%m-%d %H:%M:%S"),
 
         "note": (
             f"{QUOTATION_TAG}\n"
@@ -740,6 +653,10 @@ def create_rental(
     # LINK CRM OPPORTUNITY
     # ========================================================
 
+    sale_values["note"] = write_metadata(sale_values["note"], "rental_logistics", {
+        "pickup_location": (rental.pickup_location if rental.pickup_location is not None else vehicle.get("location") or "").strip(),
+        "return_location": (rental.return_location if rental.return_location is not None else vehicle.get("location") or "").strip(),
+    })
     if opportunity is not None:
         sale_values[
             "opportunity_id"

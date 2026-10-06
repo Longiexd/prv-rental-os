@@ -2,6 +2,7 @@
 
 import { AlertTriangle, Loader2, Mail, Phone, User, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { apiRequest } from "@/lib/api-config";
 
 // ============================================================
 // TYPES
@@ -72,7 +73,7 @@ export default function AddCustomerModal({
       try {
         setChecking(true);
 
-        const response = await fetch(
+        const response = await apiRequest(
           `${apiUrl}/customers/search?q=${encodeURIComponent(query)}`
         );
 
@@ -110,7 +111,7 @@ export default function AddCustomerModal({
       setSubmitting(true);
       setError("");
 
-      const response = await fetch(`${apiUrl}/customers`, {
+      const response = await apiRequest(`${apiUrl}/customers`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -144,7 +145,7 @@ export default function AddCustomerModal({
       setSubmitting(true);
       setError("");
 
-      const response = await fetch(`${apiUrl}/crm/leads`, {
+      const response = await apiRequest(`${apiUrl}/crm/leads`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -175,17 +176,18 @@ export default function AddCustomerModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="w-full max-w-md rounded-xl border border-[#2B2B30] bg-[#111113] p-5 shadow-2xl">
+      <div className="w-full max-w-md rounded-xl border border-border bg-surface p-5 shadow-2xl">
         {/* HEADER */}
 
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-[Syne] text-sm font-semibold text-white">
+          <h2 className="font-[Syne] text-sm font-semibold text-text">
             Add customer
           </h2>
 
           <button
             onClick={onClose}
-            className="text-[#71717A] transition hover:text-white"
+            aria-label="Close"
+            className="text-muted transition hover:text-text"
           >
             <X size={16} />
           </button>
@@ -197,39 +199,39 @@ export default function AddCustomerModal({
           <div className="relative">
             <User
               size={13}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-[#52525B]"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted"
             />
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Full name"
-              className="h-9 w-full rounded-lg border border-[#2B2B30] bg-[#17171A] pl-9 pr-3 text-xs text-white outline-none placeholder:text-[#52525B] focus:border-[#C8F065]/40"
+              className="h-9 w-full rounded-lg border border-border bg-surface-secondary pl-9 pr-3 text-xs text-text outline-none placeholder:text-muted focus:border-[#C8F065]/40"
             />
           </div>
 
           <div className="relative">
             <Phone
               size={13}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-[#52525B]"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted"
             />
             <input
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="Phone"
-              className="h-9 w-full rounded-lg border border-[#2B2B30] bg-[#17171A] pl-9 pr-3 text-xs text-white outline-none placeholder:text-[#52525B] focus:border-[#C8F065]/40"
+              className="h-9 w-full rounded-lg border border-border bg-surface-secondary pl-9 pr-3 text-xs text-text outline-none placeholder:text-muted focus:border-[#C8F065]/40"
             />
           </div>
 
           <div className="relative">
             <Mail
               size={13}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-[#52525B]"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted"
             />
             <input
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Email"
-              className="h-9 w-full rounded-lg border border-[#2B2B30] bg-[#17171A] pl-9 pr-3 text-xs text-white outline-none placeholder:text-[#52525B] focus:border-[#C8F065]/40"
+              className="h-9 w-full rounded-lg border border-border bg-surface-secondary pl-9 pr-3 text-xs text-text outline-none placeholder:text-muted focus:border-[#C8F065]/40"
             />
           </div>
 
@@ -238,14 +240,14 @@ export default function AddCustomerModal({
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Notes (optional)"
             rows={2}
-            className="w-full resize-none rounded-lg border border-[#2B2B30] bg-[#17171A] p-3 text-xs text-white outline-none placeholder:text-[#52525B] focus:border-[#C8F065]/40"
+            className="w-full resize-none rounded-lg border border-border bg-surface-secondary p-3 text-xs text-text outline-none placeholder:text-muted focus:border-[#C8F065]/40"
           />
         </div>
 
         {/* DUPLICATE SUGGESTION */}
 
         {checking && (
-          <div className="mt-3 flex items-center gap-2 text-[11px] text-[#71717A]">
+          <div className="mt-3 flex items-center gap-2 text-[11px] text-muted">
             <Loader2 size={12} className="animate-spin" />
             Checking existing contacts...
           </div>
@@ -256,9 +258,9 @@ export default function AddCustomerModal({
             <div className="flex items-start gap-2">
               <AlertTriangle
                 size={13}
-                className="mt-0.5 shrink-0 text-[#F06AAA]"
+                className="mt-0.5 shrink-0 text-pink-ink"
               />
-              <p className="text-[11px] leading-relaxed text-[#F0A3C4]">
+              <p className="text-[11px] leading-relaxed text-pink-ink">
                 {matches.length === 1 ? "A contact" : "Contacts"} matching
                 this name already{" "}
                 {matches.length === 1 ? "exists" : "exist"}. Attach a new
@@ -270,13 +272,13 @@ export default function AddCustomerModal({
               {matches.map((match) => (
                 <div
                   key={match.id}
-                  className="flex items-center justify-between rounded-md border border-[#2B2B30] bg-[#0c0c0e] px-2.5 py-2"
+                  className="flex items-center justify-between rounded-md border border-border bg-background px-2.5 py-2"
                 >
                   <div>
-                    <div className="text-[11px] font-medium text-white">
+                    <div className="text-[11px] font-medium text-text">
                       {match.name}
                     </div>
-                    <div className="text-[10px] text-[#71717A]">
+                    <div className="text-[10px] text-muted">
                       {match.is_customer
                         ? "Existing customer"
                         : "Contact, not yet a customer"}
@@ -287,7 +289,7 @@ export default function AddCustomerModal({
                   <button
                     disabled={submitting}
                     onClick={() => handleAttachToExisting(match)}
-                    className="shrink-0 rounded-md border border-[#C8F065]/30 bg-[#C8F065]/10 px-2 py-1 text-[10px] font-medium text-[#C8F065] transition hover:bg-[#C8F065]/20 disabled:opacity-50"
+                    className="shrink-0 rounded-md border border-[#C8F065]/30 bg-[#C8F065]/10 px-2 py-1 text-[10px] font-medium text-lime-ink transition hover:bg-[#C8F065]/20 disabled:opacity-50"
                   >
                     Attach opportunity
                   </button>
@@ -300,7 +302,7 @@ export default function AddCustomerModal({
         {/* ERROR */}
 
         {error && (
-          <div className="mt-3 rounded-lg border border-[#F06AAA]/30 bg-[#F06AAA]/5 px-3 py-2 text-[11px] text-[#F06AAA]">
+          <div className="mt-3 rounded-lg border border-[#F06AAA]/30 bg-[#F06AAA]/5 px-3 py-2 text-[11px] text-pink-ink">
             {error}
           </div>
         )}
@@ -310,7 +312,7 @@ export default function AddCustomerModal({
         <div className="mt-4 flex items-center justify-end gap-2">
           <button
             onClick={onClose}
-            className="h-9 rounded-lg border border-[#2B2B30] px-4 text-xs font-medium text-[#A1A1AA] transition hover:text-white"
+            className="h-9 rounded-lg border border-border px-4 text-xs font-medium text-text-secondary transition hover:text-text"
           >
             Cancel
           </button>

@@ -13,6 +13,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { SearchInput } from "@/components/ui/SearchInput";
 
 import { getInitials } from "@/lib/format";
+import { API_URL, apiRequest } from "@/lib/api-config";
 
 type Customer = {
   id: number;
@@ -27,9 +28,6 @@ type CustomersResponse = {
   customers: Customer[];
 };
 
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "https://api.rental-os.klynx.net";
-
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,7 +40,7 @@ export default function CustomersPage() {
       setLoading(true);
       setError("");
 
-      const response = await fetch(`${API_URL}/customers`, {
+      const response = await apiRequest(`${API_URL}/customers`, {
         cache: "no-store",
       });
 
@@ -89,7 +87,7 @@ export default function CustomersPage() {
           <button
             type="button"
             onClick={() => setShowCreate(true)}
-            className="flex h-9 items-center justify-center gap-2 rounded-lg bg-lime px-4 text-xs font-medium text-background shadow-glow-lime transition hover:bg-lime-dark"
+            className="flex h-9 items-center justify-center gap-2 rounded-lg bg-lime px-4 text-xs font-medium text-[#111113] shadow-glow-lime transition hover:bg-lime-dark"
           >
             <UserPlus size={14} />
             Add customer
@@ -183,7 +181,7 @@ export default function CustomersPage() {
                           href={`/dashboard/customers/${customer.id}`}
                           className="flex items-center gap-3 px-5 py-4"
                         >
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-lime/10 text-[10px] font-semibold text-lime">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-lime/10 text-[10px] font-semibold text-lime-ink">
                             {getInitials(customer.name)}
                           </div>
 
@@ -219,7 +217,7 @@ export default function CustomersPage() {
                       <td className="px-5 py-4 text-right">
                         <Link
                           href={`/dashboard/customers/${customer.id}`}
-                          className="inline-flex text-muted transition group-hover:text-lime"
+                          className="inline-flex text-muted transition group-hover:text-lime-ink"
                         >
                           <ChevronRight size={15} />
                         </Link>

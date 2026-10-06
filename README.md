@@ -1,5 +1,17 @@
 # Klynx Rental OS
 
+Deployment and environment setup is documented in
+[`docs/staging-production-infrastructure.md`](docs/staging-production-infrastructure.md).
+
+Company creation and worker credentials are managed only by Klynx using the
+[private Compose administration menu](deploy/MULTITENANCY.md). Each company has
+its own Odoo/PostgreSQL stack. Users sign in with a company-qualified username
+and password; customers cannot create accounts or administer the platform.
+
+The release model is one codebase and one tested commit, promoted from
+`staging` to protected `main`; only environment variables, secrets, Odoo
+connections, and named Cloudflare Worker environments differ.
+
 Internal development documentation for Klynx Rental OS.
 
 A modular SaaS platform for rental businesses built as the first product of the Klynx ecosystem.
