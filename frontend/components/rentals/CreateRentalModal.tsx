@@ -653,13 +653,18 @@ export default function CreateRentalModal({
   const vehicleTypeProducts = useMemo(() => {
     if (!options) return [];
 
-    const typeName = vehicleTypeId
-      ? leadOptions?.vehicle_types.find(
-          (type) => type.id === vehicleTypeId
-        )?.name
-      : options.vehicles.find(
-          (vehicle) => String(vehicle.id) === form.vehicle_id
-        )?.category?.name;
+    const selectedVehicle = options.vehicles.find(
+      (vehicle) => String(vehicle.id) === form.vehicle_id
+    );
+    const typeName = selectedVehicle?.category?.name || (
+      vehicleTypeId
+        ? leadOptions?.vehicle_types.find(
+            (type) => type.id === vehicleTypeId
+          )?.name || options.vehicles.find(
+            (vehicle) => vehicle.category?.id === vehicleTypeId
+          )?.category?.name
+        : undefined
+    );
 
     if (!typeName) return [];
 
