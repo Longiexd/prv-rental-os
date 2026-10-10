@@ -33,6 +33,7 @@ import { SortableHeader, type SortDirection } from "@/components/ui/SortableHead
 import { API_URL, apiRequest } from "@/lib/api-config";
 import { getVehicleBookings } from "@/lib/fleet-bookings";
 import { getRentalState, rentalStateMeta } from "@/lib/status";
+import { useFeatures } from "@/components/providers/FeaturesProvider";
 import DocumentsPanel from "@/components/ui/DocumentsPanel";
 import { VehicleAttentionBadge, VehicleCareNotice, FleetCareSummary, notifyFleetCareChanged } from "@/components/fleet/FleetCare";
 import ReturnVehicleModal from "@/components/rentals/ReturnVehicleModal";
@@ -550,6 +551,7 @@ function VehicleModal({
     nextState?: "Nettoyage" | "Disponible" | "Maintenance"
   ) => void;
 }) {
+  const features = useFeatures();
   const fleetStatus =
     getFleetStatus(
       car.status,
@@ -839,13 +841,13 @@ function VehicleModal({
           </div>
 
           <VehicleCareNotice vehicleId={car.id} />
-          <details key={`vehicle-documents-${car.id}`} className="mt-6 rounded-xl border border-border bg-surface p-4">
+          {features?.fleet_care && <details key={`vehicle-documents-${car.id}`} className="mt-6 rounded-xl border border-border bg-surface p-4">
             <summary className="cursor-pointer text-sm font-semibold text-text">
               Vehicle documents
               <span className="ml-2 font-normal text-text-secondary">Assurance · Carte grise · Visite technique</span>
             </summary>
             <DocumentsPanel key={car.id} owner="cars" recordId={car.id} onChanged={notifyFleetCareChanged} />
-          </details>
+          </details>}
 
           {/* VEHICLE INFORMATION */}
 

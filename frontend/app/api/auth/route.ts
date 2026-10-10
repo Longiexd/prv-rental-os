@@ -149,7 +149,7 @@ export async function GET() {
     if (!upstream.ok) return message("Session unavailable", upstream.status === 401 ? 401 : 503);
     const data = await upstream.json();
     return NextResponse.json(
-      { username: data.username, company: data.company },
+      { username: data.username, company: data.company, plan: data.plan, features: data.features },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch {

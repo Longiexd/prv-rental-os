@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useFeatures } from "@/components/providers/FeaturesProvider";
 import { apiFetch } from "@/lib/api";
 
 export { apiFetch as activityRequest } from "@/lib/api";
@@ -25,10 +26,12 @@ export function activityHref(item: Activity) {
 // reads, filtered to today/overdue, refreshed on an interval so the
 // bell badge doesn't go stale across a long session.
 export function useReminders(pollMs = 60000) {
+  const enabled = useFeatures()?.automatic_reminders === true;
   const [due, setDue] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!enabled) return;
     let active = true;
     async function load() {
       try {
@@ -43,7 +46,7 @@ export function useReminders(pollMs = 60000) {
     load();
     const interval = setInterval(load, pollMs);
     return () => { active = false; clearInterval(interval); };
-  }, [pollMs]);
+  }, [pollMs, enabled]);
 
-  return { due, loading };
+  return { due: enabled ? due : [], loading: enabled && loading };
 }

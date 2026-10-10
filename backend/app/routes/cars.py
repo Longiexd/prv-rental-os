@@ -25,13 +25,19 @@ router = APIRouter(
     tags=["Cars"]
 )
 def fleet_checklist(vehicle_id, checklist):
+    from app.features import enabled
     result = enrich_checklist(vehicle_id, checklist)
+    if not enabled("fleet_compliance"):
+        return result
     result.update(evaluate(result["documents"]))
     result["ready"] = result["ready"] and result["eligible"]
     return result
 
 
 def fleet_document_saved(vehicle_id, attachment_id, document):
+    from app.features import enabled
+    if not enabled("fleet_care"):
+        return {}
     result = contract_after_save(vehicle_id, attachment_id, document)
     try:
         sync_vehicle_state(vehicle_id)

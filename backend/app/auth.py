@@ -54,6 +54,10 @@ def login(body: Login, request: Request, control=Depends(trusted_proxy)):
 async def require_session(request: Request, control=Depends(trusted_proxy)):
     token = request.headers.get("x-klynx-session", "")
     profile = await run_in_threadpool(control.session, token)
+    from app.features import check_path
+    entitlements = await run_in_threadpool(control.features, profile["code"])
+    profile.update(entitlements)
+    check_path(request.url.path, entitlements["features"])
     if profile["role"] == "viewer" and request.method not in {"GET", "HEAD", "OPTIONS"}:
         raise HTTPException(403, "Your account has read-only access")
     await run_in_threadpool(control.throttle, "requests:" + profile["code"], 600)
@@ -80,7 +84,7 @@ async def require_session(request: Request, control=Depends(trusted_proxy)):
 
 @router.get("/session")
 def session(profile=Depends(require_session)):
-    return {"username": profile["code"] + "." + profile["login"], "company": profile["name"], "role": profile["role"]}
+    return {"username": profile["code"] + "." + profile["login"], "company": profile["name"], "role": profile["role"], "plan": profile["plan"], "features": profile["features"]}
 
 
 @router.delete("/session")

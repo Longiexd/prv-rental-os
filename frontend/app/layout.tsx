@@ -3,6 +3,7 @@ import "./globals.css";
 import React from "react";
 import type { Metadata, Viewport } from "next";
 import RegisterServiceWorker from "@/components/RegisterServiceWorker";
+import { FeaturesProvider } from "@/components/providers/FeaturesProvider";
 import { UIProvider } from "@/components/providers/UIProvider";
 import { Geist, Geist_Mono, Syne } from "next/font/google";
 
@@ -74,7 +75,7 @@ export default function RootLayout({
         className={`${geist.variable} ${geistMono.variable} ${syne.variable} antialiased`}
       >
         <RegisterServiceWorker />
-        <UIProvider>{children}</UIProvider>
+        <UIProvider><FeaturesProvider>{children}</FeaturesProvider></UIProvider>
       </body>
     </html>
   );

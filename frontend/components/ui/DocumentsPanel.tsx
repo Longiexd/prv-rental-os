@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useFeatures } from "@/components/providers/FeaturesProvider";
 import { apiFetch } from "@/lib/api";
 import { useKlynxUI } from "@/components/providers/UIProvider";
 
@@ -171,7 +172,7 @@ export function PaperworkPanel({ rentalId, customerId, confirmed, collected, sta
   </section>;
 }
 
-export default function DocumentsPanel({ owner, recordId, onChanged, rentalId, rentalCopies, readOnly = owner === "sales", additionalDriver = false }: {
+function EnabledDocumentsPanel({ owner, recordId, onChanged, rentalId, rentalCopies, readOnly = owner === "sales", additionalDriver = false }: {
   owner: "customers" | "cars" | "sales"; recordId: number; onChanged?: () => void; rentalId?: number;
   rentalCopies?: TrackedDocument[]; readOnly?: boolean; additionalDriver?: boolean;
 }) {
@@ -295,4 +296,10 @@ export default function DocumentsPanel({ owner, recordId, onChanged, rentalId, r
       </form></details>)}
     </div>
   </section>;
+}
+
+export default function DocumentsPanel(props: Parameters<typeof EnabledDocumentsPanel>[0]) {
+  const features = useFeatures();
+  if (props.owner === "cars" && !features?.fleet_care) return null;
+  return <EnabledDocumentsPanel {...props} />;
 }

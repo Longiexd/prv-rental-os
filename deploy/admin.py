@@ -231,6 +231,7 @@ log_level = warn
         directory.rename(target_directory)
         with control.db(True) as db:
             db.execute("INSERT INTO companies VALUES (?,?,?,?,?)", (code, name, f"http://{host}:8069", database, "provisioning"))
+        control.set_features(code, "starter")
         control.audit("klynx", code, "provision-start")
         self.resume_company(code)
 
@@ -361,6 +362,12 @@ log_level = warn
             raise
         control.audit("klynx", code, "reactivate")
 
+    def features(self, code, plan=None, switches=None, reset=False):
+        import json
+        control = self.control()
+        result = control.set_features(code, plan, switches, reset) if plan or switches is not None or reset else control.features(code)
+        print(json.dumps({"company": code, **result}, indent=2))
+
     def list_companies(self):
         with self.control().db() as db:
             for row in db.execute("SELECT code,name,status FROM companies ORDER BY code"):
@@ -379,7 +386,7 @@ def password_input():
 
 def menu(admin):
     while True:
-        print(f"\nKlynx admin — {admin.environment}\n1 Add company\n2 Add user\n3 Reset password\n4 Disable user\n5 Enable user\n6 Suspend company\n7 List companies\n8 Reactivate company\n0 Exit")
+        print(f"\nKlynx admin — {admin.environment}\n1 Add company\n2 Add user\n3 Reset password\n4 Disable user\n5 Enable user\n6 Suspend company\n7 List companies\n8 Reactivate company\n9 Company plan / feature switches\n0 Exit")
         choice = input("Option: ").strip()
         if choice == "0":
             return
@@ -387,11 +394,23 @@ def menu(admin):
             if choice == "7":
                 admin.list_companies()
                 continue
-            if choice not in {"1", "2", "3", "4", "5", "6", "8"}:
+            if choice not in {"1", "2", "3", "4", "5", "6", "8", "9"}:
                 continue
             code = input("Company code: ").strip().lower()
             # Do not hold a deployment/provisioning lock while waiting for terminal input.
-            if choice == "1":
+            if choice == "9":
+                admin.features(code)
+                plan = input("Plan starter/premium/enterprise (blank: keep): ").strip() or None
+                switches = {}
+                for feature in ("fleet_care", "fleet_compliance", "automatic_reminders", "analytics"):
+                    answer = input(f"{feature}: on/off/blank to keep: ").strip().lower()
+                    if answer not in {"", "on", "off"}:
+                        raise ValueError("Use on, off or blank")
+                    if answer:
+                        switches[feature] = answer == "on"
+                with admin.lock():
+                    admin.features(code, plan, switches)
+            elif choice == "1":
                 details = (code, input("Company name: ").strip(), input("Country (ISO, e.g. FR): ").strip(), input("Currency (e.g. EUR): ").strip())
                 with admin.lock():
                     admin.add_company(*details)
@@ -418,6 +437,12 @@ def main():
     initialize.add_argument("--postgres-image", required=True)
     for operation in ("menu", "attach-api", "list"):
         sub.add_parser(operation)
+    features = sub.add_parser("features", help="Private per-company plan and feature switches")
+    features.add_argument("code")
+    features.add_argument("--plan", choices=["starter", "premium", "enterprise"])
+    features.add_argument("--on", nargs="*", default=[])
+    features.add_argument("--off", nargs="*", default=[])
+    features.add_argument("--reset", action="store_true")
     resume = sub.add_parser("resume-company")
     resume.add_argument("code")
     args = parser.parse_args()
@@ -435,6 +460,11 @@ def main():
             admin.attach_api()
         elif args.operation == "resume-company":
             admin.resume_company(args.code)
+        elif args.operation == "features":
+            if set(args.on) & set(args.off):
+                raise ValueError("A feature cannot be both on and off")
+            switches = {**dict.fromkeys(args.on, True), **dict.fromkeys(args.off, False)}
+            admin.features(args.code, args.plan, switches or None, args.reset)
         elif args.operation == "list":
             admin.list_companies()
 

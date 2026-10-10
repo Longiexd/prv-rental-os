@@ -44,6 +44,9 @@ def evaluate(documents, today=None, through=None):
 
 
 def fleet_eligibility(vehicle_ids, through=None):
+    from app.features import enabled
+    if not enabled("fleet_compliance"):
+        return {identifier: {"eligible": True, "blocking_reasons": []} for identifier in vehicle_ids}
     if not vehicle_ids:
         return {}
     records = odoo.execute("ir.attachment", "search_read", [[

@@ -27,13 +27,14 @@ import { useReminders } from "@/components/activities/api";
 import KlynxLogo from "@/components/klynxlogo";
 import { API_URL } from "@/lib/api-config";
 import { useKlynxUI } from "@/components/providers/UIProvider";
-import { workspaceForPath } from "@/lib/workspaces";
+import { useFeatures, useCompanySession } from "@/components/providers/FeaturesProvider";
+import { workspaceForPath, workspaceFeature } from "@/lib/workspaces";
 import { FleetCareProvider } from "@/components/fleet/FleetCare";
 
 const workspaces = [
-  {id: "rentals", label: "Rentals", home: "/dashboard"},
-  {id: "fleet", label: "Fleet", home: "/dashboard/fleet"},
-  {id: "management", label: "Management", home: "/dashboard/analytics"},
+  {id: "rentals", label: "Rentals"},
+  {id: "fleet", label: "Fleet"},
+  {id: "management", label: "Management"},
 ] as const;
 const navigation = [
   {label: "Overview", icon: LayoutDashboard, href: "/dashboard", workspace: "rentals"},
@@ -55,7 +56,11 @@ export default function OSLayout({
   const pathname = usePathname();
   const { theme, locale, setTheme, setLocale, t } = useKlynxUI();
   const workspace = workspaceForPath(pathname);
-  const currentWorkspace = workspaces.find(item => item.id === workspace)!;
+  const features = useFeatures();
+  const visibleNavigation = navigation.filter(item => { const feature = workspaceFeature(item.href); return !feature || features?.[feature]; });
+  const groups = workspaces.filter(group => visibleNavigation.some(item => item.workspace === group.id));
+  const requiredFeature = workspaceFeature(pathname);
+  const allowed = !requiredFeature || features?.[requiredFeature];
 
   const [addRentalOpen, setAddRentalOpen] = useState(false);
   const [addCustomerOpen, setAddCustomerOpen] = useState(false);
@@ -100,21 +105,7 @@ export default function OSLayout({
   }, [userMenuOpen]);
 
 
-  const [identity, setIdentity] = useState<{ username: string; company: string } | null>(null);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    fetch("/api/auth", { cache: "no-store", signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok) return;
-        const data = await response.json();
-        if (!controller.signal.aborted && typeof data.username === "string" && typeof data.company === "string") {
-          setIdentity({ username: data.username, company: data.company });
-        }
-      })
-      .catch(() => { /* Leave identity blank when the session cannot be loaded. */ });
-    return () => controller.abort();
-  }, []);
+  const identity = useCompanySession();
 
   const userName = identity?.username.split(".").slice(1).join(".") || identity?.username || "";
   const initials = userName.trim().split(/\s+/).filter(Boolean).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
@@ -150,7 +141,7 @@ export default function OSLayout({
 
           {/* Klynx logo */}
           <Link
-            href={currentWorkspace.home}
+            href="/dashboard"
             className="flex h-[70px] items-center border-b border-border px-5"
             aria-label="Klynx overview"
           >
@@ -162,13 +153,14 @@ export default function OSLayout({
             aria-label="Main navigation"
             className="space-y-8 px-3 py-7"
           >
-            <p className="mb-3 px-3 text-[10px] uppercase tracking-[0.18em] text-muted">{t(currentWorkspace.label)}</p>
-            <div className="space-y-1">{navigation.filter(item => item.workspace === workspace).map(({label, icon: Icon, href}) => (
+            {groups.map(group => <section key={group.id} aria-label={t(group.label)}>
+            <p className="mb-2 px-3 text-[10px] uppercase tracking-[0.18em] text-muted">{t(group.label)}</p>
+            <div className="space-y-1">{visibleNavigation.filter(item => item.workspace === group.id).map(({label, icon: Icon, href}) => (
               <Link key={href} href={href} aria-current={isActive(href) ? "page" : undefined}
                 className={`flex min-h-11 items-center gap-3 rounded-lg px-3 text-[13px] transition-colors ${isActive(href) ? "bg-[var(--sidebar-active)] font-medium text-text [&>svg]:text-lime-ink" : "text-text-secondary hover:bg-surface-secondary hover:text-text"}`}>
-                <Icon size={16} strokeWidth={1.6} />{t(label)}
+                <Icon className="shrink-0" size={16} strokeWidth={1.6} /><span className="min-w-0 leading-5">{t(label)}</span>
               </Link>
-            ))}</div>
+            ))}</div></section>)}
           </nav>
 
           {/* Sidebar footer */}
@@ -221,16 +213,12 @@ export default function OSLayout({
         ===================================================== */}
         <div className="min-w-0 flex-1">
 
-          <nav aria-label={t("Workspaces")} className="flex gap-1 border-b border-border bg-chrome px-4 py-2 sm:px-7">
-            {workspaces.map(item => <Link key={item.id} href={item.home} aria-current={workspace === item.id ? "true" : undefined}
-              className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${workspace === item.id ? "border-[var(--status-available-border)] bg-[var(--sidebar-active)] text-lime-ink" : "border-transparent text-text-secondary hover:bg-surface-secondary"}`}>{t(item.label)}</Link>)}
-          </nav>
           {/* Header */}
           <header className="flex min-h-[70px] flex-wrap items-center justify-between gap-3 border-b border-border bg-chrome px-4 py-3 sm:px-7 lg:h-[70px] lg:flex-nowrap lg:py-0">
 
             {/* Mobile Klynx logo */}
             <Link
-              href={currentWorkspace.home}
+              href="/dashboard"
               aria-label="Klynx overview"
               className="lg:hidden"
             >
@@ -299,7 +287,7 @@ export default function OSLayout({
               />}
 
               {/* Notifications */}
-              {workspace === "rentals" && <div className="relative" ref={bellRef}>
+              {workspace === "rentals" && features?.automatic_reminders && <div className="relative" ref={bellRef}>
                 <button
                   type="button"
                   aria-expanded={bellOpen}
@@ -424,7 +412,7 @@ export default function OSLayout({
             aria-label="Mobile navigation"
             className="flex gap-1 overflow-x-auto border-b border-border p-2 lg:hidden"
           >
-            {navigation.filter(item => item.workspace === workspace).map(({ href, label }) => (
+            {visibleNavigation.map(({ href, label }) => (
               <Link
                 key={href}
                 href={href}
@@ -441,7 +429,7 @@ export default function OSLayout({
           </nav>
 
           <div className="os-content">
-            <FleetCareProvider>{children}</FleetCareProvider>
+            {allowed ? <FleetCareProvider>{children}</FleetCareProvider> : <div className="mx-auto max-w-3xl px-6 py-10"><p>{t(features ? "This module is not enabled for your company." : "Loading…")}</p><Link href="/dashboard" className="mt-3 inline-block underline">{t("Overview")}</Link></div>}
           </div>
         </div>
       </div>

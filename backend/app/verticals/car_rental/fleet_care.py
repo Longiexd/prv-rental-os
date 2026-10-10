@@ -5,6 +5,7 @@ from collections import defaultdict
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from app.odoo_client import odoo
+from app.features import enabled
 from app.core.documents import checklist_from_records, parent, expiry_reminder
 from app.core.record_metadata import read_metadata
 from app.verticals.car_rental.states import normalize_state
@@ -60,7 +61,7 @@ def vehicle_attention(vehicle, records, plan=None, today=None, contracts=None, s
             alerts.append({"kind": doc["kind"], "reason": "renewal", "severity": "warning", "date": doc["expiry_date"]})
         if doc["id"] and doc["kind"] in {"insurance", "technical_inspection", *OPTIONAL} and not doc["expiry_date"]:
             alerts.append({"kind": doc["kind"], "reason": "date_missing", "severity": "warning", "date": None})
-    eligibility = evaluate(checklist["documents"], today=today)
+    eligibility = evaluate(checklist["documents"], today=today) if enabled("fleet_compliance") else {"eligible": True, "blocking_reasons": []}
     for block in eligibility["blocking_reasons"]:
         matching = next((alert for alert in alerts if alert["kind"] == block["kind"] and alert["reason"] == block["reason"]), None)
         if matching:
@@ -144,6 +145,8 @@ def fleet_care():
             item["alerts"].append({"kind": "documents", "reason": "review", "severity": "danger", "date": None})
         if vehicle["id"] in invalid:
             item["alerts"].append({"kind": "oil_change", "reason": "review", "severity": "danger", "date": None})
+        if not enabled("automatic_reminders"):
+            item["alerts"] = []
         result.append(item)
     return {"vehicles": result}
 

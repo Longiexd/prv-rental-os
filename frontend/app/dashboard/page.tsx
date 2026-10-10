@@ -1,5 +1,6 @@
 "use client";
 
+import { useFeatures } from "@/components/providers/FeaturesProvider";
 import { RentalFleetNotice } from "@/components/fleet/FleetCare";
 
 import { useKlynxUI } from "@/components/providers/UIProvider";
@@ -108,6 +109,7 @@ function displayValue(value: RelationalValue): string {
 // ============================================================
 
 export default function DashboardPage() {
+  const features = useFeatures();
   const { t } = useKlynxUI();
   const router = useRouter();
   const [cars, setCars] = useState<CarData[]>([]);
@@ -418,7 +420,7 @@ export default function DashboardPage() {
       </section>
 
       {/* 3. TO-DO / REMINDERS — due & overdue activities */}
-      <div className="mt-4"><ActivitiesPanel compact /></div>
+      {features?.automatic_reminders && <div className="mt-4"><ActivitiesPanel compact /></div>}
 
       {/* 4. RECENT RENTALS — last: quick history, not the day's priority */}
       <section className="mt-4"><Card>

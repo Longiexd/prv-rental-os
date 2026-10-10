@@ -4,7 +4,7 @@
  * French is presentation-only; business data and backend values are never modified.
  */
 export const fr: Record<string, string> = {
-  "Workspaces": "Espaces de travail",
+  "This module is not enabled for your company.": "Ce module n’est pas activé pour votre entreprise.",
   "Fleet": "Parc automobile",
   "Management": "Direction",
   "Insurance": "Assurance",

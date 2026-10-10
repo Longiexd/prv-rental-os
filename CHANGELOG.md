@@ -1,5 +1,14 @@
 # Klynx OS changes
 
+## 1.0.0-rc.3 — pending staging validation
+
+- Replace the workspace top bar with aligned sidebar module groups.
+- Add private per-company plan presets and dependency-aware feature switches.
+- Preserve existing clients as Premium; start new companies on Starter.
+- Enforce disabled modules on the backend and retain Odoo data on downgrade.
+- Add a private visual owner panel with client cards, plan selectors and switches.
+- Enterprise multi-agency and employee UI remain planned extensions.
+
 ## 1.0.0-rc.2 — pending staging validation
 
 - Check required vehicle evidence through planned return before booking confirmation and pickup.

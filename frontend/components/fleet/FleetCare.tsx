@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useFeatures } from "@/components/providers/FeaturesProvider";
 import { apiFetch } from "@/lib/api";
 import { useKlynxUI } from "@/components/providers/UIProvider";
 import DocumentsPanel from "@/components/ui/DocumentsPanel";
@@ -26,12 +27,14 @@ const changedEvent = "klynx-fleet-care-changed";
 export function notifyFleetCareChanged() { window.dispatchEvent(new Event(changedEvent)); }
 
 export function FleetCareProvider({ children }: { children: ReactNode }) {
+  const enabled = useFeatures()?.fleet_care === true;
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState(false);
   const pending = useRef(false);
   const refreshAgain = useRef(false);
   const mounted = useRef(false);
   const reload = useCallback(async () => {
+    if (!enabled) return;
     if (pending.current) { refreshAgain.current = true; return; }
     pending.current = true;
     try {
@@ -41,8 +44,9 @@ export function FleetCareProvider({ children }: { children: ReactNode }) {
         catch { if (mounted.current) setError(true); }
       } while (refreshAgain.current && mounted.current);
     } finally { pending.current = false; }
-  }, []);
+  }, [enabled]);
   useEffect(() => {
+    if (!enabled) return;
     mounted.current = true;
     const refresh = () => { if (document.visibilityState === "visible") void reload(); };
     refresh();
@@ -50,8 +54,8 @@ export function FleetCareProvider({ children }: { children: ReactNode }) {
     window.addEventListener("focus", refresh);
     window.addEventListener(changedEvent, refresh);
     return () => { mounted.current = false; clearInterval(interval); window.removeEventListener("focus", refresh); window.removeEventListener(changedEvent, refresh); };
-  }, [reload]);
-  return <Context.Provider value={{ data, error, reload }}>{children}</Context.Provider>;
+  }, [reload, enabled]);
+  return <Context.Provider value={{ data: enabled ? data : null, error: enabled && error, reload }}>{children}</Context.Provider>;
 }
 
 function useWords() {
@@ -101,11 +105,13 @@ function AlertRow({ alert, vehicle }: { alert: Alert; vehicle: Vehicle }) {
 }
 
 export function FleetCareSummary() {
+  const features = useFeatures();
   const { data, error, reload } = useContext(Context);
   const { text, kind, reason } = useWords();
   const vehicles = prioritizedVehicles(data?.vehicles.filter(vehicle => vehicle.alerts.length) || []);
   const today = vehicles.filter(vehicle => vehicle.alerts.some(isToday));
   const upcoming = vehicles.filter(vehicle => vehicle.alerts.some(isUpcoming));
+  if (!features?.fleet_care || !features.automatic_reminders) return null;
   return <section data-i18n-ignore="true" className="os-card mt-8 rounded-2xl border border-border bg-surface p-5">
     <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-semibold text-text">{text("Fleet care & renewals", "Suivi du parc et renouvellements")}</h2><p className="text-sm text-text-secondary">{text("Vehicle documents, insurance and maintenance — separate from customer follow-ups.", "Documents des véhicules, assurances et entretien — séparés du suivi client.")}</p></div><Link href="/dashboard/fleet-care" className="rounded-lg border border-border px-3 py-2 text-sm text-text">{text("View fleet care", "Voir le suivi du parc")} →</Link></div>
     {error ? <p role="alert" className="mt-4 text-danger">{text("Fleet alerts could not refresh.", "Impossible d’actualiser les alertes du parc.")} <button onClick={() => void reload()} className="underline">{text("Retry", "Réessayer")}</button></p> : !data ? <p className="mt-4 text-muted">{text("Loading…", "Chargement…")}</p> : !vehicles.length ? <p className="mt-4 text-text-secondary">{text("No document or scheduled maintenance alerts.", "Aucune alerte documentaire ou d’entretien programmé.")}</p> : <>

@@ -2,6 +2,7 @@
 from contextlib import contextmanager
 from dataclasses import dataclass
 import hashlib
+import json
 import os
 from pathlib import Path
 import re
@@ -103,6 +104,34 @@ class Control:
                 ON c.code=u.company WHERE c.code=? AND u.login=? AND c.status='active' AND u.active=1""",
                              (company, login)).fetchone()
             return dict(row) if row else None
+
+    def features(self, company):
+        from app.features import resolve
+        with self.db() as db:
+            exists = db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='company_features'").fetchone()
+            row = db.execute("SELECT plan,overrides FROM company_features WHERE company=?", (company,)).fetchone() if exists else None
+        # Preserve existing clients until the owner explicitly assigns a plan.
+        plan, overrides = (row["plan"], json.loads(row["overrides"])) if row else ("premium", {})
+        return {"plan": plan, "overrides": overrides, "features": resolve(plan, overrides)}
+
+    def set_features(self, company, plan=None, overrides=None, reset=False):
+        from app.features import resolve
+        with self.db(True) as db:
+            if not db.execute("SELECT 1 FROM companies WHERE code=?", (company,)).fetchone():
+                raise ValueError("Company not found")
+            db.execute("""CREATE TABLE IF NOT EXISTS company_features(
+                company TEXT PRIMARY KEY REFERENCES companies(code), plan TEXT NOT NULL,
+                overrides TEXT NOT NULL)""")
+            row = db.execute("SELECT plan,overrides FROM company_features WHERE company=?", (company,)).fetchone()
+            chosen = plan or (row["plan"] if row else "premium")
+            switches = {} if reset or plan else (json.loads(row["overrides"]) if row else {})
+            switches.update(overrides or {})
+            resolved = resolve(chosen, switches)
+            db.execute("INSERT INTO company_features VALUES (?,?,?) ON CONFLICT(company) DO UPDATE SET plan=excluded.plan,overrides=excluded.overrides",
+                       (company, chosen, json.dumps(switches, sort_keys=True)))
+            db.execute("INSERT INTO audit(created,actor,company,event,detail) VALUES (?,?,?,?,?)",
+                       (time.time(), "klynx", company, "features", json.dumps({"plan": chosen, "features": resolved})))
+        return self.features(company)
 
     def audit(self, actor, company, event, detail=""):
         with self.db(True) as db:
