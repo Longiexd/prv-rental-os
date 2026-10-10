@@ -171,13 +171,14 @@ def save_attachment(values, limit=MAX_FILE_BYTES):
     return attachment_id
 
 
-def document_router(model: Literal["res.partner", "fleet.vehicle", "sale.order"], kinds: dict[str, str], scope=None, edit_guard=None):
+def document_router(model: Literal["res.partner", "fleet.vehicle", "sale.order"], kinds: dict[str, str], scope=None, edit_guard=None, after_save=None, enrich=None):
     """Reuse the same workflow under customers and the fleet without exposing arbitrary models."""
     router = APIRouter(prefix="/{record_id}/documents", tags=["Documents"])
 
     @router.get("")
     def checklist(record_id: int):
-        return document_checklist(model, record_id, kinds, scope)
+        result = document_checklist(model, record_id, kinds, scope)
+        return enrich(record_id, result) if enrich else result
 
     @router.post("")
     def upload(record_id: int, data: DocumentUpload):
@@ -207,7 +208,10 @@ def document_router(model: Literal["res.partner", "fleet.vehicle", "sale.order"]
             "mimetype": mime, "res_model": model, "res_id": record_id, "public": False,
             "description": write_metadata("", KEY, value),
         })
-        return {"success": True, "attachment_id": attachment_id}
+        result = {"success": True, "attachment_id": attachment_id}
+        if after_save:
+            result["fleet_sync"] = after_save(record_id, attachment_id, value)
+        return result
 
     @router.patch("/{attachment_id}")
     def update(record_id: int, attachment_id: int, data: DocumentUpdate):
@@ -234,7 +238,10 @@ def document_router(model: Literal["res.partner", "fleet.vehicle", "sale.order"]
         if not odoo.execute("ir.attachment", "write", [[attachment_id],
                             {"description": write_metadata(attachment["description"], KEY, value)}]):
             raise HTTPException(502, "Document changes could not be saved.")
-        return {"success": True}
+        result = {"success": True}
+        if after_save:
+            result["fleet_sync"] = after_save(record_id, attachment_id, value)
+        return result
 
     @router.get("/{attachment_id}/download")
     def download(record_id: int, attachment_id: int):

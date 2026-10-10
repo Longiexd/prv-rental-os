@@ -214,18 +214,23 @@ export default function DocumentsPanel({ owner, recordId, onChanged, rentalId, r
     const expiry_date = String(fields.get("expiry_date") || "") || null;
     const identityFields = identityOwner && (document.kind === "cin" || document.kind === "passport")
       ? {nationality: String(fields.get("nationality") || "").trim(), birth_date: String(fields.get("birth_date") || "") || null} : {};
+    type SaveResult = {fleet_sync?: {linked: boolean}};
     try {
+      let result: SaveResult;
       if (file?.size) {
         if (file.size > 600 * 1024) throw new Error("Compress the document to 600 KiB or less before uploading.");
         const content = await encodedFile(file);
-        await apiFetch(path, { method: "POST", body: JSON.stringify({ kind: document.kind, filename: file.name,
+        result = await apiFetch<SaveResult>(path, { method: "POST", body: JSON.stringify({ kind: document.kind, filename: file.name,
           content, number, expiry_date, ...identityFields }) });
         setNotice("Document uploaded. Review it, then mark it verified. Earlier versions remain in Odoo.");
       } else if (document.id) {
-        await apiFetch(`${path}/${document.id}`, { method: "PATCH", body: JSON.stringify({ number, expiry_date,
+        result = await apiFetch<SaveResult>(`${path}/${document.id}`, { method: "PATCH", body: JSON.stringify({ number, expiry_date,
           verified: fields.get("verified") === "on", ...identityFields }) });
         setNotice("Document checklist updated.");
       } else throw new Error("Choose a document to upload first.");
+      if (result.fleet_sync?.linked === false) setError(locale === "fr"
+        ? "Document enregistré ; la liaison au contrat Odoo a échoué. Réessayez depuis le suivi du parc."
+        : "Document saved; Odoo contract linking failed. Retry from Fleet care.");
       // A successful save is kept even if the following refresh fails.
       form.reset(); setChecklist(null); setRevision(value => value + 1); onChanged?.();
     } catch (err) { setError(err instanceof Error ? err.message : "Document could not be saved."); }

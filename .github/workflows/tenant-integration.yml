@@ -2,8 +2,6 @@ name: Tenant integration
 
 on:
   workflow_call:
-  pull_request:
-    branches: [staging, main]
 
 concurrency:
   group: tenant-integration-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}

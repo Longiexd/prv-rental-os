@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from app.odoo_client import odoo
 from app.core.documents import document_router
 from app.verticals.car_rental.fleet_care import router as fleet_care_router
+from app.verticals.car_rental.fleet_records import contract_after_save, enrich_checklist
 from app.core.record_metadata import read_metadata, write_metadata
 from app.verticals.car_rental.returns import (
     RETURN_RECORD_KEY, ReturnRecord, can_return, return_record,
@@ -26,7 +27,7 @@ router.include_router(document_router("fleet.vehicle", {
     "insurance": "Assurance / Insurance", "registration": "Carte grise",
     "technical_inspection": "Visite technique",
     "lease": "Lease contract", "service_contract": "Service contract",
-}))
+}, after_save=contract_after_save, enrich=enrich_checklist))
 router.include_router(fleet_care_router)
 
 

@@ -1,5 +1,7 @@
 """Run inside the disposable CI API container; never prints credentials."""
 from concurrent.futures import ThreadPoolExecutor
+import base64
+from datetime import date, timedelta
 import json
 from pathlib import Path
 import statistics
@@ -51,6 +53,36 @@ for index, token in enumerate(tokens):
         result = request("GET", path, token)
         expect(result, 200, f"company {index + 1} business route {path}")
     expect(request("POST", "/admin/users", token, json={}), 404, f"company {index + 1} private admin route")
+
+
+phase("checking native Fleet contracts, services and odometer as the company operator")
+response = request("GET", "/cars/care", tokens[0])
+expect(response, 200, "Fleet overview")
+vehicle = response.json()["vehicles"][0]
+vehicle_id = vehicle["id"]
+assert any(alert["kind"] == "maintenance" for alert in vehicle["alerts"])
+expiry = (date.today() + timedelta(days=10)).isoformat()
+response = request("POST", f"/cars/{vehicle_id}/documents", tokens[0], json={"kind":"insurance", "filename":"ci.pdf",
+    "content":base64.b64encode(b"%PDF-1.7\nCI Fleet scan").decode(), "number":"CI-POLICY", "expiry_date":expiry})
+expect(response, 200, "Fleet insurance upload")
+assert response.json()["fleet_sync"]["linked"] is True
+response = request("PUT", f"/cars/{vehicle_id}/maintenance-plan", tokens[0], json={"next_odometer":10000,"next_date":expiry})
+expect(response, 200, "Native oil-change plan")
+service_id = response.json()["service_id"]
+response = request("GET", "/cars/care", tokens[0])
+expect(response, 200, "Native Fleet records readback")
+current = next(row for row in response.json()["vehicles"] if row["id"] == vehicle_id)
+assert current["odometer"] == vehicle["odometer"], "Planning changed the actual odometer"
+assert any(row["expiration_date"] == expiry for row in current["contracts"])
+assert any(alert["kind"] == "insurance" and alert["reason"] == "renewal" for alert in current["alerts"])
+assert any(alert["kind"] == "registration" and alert["reason"] == "missing" for alert in current["alerts"])
+expect(request("POST", f"/cars/{vehicle_id}/services/{service_id}/complete", tokens[1], json={"odometer":25}), 404, "cross-company service isolation")
+expect(request("POST", f"/cars/{vehicle_id}/services/{service_id}/complete", tokens[0], json={"odometer":25}), 200, "Native service completion")
+response = request("GET", "/cars/care", tokens[0])
+expect(response, 200, "Completed service readback")
+current = next(row for row in response.json()["vehicles"] if row["id"] == vehicle_id)
+assert current["odometer"] == 25 and any(row["id"] == service_id and row["state"] == "done" for row in current["services"])
+assert not any(alert["kind"] == "oil_change" for alert in current["alerts"])
 
 
 def sample(index):

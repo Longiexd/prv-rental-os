@@ -90,41 +90,86 @@ def test_missing_owner_rejected_before_plan_write():
     assert error.value.status_code==404 and execute.call_count==1
 
 
-def test_plan_write_private_and_scoped_to_vehicle():
+def test_plan_write_native_and_scoped_without_changing_actual_odometer():
     calls=[]
     def execute(model,method,args,kwargs=None):
         calls.append((model,method,args))
-        return [{"id":7}] if model=="fleet.vehicle" else 12
+        if model=="fleet.vehicle": return [{"id":7}]
+        return [] if method=="search_read" else 12
     with patch.object(care.odoo,"execute",side_effect=execute): care.save_plan(7,care.MaintenancePlan(next_odometer=10000))
     record=calls[-1][2][0]
-    assert record["public"] is False and record["res_id"]==7 and record["res_model"]=="fleet.vehicle"
-    assert care.plan_from_record(record)["next_odometer"]==10000
+    assert calls[-1][:2]==("fleet.vehicle.log.services", "create")
+    assert record["vehicle_id"]==7 and "odometer" not in record
+    assert care.plan_from_record({"description": record["notes"]})["next_odometer"]==10000
 
 
 def test_aggregate_batches_documents_and_skips_archived_vehicles():
     calls=[]
     def execute(model,method,args,kwargs=None):
         calls.append((model,args,kwargs))
-        return [vehicle()] if model=="fleet.vehicle" else complete()
+        return [vehicle()] if model=="fleet.vehicle" else complete() if model=="ir.attachment" else []
     with patch.object(care.odoo,"execute",side_effect=execute): result=care.fleet_care()
-    assert len(calls)==2 and calls[0][1]==[[["active","=",True]]]
+    assert len(calls)==4 and calls[0][1]==[[["active","=",True]]]
     assert ["res_id","in",[7]] in calls[1][1][0]
     assert result["vehicles"][0]["alerts"]==[]
 
 
 def test_malformed_plan_visible_as_review_alert():
     bad={"id":9,"res_id":7,"name":"plan","description":write_metadata("","fleet_care",{"version":1,"next_odometer":-1})}
-    with patch.object(care.odoo,"execute",side_effect=[[vehicle()],[bad,*complete()]]): result=care.fleet_care()
+    with patch.object(care.odoo,"execute",side_effect=[[vehicle()],[bad,*complete()],[],[]]): result=care.fleet_care()
     assert result["vehicles"][0]["alerts"][0]["reason"]=="review"
 
 
 def test_failed_plan_create_is_not_reported_as_success():
-    with patch.object(care.odoo,"execute",side_effect=[[{"id":7}],False]):
+    with patch.object(care.odoo,"execute",side_effect=[[{"id":7}],[],[{"id":1}],False]):
         with pytest.raises(HTTPException) as error: care.save_plan(7,care.MaintenancePlan(next_odometer=10000))
     assert error.value.status_code==502
 
 
 def test_malformed_latest_document_requires_review_instead_of_old_valid_scan():
     invalid={"id":9,"res_id":7,"name":"bad","description":"[Klynx metadata:document:invalid]"}
-    with patch.object(care.odoo,"execute",side_effect=[[vehicle()],[invalid,*complete()]]): result=care.fleet_care()
+    with patch.object(care.odoo,"execute",side_effect=[[vehicle()],[invalid,*complete()],[],[]]): result=care.fleet_care()
     assert any(alert["reason"]=="review" for alert in result["vehicles"][0]["alerts"])
+
+
+def test_renewal_survives_missing_other_scans_and_unverified_insurance():
+    expiry=(date.today()+timedelta(days=10)).isoformat()
+    alerts=care.vehicle_attention(vehicle(),[scan("insurance",expiry,verified=False)])["alerts"]
+    assert {a["reason"] for a in alerts if a["kind"]=="insurance"}=={"uploaded","renewal"}
+    assert any(a["kind"]=="registration" and a["reason"]=="missing" for a in alerts)
+
+
+@pytest.mark.parametrize("state", ["Maintenance", "En entretien", "Réparation"])
+def test_native_vehicle_maintenance_is_visible_without_oil_change_plan(state):
+    car={**vehicle(),"state_id":[3,state]}
+    assert care.vehicle_attention(car,complete())["alerts"]==[
+        {"kind":"maintenance","reason":"in_progress","severity":"warning","date":None}]
+
+
+def test_native_services_and_contracts_keep_their_own_reminders():
+    expiry=(date.today()+timedelta(days=10)).isoformat()
+    contracts=[{"id":4,"name":"Insurance in Odoo","state":"open","expiration_date":expiry,"notes":False}]
+    services=[{"id":5,"state":"new","date":expiry,"description":"Tyres","service_type_id":[1,"Tyres"],"notes":False},
+              {"id":6,"state":"done","date":False,"notes":False}]
+    alerts=care.vehicle_attention(vehicle(),[],contracts=contracts,services=services)["alerts"]
+    assert any(a.get("record_id")==4 and a["reason"]=="renewal" for a in alerts)
+    assert any(a.get("record_id")==5 and a["reason"]=="planned" for a in alerts)
+    assert not any(a.get("record_id")==6 for a in alerts)
+
+
+def test_completed_native_plan_does_not_revive_old_attachment_reminder():
+    old={"id":2,"res_id":7,"description":write_metadata("","fleet_care",{"version":1,"next_odometer":9000})}
+    native={"id":3,"vehicle_id":[7,"Car"],"state":"done","notes":old["description"]}
+    with patch.object(care.odoo,"execute",side_effect=[[vehicle()],[old,*complete()],[],[native]]) as execute:
+        result=care.fleet_care()
+    assert not result["vehicles"][0]["alerts"]
+    assert all(call.args[1]=="search_read" for call in execute.call_args_list)
+
+
+def test_service_date_edited_in_odoo_overrides_old_plan_metadata():
+    target=(date.today()+timedelta(days=10)).isoformat()
+    native={"id":3,"vehicle_id":[7,"Car"],"state":"new","date":target,
+            "notes":write_metadata("","fleet_care",{"version":1,"next_date":"2020-01-01"})}
+    with patch.object(care.odoo,"execute",side_effect=[[vehicle()],complete(),[],[native]]): result=care.fleet_care()
+    assert result["vehicles"][0]["plan"]["next_date"]==target
+    assert any(alert["kind"]=="oil_change" and alert["reason"]=="soon" for alert in result["vehicles"][0]["alerts"])

@@ -33,6 +33,8 @@ def main():
                 assert connections == "t|f", "Maintenance database access is not restricted to Odoo"
                 password = secrets.token_urlsafe(24)
                 admin.user("add-user", code, "sarah", "Sarah", password)
+                # Seed only disposable test companies; exercise Fleet as the normal operator.
+                admin.compose(code, "run", "--rm", "-T", "--no-deps", "odoo", "shell", "--config=/etc/odoo/odoo.conf", "--no-http", stdin="brand=env['fleet.vehicle.model.brand'].create({'name':'CI Fleet'})\nmodel=env['fleet.vehicle.model'].create({'name':'CI Vehicle','brand_id':brand.id})\nstate=env['fleet.vehicle.state'].create({'name':'Maintenance'})\nenv['fleet.vehicle'].create({'model_id':model.id,'state_id':state.id,'license_plate':'CI-ONLY'})\nenv.cr.commit()\n")
                 credentials.append({"username": code+".sarah", "password": password})
             command(["docker", "build", "-t", "klynx-api-integration", str(repository / "backend")])
             path = root / "credentials.json"

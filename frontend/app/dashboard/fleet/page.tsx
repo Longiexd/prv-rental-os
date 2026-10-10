@@ -34,7 +34,7 @@ import { API_URL, apiRequest } from "@/lib/api-config";
 import { getVehicleBookings } from "@/lib/fleet-bookings";
 import { getRentalState, rentalStateMeta } from "@/lib/status";
 import DocumentsPanel from "@/components/ui/DocumentsPanel";
-import { VehicleAttentionBadge, notifyFleetCareChanged } from "@/components/fleet/FleetCare";
+import { VehicleAttentionBadge, VehicleCareNotice, notifyFleetCareChanged } from "@/components/fleet/FleetCare";
 import ReturnVehicleModal from "@/components/rentals/ReturnVehicleModal";
 import type { NextVehicleState } from "@/lib/fleet-bookings";
 
@@ -838,6 +838,7 @@ function VehicleModal({
             </Link>
           </div>
 
+          <VehicleCareNotice vehicleId={car.id} />
           <details key={`vehicle-documents-${car.id}`} className="mt-6 rounded-xl border border-border bg-surface p-4">
             <summary className="cursor-pointer text-sm font-semibold text-text">
               Vehicle documents
@@ -1176,6 +1177,7 @@ export default function FleetPage() {
       }
 
       await loadFleet();
+      notifyFleetCareChanged();
     } catch (err) {
       console.error(
         `Failed to ${action} vehicle ${vehicleId}:`,

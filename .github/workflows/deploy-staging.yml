@@ -64,7 +64,7 @@ jobs:
         run: |
           npm ci
           npx tsc --noEmit
-          node --experimental-strip-types --test lib/proxy-security.test.mjs lib/fleet-bookings.test.mjs
+          node --experimental-strip-types --test lib/proxy-security.test.mjs lib/fleet-bookings.test.mjs lib/fleet-care.test.mjs
           npm run build:vinext
 
       - name: Verify generated Worker isolation
