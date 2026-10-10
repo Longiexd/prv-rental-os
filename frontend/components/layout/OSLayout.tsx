@@ -18,7 +18,7 @@ import {
   Moon,
   ArrowUpRight,
 } from "lucide-react";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import AddCustomerModal from "@/components/customers/AddCustomerModal";
 import CreateRentalModal from "@/components/rentals/CreateRentalModal";
@@ -90,6 +90,45 @@ export default function OSLayout({
   const [addRentalOpen, setAddRentalOpen] = useState(false);
   const [addCustomerOpen, setAddCustomerOpen] = useState(false);
   const [bellOpen, setBellOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const bellRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+  const userTriggerRef = useRef<HTMLButtonElement>(null);
+  const logoutRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!bellOpen && !userMenuOpen) return;
+    const dismissOutside = (event: Event) => {
+      if (!(event.target instanceof Node)) return;
+      if (!bellRef.current?.contains(event.target)) setBellOpen(false);
+      if (!userMenuRef.current?.contains(event.target)) setUserMenuOpen(false);
+    };
+    const dismissEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setBellOpen(false);
+      setUserMenuOpen(false);
+      if (userMenuOpen) userTriggerRef.current?.focus();
+      else bellRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    };
+    document.addEventListener("pointerdown", dismissOutside);
+    document.addEventListener("focusin", dismissOutside);
+    document.addEventListener("keydown", dismissEscape);
+    return () => {
+      document.removeEventListener("pointerdown", dismissOutside);
+      document.removeEventListener("focusin", dismissOutside);
+      document.removeEventListener("keydown", dismissEscape);
+    };
+  }, [bellOpen, userMenuOpen]);
+
+  useEffect(() => {
+    setBellOpen(false);
+    setUserMenuOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (userMenuOpen) logoutRef.current?.focus();
+  }, [userMenuOpen]);
+
 
   const [identity, setIdentity] = useState<{ username: string; company: string } | null>(null);
 
@@ -306,13 +345,16 @@ export default function OSLayout({
               />
 
               {/* Notifications */}
-              <div className="relative">
+              <div className="relative" ref={bellRef}>
                 <button
                   type="button"
+                  aria-expanded={bellOpen}
+                  aria-controls="header-notifications"
                   aria-label="Notifications"
-                  onClick={() =>
-                    setBellOpen((value) => !value)
-                  }
+                  onClick={() => {
+                    setUserMenuOpen(false);
+                    setBellOpen((value) => !value);
+                  }}
                   className={`relative flex h-9 w-9 items-center justify-center rounded-full border border-border text-text-secondary transition hover:text-text ${due.length > 0 ? "klynx-notification-flicker" : ""}`}
                 >
                   <Bell size={16} />
@@ -325,7 +367,7 @@ export default function OSLayout({
                 </button>
 
                 {bellOpen && (
-                  <div className="absolute right-0 top-11 z-30 w-72 rounded-xl border border-border bg-surface p-3 shadow-xl">
+                  <div id="header-notifications" className="absolute right-0 top-11 z-30 w-72 rounded-xl border border-border bg-surface p-3 shadow-xl">
 
                     <p className="px-1 pb-2 text-xs font-medium uppercase tracking-wider text-muted">
                       {t("Due today & overdue")}
@@ -377,43 +419,49 @@ export default function OSLayout({
                 )}
               </div>
 
-              {/* Signed-in identity - desktop */}
-              <div className="hidden items-center gap-2 sm:flex">
-                <span className="text-right">
-                  <span className="block text-xs font-medium leading-tight text-text">
-                    {userName}
-                  </span>
-
-                  <span className="block text-[10px] leading-tight text-muted">
-                    {identity?.company || ""}
-                  </span>
-                </span>
-
-                <span className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-surface-secondary text-xs font-medium">
-                  {initials}
-                </span>
+              {/* Signed-in user disclosure, with room for future account options. */}
+              <div className="relative" ref={userMenuRef}>
                 <button
+                  ref={userTriggerRef}
                   type="button"
-                  onClick={handleLogout}
-                  aria-label={t("Log out")}
-                  title={t("Log out")}
-                  className="flex h-9 items-center gap-2 rounded-lg border border-border px-3 text-xs text-text-secondary transition hover:border-pink/40 hover:text-pink-ink"
+                  aria-label={userName || "User menu"}
+                  aria-expanded={userMenuOpen}
+                  aria-controls="header-user-options"
+                  onClick={() => {
+                    setBellOpen(false);
+                    setUserMenuOpen((value) => !value);
+                  }}
+                  className="flex items-center gap-2 rounded-lg p-1 text-text transition hover:bg-surface-secondary"
                 >
-                  <LogOut size={16} />
-                  <span>{t("Log out")}</span>
+                  <span className="hidden max-w-36 text-right sm:block">
+                    <span className="block truncate text-xs font-medium leading-tight">
+                      {userName}
+                    </span>
+                    <span className="block truncate text-[10px] leading-tight text-muted">
+                      {identity?.company || ""}
+                    </span>
+                  </span>
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-surface-secondary text-xs font-medium">
+                    {initials}
+                  </span>
                 </button>
+                {userMenuOpen && (
+                  <div id="header-user-options" className="absolute right-0 top-full z-30 mt-2 w-44 rounded-xl border border-border bg-surface p-1.5 shadow-xl">
+                    <button
+                      ref={logoutRef}
+                      type="button"
+                      onClick={() => {
+                        setUserMenuOpen(false);
+                        void handleLogout();
+                      }}
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-text-secondary transition hover:bg-surface-secondary hover:text-pink-ink"
+                    >
+                      <LogOut size={16} />
+                      <span>{t("Log out")}</span>
+                    </button>
+                  </div>
+                )}
               </div>
-
-              {/* Mobile logout */}
-              <button
-                type="button"
-                onClick={handleLogout}
-                aria-label="Log out"
-                title="Log out"
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-text-secondary transition hover:border-pink/40 hover:text-pink-ink sm:hidden"
-              >
-                <LogOut size={16} />
-              </button>
             </div>
           </header>
 
