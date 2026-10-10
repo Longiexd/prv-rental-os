@@ -870,7 +870,7 @@ Object.assign(fr, {
   "Replace scan (optional)": "Remplacer le document (facultatif)",
   "Verified by agent": "Vérifié par l’agent",
   "Save document": "Enregistrer le document",
-  "Download / review": "Télécharger / vérifier",
+  "Download / review": "Télécharger / consulter",
   "Refresh": "Actualiser",
   "Please wait…": "Veuillez patienter…",
   "Document uploaded. Review it, then mark it verified. Earlier versions remain in Odoo.": "Document ajouté. Vérifiez-le, puis marquez-le comme vérifié. Les anciennes versions sont conservées.",
