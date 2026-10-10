@@ -106,7 +106,7 @@ expect(response, 200, "Expired policy saved truthfully")
 assert response.json()["fleet_sync"]["state_synced"]
 response = request("GET", "/cars", tokens[0])
 expect(response, 200, "Blocked Fleet readback")
-assert next(row for row in response.json() if row["id"] == vehicle_id)["status"] == "Indisponible"
+assert next(row for row in response.json()["cars"] if row["id"] == vehicle_id)["status"] == "Indisponible"
 expect(request("POST", f"/cars/{vehicle_id}/mark-available", tokens[0]), 409, "Expired coverage cannot be released")
 
 
