@@ -2,11 +2,12 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { apiFetch } from "@/lib/api";
+import { useKlynxUI } from "@/components/providers/UIProvider";
 
 type TrackedDocument = {
   id: number | null; kind: string; label: string; filename: string | null;
   status: "missing" | "uploaded" | "verified" | "expired";
-  number: string; expiry_date: string | null; verified: boolean;
+  number: string; expiry_date: string | null; verified: boolean; optional?: boolean;
   nationality?: string; birth_date?: string | null;
   reminder_date?: string | null;
 };
@@ -31,6 +32,18 @@ async function encodedFile(file: File) {
   return btoa(binary);
 }
 
+export function missingDriverDocumentsMessage(driverActive: boolean, driverReady: boolean | undefined, locale: string) {
+  const additionalDriverMissing = driverActive && driverReady === false;
+  if (locale === "fr") {
+    return additionalDriverMissing
+      ? "Les documents du conducteur principal ou les documents du conducteur supplémentaire sont manquants, non vérifiés ou expirés."
+      : "Les documents du conducteur principal sont manquants, non vérifiés ou expirés.";
+  }
+  return additionalDriverMissing
+    ? "Main-driver documents or the additional driver's identity/licence are missing, unverified or expired."
+    : "Main-driver documents are missing, unverified or expired.";
+}
+
 export function PaperworkPanel({ rentalId, customerId, confirmed, collected, status, refresh, editBooking }: {
   rentalId: number; customerId: number; confirmed: boolean; collected: boolean; status: PaperworkStatus | null; refresh: () => Promise<void>; editBooking: () => void;
 }) {
@@ -46,6 +59,7 @@ export function PaperworkPanel({ rentalId, customerId, confirmed, collected, sta
   const driver = status?.additional_driver;
   const profile = driver?.profile;
   const driverActive = Boolean(profile?.active);
+  const { locale } = useKlynxUI();
 
   async function saveDriver(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -88,9 +102,9 @@ export function PaperworkPanel({ rentalId, customerId, confirmed, collected, sta
     {error && <p role="alert" className="mt-3 text-sm text-danger">{error}</p>}
     <DocumentsPanel key={customerId} owner="customers" recordId={customerId} rentalId={rentalId} rentalCopies={status?.rental_documents}
       readOnly={collected} onChanged={() => void refresh().catch(err => setError(String(err)))} />
-    {!collected && !driverActive && !addingDriver && <button className={`${reviewButton} mt-3`} disabled={busy} onClick={() => setAddingDriver(true)}>Add additional driver</button>}
+    {!collected && !driverActive && !addingDriver && <button data-i18n-ignore="true" className={`${button} mt-3 text-text-secondary`} disabled={busy} onClick={() => setAddingDriver(true)}>{locale === "fr" ? "Documents du conducteur supplémentaire (facultatif)" : "Additional-driver documents (optional)"}</button>}
     {(driverActive || addingDriver) && <details key={driverActive ? "saved-driver" : "new-driver"} open={addingDriver || undefined} className="mt-4 rounded-lg border border-border p-4">
-      <summary className="cursor-pointer font-medium text-text">Additional driver{profile?.name ? ` · ${profile.name}` : ""}<span className={`ml-2 text-xs ${driver?.ready && driverActive ? "text-[var(--status-available-text)]" : "text-danger"}`}>{driver?.ready && driverActive ? "Documents verified" : "Identity and licence required"}</span></summary>
+      <summary className="cursor-pointer font-medium text-text">Additional driver{profile?.name ? ` · ${profile.name}` : ""}<span data-i18n-ignore="true" className={`ml-2 text-xs ${!driverActive ? "text-muted" : driver?.ready ? "text-[var(--status-available-text)]" : "text-danger"}`}>{!driverActive ? (locale === "fr" ? "Facultatif" : "Optional") : driver?.ready ? (locale === "fr" ? "Documents vérifiés" : "Documents verified") : (locale === "fr" ? "Identité et permis requis" : "Identity and licence required")}</span></summary>
       <p className="mt-2 text-xs text-text-secondary">This driver’s details and private scans belong only to this rental’s paperwork and contract.</p>
       {!collected && <form key={JSON.stringify(profile)} onSubmit={event => void saveDriver(event)} className="mt-3 grid gap-3 sm:grid-cols-2">
         {Object.entries({name: "Name and surname", phone: "Phone (optional)", address: "Address (optional)", license_issued: "Licence issue date (optional)"}).map(([key, label]) => <label key={key} className="text-sm text-text">{label}<input name={key} required={key === "name"} maxLength={key === "phone" || key === "license_issued" ? 100 : 250} defaultValue={profile?.[key as keyof DriverProfile] as string || ""} className={input} /></label>)}
@@ -111,8 +125,8 @@ export function PaperworkPanel({ rentalId, customerId, confirmed, collected, sta
     </details>}
     <div className="mt-4 rounded-lg border border-border p-4">
       <h3 className="font-medium text-text">Rental contract</h3>
-      <p className={`mt-1 text-sm ${status?.contract_ready ? "text-[var(--status-available-text)]" : "text-danger"}`}>
-        {!status ? "Checking paperwork…" : !status.documents_ready ? "Client or additional-driver identity/licence is missing, unverified or expired." : status.contract_ready ? "Contract ready. You can hand over the keys at actual pickup." : status.contract_current ? "Contract prepared. Print/save it and confirm below." : "Prepare the contract using the verified documents."}
+      <p data-i18n-ignore={status && !status.documents_ready ? "true" : undefined} className={`mt-1 text-sm ${status?.contract_ready ? "text-[var(--status-available-text)]" : status && !status.documents_ready ? "text-danger" : "text-text-secondary"}`}>
+        {!status ? "Checking paperwork…" : !status.documents_ready ? missingDriverDocumentsMessage(driverActive, driver?.ready, locale) : status.contract_ready ? "Contract ready. You can hand over the keys at actual pickup." : status.contract_current ? "Contract prepared. Print/save it and confirm below." : "Prepare the contract using the verified documents."}
       </p>
       {!collected && <details className="mt-3 text-sm text-text-secondary"><summary className="cursor-pointer">Optional contract details</summary><div className="mt-3 grid gap-3 sm:grid-cols-2">
         {Object.entries({birth_date: "Date of birth", nationality: "Nationality", license_issued: "Licence issue date", deposit: "Security deposit (caution)", fuel: "Pickup fuel", notes: "Contract notes"}).map(([key, label]) => <label key={key}>{label}<input className={input} maxLength={key === "notes" ? 2000 : 250} value={details[key] || ""} onChange={event => setDetails(previous => ({...previous, [key]: event.target.value}))} /></label>)}
@@ -163,6 +177,7 @@ export default function DocumentsPanel({ owner, recordId, onChanged, rentalId, r
 }) {
   // Driver scans reuse the same document workflow, scoped to the rental instead of a CRM contact.
   const editable = !readOnly;
+  const { locale } = useKlynxUI();
   const identityOwner = owner === "customers" || additionalDriver;
   const path = additionalDriver ? `/sales/${recordId}/additional-driver/documents` : `/${owner}/${recordId}/documents`;
   const copyPath = `/sales/${rentalId}/${additionalDriver ? "additional-driver/copies" : "documents"}`;
@@ -235,15 +250,15 @@ export default function DocumentsPanel({ owner, recordId, onChanged, rentalId, r
     <p className="mt-1 text-xs text-text-secondary">{additionalDriver ? "Private scans are stored with this rental, with a separate copy preserved when the contract is prepared." : owner === "customers" ? "Originals are kept privately on the client’s Odoo contact for later rentals; contract preparation preserves separate copies with this rental." : owner === "sales" ? "Private copies are archived on this Odoo booking; updating the contact does not replace them." : "Documents and expiry dates are stored privately on this Odoo Fleet vehicle."}</p>
     <p className={`mt-1 text-sm ${displayed?.ready ? "text-[var(--status-available-text)]" : "text-muted"}`}>
       {!displayed ? "Loading document checklist…" : readOnly ? (hasCopies ? "Review the documents preserved with this rental contract." : "Review the current documents. This rental has no saved document copies.") : displayed.ready ? (identityOwner ? "Identity and licence verified." : "Vehicle documents verified.")
-        : "Review missing, unverified or expired documents before pickup."}
+        : owner === "cars" ? "Review missing, unverified or expired vehicle documents." : "Review missing, unverified or expired documents before pickup."}
     </p>
     {error && <p role="alert" className="mt-3 text-sm text-[var(--status-danger-text)]">{error} <button className={button} disabled={busy} onClick={() => { setError(""); setRevision(value => value + 1); }}>Refresh</button></p>}
     {notice && <p role="status" className="mt-3 text-sm text-text">{notice}</p>}
     <div className="mt-3 grid gap-2">
-      {displayed?.documents.filter(document => readOnly && !identityOwner ? document.id : !identityOwner || !["cin", "passport"].includes(document.kind) || document.kind === identityKind).map(document => <details key={`${identityOwner && ["cin", "passport"].includes(document.kind) ? "identity" : document.kind}-${revision}`} className={`group rounded-lg border ${editable && ["missing", "expired"].includes(document.status) ? "border-[var(--status-danger-border)] bg-[var(--status-danger-bg)]" : "border-border"}`}>
+      {displayed?.documents.filter(document => readOnly && !identityOwner ? document.id : !identityOwner || !["cin", "passport"].includes(document.kind) || document.kind === identityKind).map(document => <details key={`${identityOwner && ["cin", "passport"].includes(document.kind) ? "identity" : document.kind}-${revision}`} className={`group rounded-lg border ${editable && !(document.optional && !document.id) && ["missing", "expired"].includes(document.status) ? "border-[var(--status-danger-border)] bg-[var(--status-danger-bg)]" : "border-border"}`}>
         <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 p-3 text-sm text-text">
           <span className="flex items-center gap-2 font-medium"><span aria-hidden="true" className="text-lg transition-transform group-open:rotate-90">›</span>{identityOwner && ["cin", "passport"].includes(document.kind) ? "Identity · CIN / Passport" : document.label}</span>
-          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${document.status === "verified" ? "bg-[var(--status-available-bg)] text-[var(--status-available-text)]" : ["missing", "expired"].includes(document.status) ? "bg-[var(--status-danger-bg)] text-[var(--status-danger-text)]" : "bg-[var(--status-reserved-bg)] text-[var(--status-reserved-text)]"}`}>{document.status === "uploaded" ? "Needs review" : document.status}{identityOwner && ["cin", "passport"].includes(document.kind) && document.id ? ` · ${document.label}` : ""}</span>
+          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${document.optional && !document.id ? "bg-surface-secondary text-text-secondary" : document.status === "verified" ? "bg-[var(--status-available-bg)] text-[var(--status-available-text)]" : ["missing", "expired"].includes(document.status) ? "bg-[var(--status-danger-bg)] text-[var(--status-danger-text)]" : "bg-[var(--status-reserved-bg)] text-[var(--status-reserved-text)]"}`}>{document.optional && !document.id ? "Optional" : document.status === "uploaded" ? "Needs review" : document.status}{identityOwner && ["cin", "passport"].includes(document.kind) && document.id ? ` · ${document.label}` : ""}</span>
         </summary>
         <form key={`${document.kind}-${document.id}-${revision}`} onSubmit={event => void save(event, document)} className="border-t border-border p-3">
         {editable && <p className="text-xs text-text-secondary">PDF, PNG or JPEG · maximum 600 KiB. Uploads require agent verification.</p>}
@@ -254,8 +269,8 @@ export default function DocumentsPanel({ owner, recordId, onChanged, rentalId, r
             <label className="text-sm text-text">Nationality (optional)<input name="nationality" maxLength={100} defaultValue={document.nationality || ""} className={input} /></label>
             <label className="text-sm text-text">Date of birth (optional)<input name="birth_date" type="date" defaultValue={document.birth_date || ""} className={input} /></label>
           </>}
-          <label className="text-sm text-text">Expiry date (optional)<input name="expiry_date" type="date" defaultValue={document.expiry_date || ""} className={input} /></label>
-          {owner === "cars" && document.reminder_date && <p className="self-end text-xs text-text-secondary">Renewal window starts {document.reminder_date} · one month before expiry.</p>}
+          <label className="text-sm text-text">{owner === "cars" && document.kind !== "registration" ? "Expiry date" : "Expiry date (optional)"}<input required={owner === "cars" && document.kind !== "registration"} name="expiry_date" type="date" defaultValue={document.expiry_date || ""} className={input} /></label>
+          {owner === "cars" && document.reminder_date && <p data-i18n-ignore="true" className="self-end text-xs text-text-secondary">{locale === "fr" ? `Renouvellement à prévoir dès le ${document.reminder_date} · un mois avant la date de fin.` : `Renewal window starts ${document.reminder_date} · one month before expiry.`}</p>}
           <label className="text-sm text-text sm:col-span-2">{document.id ? "Replace scan (optional)" : "Upload scan"}<input name="file" type="file" accept="application/pdf,image/png,image/jpeg" className={input} /></label>
           {document.id && <label className="flex items-center gap-2 text-sm text-text"><input name="verified" type="checkbox" defaultChecked={document.verified} />Verified by agent</label>}
           <button className={`${saveButton} justify-self-start`} type="submit">{busy ? "Please wait…" : "Save document"}</button>

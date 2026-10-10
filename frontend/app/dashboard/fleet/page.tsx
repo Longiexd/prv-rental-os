@@ -34,6 +34,7 @@ import { API_URL, apiRequest } from "@/lib/api-config";
 import { getVehicleBookings } from "@/lib/fleet-bookings";
 import { getRentalState, rentalStateMeta } from "@/lib/status";
 import DocumentsPanel from "@/components/ui/DocumentsPanel";
+import { VehicleAttentionBadge, notifyFleetCareChanged } from "@/components/fleet/FleetCare";
 import ReturnVehicleModal from "@/components/rentals/ReturnVehicleModal";
 import type { NextVehicleState } from "@/lib/fleet-bookings";
 
@@ -289,9 +290,9 @@ function VehicleCard({
             </div>
 
             <div className="min-w-0">
-              <div className="truncate text-sm font-semibold text-text">
-                {car.model ||
-                  car.name}
+              <div className="flex items-center gap-1 text-sm font-semibold text-text">
+                <span className="truncate">{car.model || car.name}</span>
+                <VehicleAttentionBadge vehicleId={car.id} />
               </div>
 
               <div className="mt-1 flex items-center gap-2 text-xs text-muted">
@@ -842,7 +843,7 @@ function VehicleModal({
               Vehicle documents
               <span className="ml-2 font-normal text-text-secondary">Assurance · Carte grise · Visite technique</span>
             </summary>
-            <DocumentsPanel key={car.id} owner="cars" recordId={car.id} />
+            <DocumentsPanel key={car.id} owner="cars" recordId={car.id} onChanged={notifyFleetCareChanged} />
           </details>
 
           {/* VEHICLE INFORMATION */}
@@ -1912,6 +1913,7 @@ export default function FleetPage() {
                                 <div className="font-medium text-text">
                                   {car.model ||
                                     car.name}
+                                  <VehicleAttentionBadge vehicleId={car.id} />
                                 </div>
 
                                 <div className="mt-0.5 text-xs text-muted">

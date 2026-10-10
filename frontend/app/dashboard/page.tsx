@@ -1,5 +1,7 @@
 "use client";
 
+import { FleetCareSummary } from "@/components/fleet/FleetCare";
+
 import { useKlynxUI } from "@/components/providers/UIProvider";
 
 import ActivitiesPanel from "@/components/activities/ActivitiesPanel";
@@ -433,6 +435,7 @@ export default function DashboardPage() {
           ))}
         </tbody></table></div>
       </Card></section>
+      <FleetCareSummary />
       {returningVehicle && <ReturnVehicleModal vehicleId={returningVehicle.id} orderId={returningVehicle.orderId}
         initialNextState={returningVehicle.nextState} onClose={() => setReturningVehicle(null)}
         onReturned={async () => { await loadDashboard(); setReturningVehicle(null); }} />}

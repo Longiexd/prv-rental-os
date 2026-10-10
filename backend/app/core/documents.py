@@ -111,7 +111,8 @@ def checklist_from_records(records, kinds, scope=None):
     for kind, label in kinds.items():
         item = {"kind": kind, "label": label, "status": "missing", "id": None,
                 "filename": None, "number": "", "expiry_date": None, "verified": False, "checksum": None,
-                "nationality": "", "birth_date": None, "reminder_date": None}
+                "nationality": "", "birth_date": None, "reminder_date": None,
+                "optional": kind in {"lease", "service_contract"}}
         if kind in latest:
             attachment, value = latest[kind]
             expired = bool(value.get("expiry_date") and value["expiry_date"] < date.today().isoformat())
@@ -122,7 +123,7 @@ def checklist_from_records(records, kinds, scope=None):
                         status="expired" if expired else "verified" if value["verified"] else "uploaded")
         documents.append(item)
     valid = {item["kind"] for item in documents if item["status"] == "verified" and item["number"].strip()}
-    ready = bool(valid & {"cin", "passport"}) and "driving_license" in valid if "cin" in kinds else all(item["status"] == "verified" for item in documents)
+    ready = bool(valid & {"cin", "passport"}) and "driving_license" in valid if "cin" in kinds else all(item["status"] == "verified" or item["optional"] and not item["id"] for item in documents)
     return {"documents": documents, "ready": ready}
 
 

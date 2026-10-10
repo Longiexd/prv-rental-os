@@ -27,6 +27,7 @@ import { useReminders } from "@/components/activities/api";
 import KlynxLogo from "@/components/klynxlogo";
 import { API_URL } from "@/lib/api-config";
 import { useKlynxUI } from "@/components/providers/UIProvider";
+import { FleetCareProvider } from "@/components/fleet/FleetCare";
 
 const navigation = [
   {
@@ -39,6 +40,12 @@ const navigation = [
     label: "Vehicles",
     icon: Car,
     href: "/dashboard/fleet",
+    group: "Workspace",
+  },
+  {
+    label: "Fleet care",
+    icon: ClipboardList,
+    href: "/dashboard/fleet-care",
     group: "Workspace",
   },
   {
@@ -487,7 +494,7 @@ export default function OSLayout({
           </nav>
 
           <div className="os-content">
-            {children}
+            <FleetCareProvider>{children}</FleetCareProvider>
           </div>
         </div>
       </div>
