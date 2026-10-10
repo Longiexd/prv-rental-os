@@ -27,63 +27,24 @@ import { useReminders } from "@/components/activities/api";
 import KlynxLogo from "@/components/klynxlogo";
 import { API_URL } from "@/lib/api-config";
 import { useKlynxUI } from "@/components/providers/UIProvider";
+import { workspaceForPath } from "@/lib/workspaces";
 import { FleetCareProvider } from "@/components/fleet/FleetCare";
 
+const workspaces = [
+  {id: "rentals", label: "Rentals", home: "/dashboard"},
+  {id: "fleet", label: "Fleet", home: "/dashboard/fleet"},
+  {id: "management", label: "Management", home: "/dashboard/analytics"},
+] as const;
 const navigation = [
-  {
-    label: "Overview",
-    icon: LayoutDashboard,
-    href: "/dashboard",
-    group: "Workspace",
-  },
-  {
-    label: "Vehicles",
-    icon: Car,
-    href: "/dashboard/fleet",
-    group: "Workspace",
-  },
-  {
-    label: "Fleet care",
-    icon: ClipboardList,
-    href: "/dashboard/fleet-care",
-    group: "Workspace",
-  },
-  {
-    label: "Rentals",
-    icon: ClipboardList,
-    href: "/dashboard/rentals",
-    group: "Workspace",
-  },
-  {
-    label: "Calendar",
-    icon: CalendarDays,
-    href: "/dashboard/calendar",
-    group: "Workspace",
-  },
-  {
-    label: "Customers",
-    icon: Users,
-    href: "/dashboard/customers",
-    group: "Workspace",
-  },
-  {
-    label: "Prospects",
-    icon: Users,
-    href: "/crm/leads",
-    group: "Business",
-  },
-  {
-    label: "To do",
-    icon: ClipboardList,
-    href: "/dashboard/activities",
-    group: "Business",
-  },
-  {
-    label: "Analytics",
-    icon: BarChart3,
-    href: "/dashboard/analytics",
-    group: "Business",
-  },
+  {label: "Overview", icon: LayoutDashboard, href: "/dashboard", workspace: "rentals"},
+  {label: "Rentals", icon: ClipboardList, href: "/dashboard/rentals", workspace: "rentals"},
+  {label: "Calendar", icon: CalendarDays, href: "/dashboard/calendar", workspace: "rentals"},
+  {label: "Customers", icon: Users, href: "/dashboard/customers", workspace: "rentals"},
+  {label: "Prospects", icon: Users, href: "/crm/leads", workspace: "rentals"},
+  {label: "To do", icon: ClipboardList, href: "/dashboard/activities", workspace: "rentals"},
+  {label: "Vehicles", icon: Car, href: "/dashboard/fleet", workspace: "fleet"},
+  {label: "Fleet care", icon: ClipboardList, href: "/dashboard/fleet-care", workspace: "fleet"},
+  {label: "Analytics", icon: BarChart3, href: "/dashboard/analytics", workspace: "management"},
 ];
 
 export default function OSLayout({
@@ -93,6 +54,8 @@ export default function OSLayout({
 }) {
   const pathname = usePathname();
   const { theme, locale, setTheme, setLocale, t } = useKlynxUI();
+  const workspace = workspaceForPath(pathname);
+  const currentWorkspace = workspaces.find(item => item.id === workspace)!;
 
   const [addRentalOpen, setAddRentalOpen] = useState(false);
   const [addCustomerOpen, setAddCustomerOpen] = useState(false);
@@ -187,7 +150,7 @@ export default function OSLayout({
 
           {/* Klynx logo */}
           <Link
-            href="/dashboard"
+            href={currentWorkspace.home}
             className="flex h-[70px] items-center border-b border-border px-5"
             aria-label="Klynx overview"
           >
@@ -199,33 +162,13 @@ export default function OSLayout({
             aria-label="Main navigation"
             className="space-y-8 px-3 py-7"
           >
-            {["Workspace", "Business"].map((group) => (
-              <div key={t(group)}>
-                <p className="mb-3 px-3 text-[10px] uppercase tracking-[0.18em] text-muted">
-                  {t(group)}
-                </p>
-
-                <div className="space-y-1">
-                  {navigation
-                    .filter((item) => item.group === group)
-                    .map(({ label, icon: Icon, href }) => (
-                      <Link
-                        key={href}
-                        href={href}
-                        aria-current={isActive(href) ? "page" : undefined}
-                        className={`flex min-h-11 items-center gap-3 rounded-lg px-3 text-[13px] transition-colors ${
-                          isActive(href)
-                            ? "bg-[var(--sidebar-active)] font-medium text-text [&>svg]:text-lime-ink"
-                            : "text-text-secondary hover:bg-surface-secondary hover:text-text"
-                        }`}
-                      >
-                        <Icon size={16} strokeWidth={1.6} />
-                        {t(label)}
-                      </Link>
-                    ))}
-                </div>
-              </div>
-            ))}
+            <p className="mb-3 px-3 text-[10px] uppercase tracking-[0.18em] text-muted">{t(currentWorkspace.label)}</p>
+            <div className="space-y-1">{navigation.filter(item => item.workspace === workspace).map(({label, icon: Icon, href}) => (
+              <Link key={href} href={href} aria-current={isActive(href) ? "page" : undefined}
+                className={`flex min-h-11 items-center gap-3 rounded-lg px-3 text-[13px] transition-colors ${isActive(href) ? "bg-[var(--sidebar-active)] font-medium text-text [&>svg]:text-lime-ink" : "text-text-secondary hover:bg-surface-secondary hover:text-text"}`}>
+                <Icon size={16} strokeWidth={1.6} />{t(label)}
+              </Link>
+            ))}</div>
           </nav>
 
           {/* Sidebar footer */}
@@ -278,12 +221,16 @@ export default function OSLayout({
         ===================================================== */}
         <div className="min-w-0 flex-1">
 
+          <nav aria-label={t("Workspaces")} className="flex gap-1 border-b border-border bg-chrome px-4 py-2 sm:px-7">
+            {workspaces.map(item => <Link key={item.id} href={item.home} aria-current={workspace === item.id ? "true" : undefined}
+              className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${workspace === item.id ? "border-[var(--status-available-border)] bg-[var(--sidebar-active)] text-lime-ink" : "border-transparent text-text-secondary hover:bg-surface-secondary"}`}>{t(item.label)}</Link>)}
+          </nav>
           {/* Header */}
           <header className="flex min-h-[70px] flex-wrap items-center justify-between gap-3 border-b border-border bg-chrome px-4 py-3 sm:px-7 lg:h-[70px] lg:flex-nowrap lg:py-0">
 
             {/* Mobile Klynx logo */}
             <Link
-              href="/dashboard"
+              href={currentWorkspace.home}
               aria-label="Klynx overview"
               className="lg:hidden"
             >
@@ -332,7 +279,7 @@ export default function OSLayout({
                 </button>
               </div>
 
-              <QuickAddMenu
+              {workspace === "rentals" && <QuickAddMenu
                 actions={[
                   {
                     label: t("New booking"),
@@ -349,10 +296,10 @@ export default function OSLayout({
                     onClick: () => setAddCustomerOpen(true),
                   },
                 ]}
-              />
+              />}
 
               {/* Notifications */}
-              <div className="relative" ref={bellRef}>
+              {workspace === "rentals" && <div className="relative" ref={bellRef}>
                 <button
                   type="button"
                   aria-expanded={bellOpen}
@@ -424,7 +371,7 @@ export default function OSLayout({
                     </Link>
                   </div>
                 )}
-              </div>
+              </div>}
 
               {/* Signed-in user disclosure, with room for future account options. */}
               <div className="relative" ref={userMenuRef}>
@@ -477,7 +424,7 @@ export default function OSLayout({
             aria-label="Mobile navigation"
             className="flex gap-1 overflow-x-auto border-b border-border p-2 lg:hidden"
           >
-            {navigation.map(({ href, label }) => (
+            {navigation.filter(item => item.workspace === workspace).map(({ href, label }) => (
               <Link
                 key={href}
                 href={href}

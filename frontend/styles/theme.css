@@ -83,8 +83,8 @@ html[data-theme="light"] {
   --lime-ink: #365000;
   --pink: #F06AAA;
   --pink-dark: #B93878;
-  --pink-ink: #B93878;
-  --blue-ink: #155E9C;
+  --pink-ink: #9D245F;
+  --blue-ink: #134C87;
   --violet-ink: #6D28D9;
   --orange-ink: #925000;
   --red-ink: #B91C1C;
@@ -92,58 +92,58 @@ html[data-theme="light"] {
   /* Higher-contrast to-do / attention palette for light mode */
   --todo-bg: #EEE7FF;
   --todo-bg-soft: #F6F2FF;
-  --todo-border: #C4B5FD;
+  --todo-border: #8E6BC7;
   --todo-text: #5B21B6;
   --todo-fill: #6D28D9;
   --todo-fill-text: #FFFFFF;
   --notification-red: #D92D36;
 
-  /* Klynx light palette — warm off-white canvas, crisp white surfaces.
+  /* Klynx light palette — cool canvas, crisp white surfaces.
      The slightly darker canvas gives cards/sidebar real separation without
      turning light mode grey or changing the product identity. */
-  --background: #E8EDF3;
+  --background: #E4EAF2;
   --surface: #FFFFFF;
-  --surface-secondary: #EDF1F6;
-  --border: #BFC9D7;
-  --border-strong: #98A6B8;
+  --surface-secondary: #E9EFF6;
+  --border: #99AABD;
+  --border-strong: #6E829A;
   --text: #111113;
-  --text-secondary: #374151;
-  --muted: #4B5563;
+  --text-secondary: #28384C;
+  --muted: #41516A;
 
   --stage: #DAE2EC;
   --shell-border: #B5C0CF;
   --chrome-bg: #FFFFFF;
   --row-hover: #E7EEF6;
-  --sidebar-active: #EEF8D7;
+  --sidebar-active: #D9F2AF;
   --card-shadow: 0 1px 3px rgba(17,17,19,.10), 0 8px 26px rgba(17,17,19,.08);
   --shell-shadow: 0 20px 65px rgba(17,17,19,.10);
 
   /* Requested status palette */
-  --status-available-bg: #F1FFD8;
-  --status-available-border: #D6F98A;
-  --status-available-text: #3D5600;
+  --status-available-bg: #DDF5B4;
+  --status-available-border: #74A936;
+  --status-available-text: #304900;
 
-  --status-reserved-bg: #FFF8DA;
-  --status-reserved-border: #F3CC4B;
-  --status-reserved-text: #805A00;
+  --status-reserved-bg: #FFE8A3;
+  --status-reserved-border: #B7800A;
+  --status-reserved-text: #684400;
 
-  --status-rented-bg: #FFF0F7;
-  --status-rented-border: #F4A3C8;
-  --status-rented-text: #9E1F5B;
+  --status-rented-bg: #FFD8E9;
+  --status-rented-border: #C5588B;
+  --status-rented-text: #8A164B;
 
-  --status-cleaning-bg: #EEF7FF;
-  --status-cleaning-border: #93C5FD;
-  --status-cleaning-text: #155E9C;
+  --status-cleaning-bg: #D8EAFE;
+  --status-cleaning-border: #4582C3;
+  --status-cleaning-text: #134C87;
 
-  --status-maintenance-bg: #F4F0FF;
-  --status-maintenance-border: #C4B5FD;
+  --status-maintenance-bg: #E5DCFF;
+  --status-maintenance-border: #8E6BC7;
   --status-maintenance-text: #6D28D9;
 
-  --status-danger-bg: #FFF1F2;
-  --status-danger-border: #FDA4AF;
+  --status-danger-bg: #FFDBDF;
+  --status-danger-border: #C94A5B;
   --status-danger-text: #9F1239;
 
-  --success: #3D5600;
+  --success: #304900;
   --danger: #9F1239;
 
   --shadow-glow-lime: 0 8px 24px rgba(168, 216, 74, 0.15);

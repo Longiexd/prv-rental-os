@@ -15,7 +15,7 @@ def vehicle():
 
 def scan(kind, expiry=None, verified=True, attachment_id=1):
     return {"id": attachment_id, "name": "scan.pdf", "res_id": 7,
-            "description": write_metadata("", "document", {"version": 1, "kind": kind, "number": "123", "verified": verified, "expiry_date": expiry})}
+            "description": write_metadata("", "document", {"version": 1, "kind": kind, "number": "123", "verified": verified, "payment_confirmed": True, "expiry_date": expiry})}
 
 
 def complete():
@@ -24,8 +24,8 @@ def complete():
 
 def test_missing_documents_red_and_optional_contracts_not_required():
     result=care.vehicle_attention(vehicle(), [])
-    assert result["missing_count"] == 3
-    assert {item["kind"] for item in result["alerts"]} == {"insurance", "registration", "technical_inspection"}
+    assert result["missing_count"] == 5
+    assert {item["kind"] for item in result["alerts"]} == set(care.KINDS) - care.OPTIONAL
     assert all(item["severity"] == "danger" for item in result["alerts"])
 
 
@@ -39,7 +39,7 @@ def test_renewed_scan_supersedes_expired_scan_and_preserves_history():
     new=scan("insurance",(date.today()+timedelta(days=100)).isoformat(),attachment_id=2)
     records=[new,old,*[row for row in complete() if read_metadata(row["description"],"document")["kind"]!="insurance"]]
     assert care.vehicle_attention(vehicle(),records)["alerts"] == []
-    assert len(records)==4
+    assert len(records)==6
 
 
 @pytest.mark.parametrize("days,reason,severity", [(-1,"expired","danger"),(0,"renewal","warning"),(15,"renewal","warning"),(60,None,None)])

@@ -12,6 +12,17 @@ from app.verticals.car_rental.states import (
 )
 
 
+@pytest.fixture(autouse=True)
+def valid_fleet_evidence():
+    # These tests isolate booking-state transitions; compliance gates have their own suite.
+    ready = {"eligible": True, "blocking_reasons": []}
+    with patch.object(cars, "vehicle_eligibility", return_value=ready), \
+         patch.object(cars, "fleet_eligibility", side_effect=lambda ids, *args, **kw: {i: ready for i in ids}), \
+         patch.object(rentals, "fleet_eligibility", side_effect=lambda ids, *args, **kw: {i: ready for i in ids}), \
+         patch.object(changes, "ensure_eligible", return_value=ready):
+        yield
+
+
 def booking(**overrides):
     today = date.today()
     return {

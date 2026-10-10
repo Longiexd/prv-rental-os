@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 
 from app.odoo_client import odoo
 from app.core.record_metadata import write_metadata
+from app.verticals.car_rental.eligibility import fleet_eligibility
 from app.routes.calendar import QUOTATION_TAG, booking_status, rental_vehicle_id
 from app.routes.cars import RETURNED_TAG
 from app.verticals.car_rental.states import blocking_booking_domain, is_booking_state, is_operational_state
@@ -249,6 +250,7 @@ def get_rental_options(
     if exclude_order_id:
         editing_vehicle_id = rental_vehicle_id(get_record("sale.order", exclude_order_id, ["note"]).get("note"))
 
+    eligibility = fleet_eligibility([vehicle["id"] for vehicle in vehicles], end_date)
     for vehicle in vehicles:
         state_id = vehicle.get("state_id")
         state_label = state_id[1] if isinstance(state_id, list) else None
@@ -269,14 +271,16 @@ def get_rental_options(
         )
 
         is_fleet_available = is_vehicle_available(state_label) or is_booking_state(state_label)
-        if vehicle["id"] == editing_vehicle_id and not is_operational_state(state_label):
+        if vehicle["id"] == editing_vehicle_id and not is_operational_state(state_label) and not any(word in (state_label or "").lower() for word in ("indispon", "unavailable")):
             is_fleet_available = True
 
         vehicle["available"] = (
             is_fleet_available
+            and eligibility[vehicle["id"]]["eligible"]
             and vehicle["id"] not in booked_vehicle_ids
         )
 
+        vehicle.update(eligibility[vehicle["id"]])
         # Raw Odoo fields no longer needed once derived above.
         del vehicle["category_id"]
         del vehicle["brand_id"]
@@ -344,6 +348,7 @@ def get_rental_options(
                 "category": vehicle.get("category"),
                 "brand": vehicle.get("brand"),
                 "available": vehicle.get("available", True),
+                "blocking_reasons": vehicle.get("blocking_reasons", []),
                 "location": vehicle.get("location") or "",
             }
             for vehicle in vehicles

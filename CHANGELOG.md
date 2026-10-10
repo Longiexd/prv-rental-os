@@ -1,5 +1,18 @@
 # Klynx OS changes
 
+## 1.0.0-rc.2 — pending staging validation
+
+- Check required vehicle evidence through planned return before booking confirmation and pickup.
+- Track vignette and operating-card evidence and payment/active coverage confirmation in Odoo.
+- Use native Indisponible for compliance blocks; preserve cleaning, maintenance and actual rental states.
+- Keep return mileage and Fleet reminders connected; explain blocked vehicles without mixing customer to-dos.
+- Separate Rentals, Fleet and Management navigation while retaining existing routes and records.
+- Strengthen light-mode text, card borders/shadows, selected controls and semantic status colours.
+
+Review [fleet evidence requirements](docs/FLEET_ELIGIBILITY.md) before rollout.
+Existing vehicles need the newly required evidence reviewed. This remains a release
+candidate until the staging deployment and real agency journeys are validated.
+
 ## 1.0.0-rc.1 — pending staging validation
 
 - Keep upcoming insurance renewals visible alongside missing or unverified scans.

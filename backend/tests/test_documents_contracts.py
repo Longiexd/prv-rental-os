@@ -326,7 +326,9 @@ def test_vehicle_document_expiry_reminder_persists_updates_clears_and_reads_lega
         assert read_metadata(store.attachments[0]["description"], "document")["reminder_date"] is None
 
 
-def test_verified_passport_and_licence_prepare_print_and_pickup_preserve_rental_copies():
+def test_verified_passport_and_licence_prepare_print_and_pickup_preserve_rental_copies(monkeypatch):
+    # Isolate customer paperwork; fleet eligibility is covered by test_fleet_eligibility.
+    monkeypatch.setattr(booking_changes, "ensure_eligible", lambda *args: {"eligible": True})
     store = RentalStore()
     with patch.object(documents.odoo, "execute", side_effect=store.execute), patch.object(booking_changes, "refresh_fleet"):
         verified_customer(store, "passport")

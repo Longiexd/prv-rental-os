@@ -12,9 +12,9 @@ from app.verticals.car_rental.fleet_records import (
     fleet_records, contract_kind, document_needs_link, apply_contract_dates, save_native_plan, sync_saved_contracts, SERVICE_MODEL,
 )
 
+from app.verticals.car_rental.eligibility import KINDS, evaluate
+
 router = APIRouter()
-KINDS = {"insurance": "Insurance", "registration": "Registration", "technical_inspection": "Technical inspection",
-         "lease": "Lease contract", "service_contract": "Service contract"}
 OPTIONAL = {"lease", "service_contract"}
 KEY = "fleet_care"
 
@@ -60,6 +60,13 @@ def vehicle_attention(vehicle, records, plan=None, today=None, contracts=None, s
             alerts.append({"kind": doc["kind"], "reason": "renewal", "severity": "warning", "date": doc["expiry_date"]})
         if doc["id"] and doc["kind"] in {"insurance", "technical_inspection", *OPTIONAL} and not doc["expiry_date"]:
             alerts.append({"kind": doc["kind"], "reason": "date_missing", "severity": "warning", "date": None})
+    eligibility = evaluate(checklist["documents"], today=today)
+    for block in eligibility["blocking_reasons"]:
+        matching = next((alert for alert in alerts if alert["kind"] == block["kind"] and alert["reason"] == block["reason"]), None)
+        if matching:
+            matching["severity"] = "danger"
+        else:
+            alerts.append(block)
     odometer = vehicle.get("odometer") or 0
     state = vehicle["state_id"][1] if vehicle.get("state_id") else ""
     if any(word in normalize_state(state) for word in ("maintenance", "entretien", "repair", "repar")):
@@ -82,7 +89,7 @@ def vehicle_attention(vehicle, records, plan=None, today=None, contracts=None, s
             "state": state, "odometer": odometer,
             "unit": vehicle.get("odometer_unit") or "kilometers", "plan": plan, "documents": checklist["documents"],
             "alerts": alerts, "contracts": contracts, "services": services,
-            "needs_contract_link": needs_link,
+            "needs_contract_link": needs_link, **eligibility,
             "missing_count": sum(doc["status"] == "missing" and doc["kind"] not in OPTIONAL for doc in checklist["documents"])}
 
 

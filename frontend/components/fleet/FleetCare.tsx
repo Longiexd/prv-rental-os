@@ -12,7 +12,7 @@ type Alert = FleetAlert;
 type Document = { kind: string; id: number | null; expiry_date: string | null; status: string };
 type Contract = { id: number; name: string; expiration_date: string | false; state: string };
 type Service = { id: number; description: string | false; service_type_id: [number, string]; date: string | false; state: string };
-type Vehicle = { id: number; name: string; plate: string; state: string; odometer: number; unit: string; plan: Plan | null; alerts: Alert[]; documents: Document[]; missing_count: number; contracts: Contract[]; services: Service[]; needs_contract_link: boolean };
+type Vehicle = { id: number; name: string; plate: string; state: string; odometer: number; unit: string; plan: Plan | null; alerts: Alert[]; documents: Document[]; missing_count: number; contracts: Contract[]; services: Service[]; needs_contract_link: boolean; eligible: boolean; blocking_reasons: Alert[] };
 type Data = { vehicles: Vehicle[] };
 export function prioritizedVehicles(vehicles: Vehicle[]) {
   const priority = (vehicle: Vehicle) => vehicle.alerts.some(alert => alert.severity === "danger") ? 0 : vehicle.alerts.length ? 1 : 2;
@@ -37,7 +37,7 @@ export function FleetCareProvider({ children }: { children: ReactNode }) {
     try {
       do {
         refreshAgain.current = false;
-        try { const result = await apiFetch<Data>("/cars/care"); if (mounted.current) { setData(result); setError(false); } }
+        try { await apiFetch("/cars/sync", {method: "POST"}); const result = await apiFetch<Data>("/cars/care"); if (mounted.current) { setData(result); setError(false); } }
         catch { if (mounted.current) setError(true); }
       } while (refreshAgain.current && mounted.current);
     } finally { pending.current = false; }
@@ -58,8 +58,8 @@ function useWords() {
   const { locale, t } = useKlynxUI();
   const fr = locale === "fr";
   const text = (en: string, french: string) => fr ? french : en;
-  const kind = (value: string) => ({ insurance: text("Insurance", "Assurance"), registration: text("Registration", "Carte grise"), technical_inspection: text("Technical inspection", "Visite technique"), lease: text("Lease contract", "Contrat de leasing"), service_contract: text("Service contract", "Contrat de service"), oil_change: text("Oil change", "Vidange"), maintenance: text("Maintenance", "Entretien"), service: text("Service", "Intervention"), contract: text("Fleet contract", "Contrat du parc"), documents: text("Documents", "Documents") }[value] || value);
-  const reason = (value: string) => ({ missing: text("Scan missing", "Document manquant"), expired: text("Expired — renew", "Expiré — à renouveler"), uploaded: text("Awaiting verification", "À vérifier"), renewal: text("Renewal due soon", "Renouvellement à prévoir"), date_missing: text("Add expiry date", "Renseigner la date de fin"), due: text("Due now", "Échéance atteinte"), soon: text("Due soon", "Échéance proche"), in_progress: text("Vehicle in maintenance", "Véhicule en entretien"), planned: text("Scheduled", "Planifié"), review: text("Stored information needs review", "Informations enregistrées à vérifier") }[value] || value);
+  const kind = (value: string) => ({ insurance: text("Insurance", "Assurance"), registration: text("Registration", "Carte grise"), technical_inspection: text("Technical inspection", "Visite technique"), vignette: text("Circulation tax", "Vignette"), operating_permit: text("Operating card", "Carte d’exploitation"), lease: text("Lease contract", "Contrat de leasing"), service_contract: text("Service contract", "Contrat de service"), oil_change: text("Oil change", "Vidange"), maintenance: text("Maintenance", "Entretien"), service: text("Service", "Intervention"), contract: text("Fleet contract", "Contrat du parc"), documents: text("Documents", "Documents") }[value] || value);
+  const reason = (value: string) => ({ missing: text("Scan missing", "Document manquant"), expired: text("Expired — renew", "Expiré — à renouveler"), uploaded: text("Awaiting verification", "À vérifier"), renewal: text("Renewal due soon", "Renouvellement à prévoir"), date_missing: text("Add expiry date", "Renseigner la date de fin"), payment_unconfirmed: text("Payment / active coverage not checked", "Paiement / couverture en vigueur non contrôlé"), not_started: text("Not valid yet", "Pas encore valable"), coverage_inactive: text("Insurance contract closed", "Contrat d’assurance clôturé"), expires_during_rental: text("Expires before return", "Expire avant le retour"), due: text("Due now", "Échéance atteinte"), soon: text("Due soon", "Échéance proche"), in_progress: text("Vehicle in maintenance", "Véhicule en entretien"), planned: text("Scheduled", "Planifié"), review: text("Stored information needs review", "Informations enregistrées à vérifier") }[value] || value);
   return { text, kind, reason, t };
 }
 
@@ -72,6 +72,14 @@ export function VehicleAttentionBadge({ vehicleId }: { vehicleId: number }) {
   const danger = vehicle.alerts.some(alert => alert.severity === "danger");
   const explanation = vehicle.alerts.map(alert => `${alert.label || kind(alert.kind)} · ${reason(alert.reason)}${alert.date ? ` · ${alert.date}` : ""}`).join("; ");
   return <span data-i18n-ignore="true" className={`ml-2 inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] ${danger ? "bg-[var(--status-danger-bg)] text-[var(--status-danger-text)]" : "bg-[var(--status-reserved-bg)] text-[var(--status-reserved-text)]"}`} title={explanation}><span aria-hidden="true">●</span>{vehicle.alerts.length}<span className="sr-only">{text("Fleet alerts", "Alertes du parc")}: {explanation}</span></span>;
+}
+
+export function RentalFleetNotice() {
+  const { data, error } = useContext(Context);
+  const { text } = useWords();
+  const count = data?.vehicles.filter(vehicle => !vehicle.eligible).length || 0;
+  if (!count && !error) return null;
+  return <p data-i18n-ignore="true" className="mt-6 rounded-lg border border-[var(--status-danger-border)] bg-[var(--status-danger-bg)] p-3 text-sm text-[var(--status-danger-text)]">{error ? text("Fleet checks could not refresh. Confirmation and pickup still require backend validation.", "Contrôle du parc non actualisé. La confirmation et le départ restent soumis au contrôle du serveur.") : text(`${count} vehicles blocked by required evidence.`, `${count} véhicules bloqués par les justificatifs obligatoires.`)} <Link href="/dashboard/fleet-care" className="font-semibold underline">{text("Open Fleet", "Ouvrir le parc")} →</Link></p>;
 }
 
 export function VehicleCareNotice({ vehicleId }: { vehicleId: number }) {

@@ -53,6 +53,7 @@ type Vehicle = {
   category: { id: number; name: string } | null;
   brand: { id: number; name: string } | null;
   available: boolean;
+  blocking_reasons?: {kind: string; reason: string}[];
   location?: string;
 };
 
@@ -1444,7 +1445,7 @@ export default function CreateRentalModal({
                         )}
                         {!vehicle.available && (
                           <span className="text-red-400">
-                            {vehicle.status || "Unavailable"}
+                            {vehicle.blocking_reasons?.length ? "Required vehicle evidence incomplete" : vehicle.status || "Unavailable"}
                           </span>
                         )}
                       </div>

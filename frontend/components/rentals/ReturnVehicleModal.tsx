@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { Modal } from "@/components/ui/Modal";
 import { apiFetch } from "@/lib/api";
+import { notifyFleetCareChanged } from "@/components/fleet/FleetCare";
 import { formatDate } from "@/lib/format";
 import { buildReturnPayload, odometerUnit, type NextVehicleState, type ReturnForm, type ReturnRecord } from "@/lib/fleet-bookings";
 
@@ -70,6 +71,7 @@ export default function ReturnVehicleModal({ vehicleId, orderId, initialNextStat
     try {
       await apiFetch(`/cars/${vehicleId}/return`, { method: "POST", body: JSON.stringify(payload) });
       setSaved(true);
+      notifyFleetCareChanged();
       try { await onReturned(); }
       catch { setError("Return saved. Close this form and refresh the page to see the updated booking."); }
     } catch (err) {

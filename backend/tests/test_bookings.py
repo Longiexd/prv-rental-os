@@ -127,10 +127,10 @@ class BookingTests(unittest.TestCase):
         self.assertEqual(calendar.rental_vehicle_id(note), 4)
 
     def test_overlap_blocks_confirmed_but_not_quotations_or_returned(self):
-        with patch.object(changes.odoo, "execute", return_value=[self.order]), self.assertRaises(HTTPException):
+        with patch.object(changes, "ensure_eligible"), patch.object(changes, "get_record", return_value={"active": True}), patch.object(changes.odoo, "execute", return_value=[self.order]), self.assertRaises(HTTPException):
             changes.ensure_available(4, self.start, self.end, 2)
         for tag in [calendar.QUOTATION_TAG, cars.RETURNED_TAG]:
-            with patch.object(changes.odoo, "execute", return_value=[{**self.order, "note": self.order["note"] + tag}]):
+            with patch.object(changes, "ensure_eligible"), patch.object(changes, "get_record", return_value={"active": True}), patch.object(changes.odoo, "execute", return_value=[{**self.order, "note": self.order["note"] + tag}]):
                 changes.ensure_available(4, self.start, self.end, 2)
 
     def test_cancel_uses_native_actions_without_touching_invoice(self):

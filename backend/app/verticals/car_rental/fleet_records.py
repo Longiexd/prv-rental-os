@@ -16,10 +16,12 @@ PLAN_KEY = "fleet_care"
 CONTRACT_KINDS = {"insurance": "Insurance", "lease": "Lease", "service_contract": "Service agreement"}
 
 
-def fleet_records(vehicle_ids):
+def fleet_records(vehicle_ids, include_services=True):
     domain = [["vehicle_id", "in", vehicle_ids], ["active", "=", True]]
     contracts = odoo.execute(CONTRACT_MODEL, "search_read", [domain], {
         "fields": ["id", "vehicle_id", "name", "expiration_date", "start_date", "state", "notes", "ins_ref"], "order": "id desc"})
+    if not include_services:
+        return contracts, []
     services = odoo.execute(SERVICE_MODEL, "search_read", [domain], {
         "fields": ["id", "vehicle_id", "service_type_id", "description", "date", "state", "notes"], "order": "id desc"})
     return contracts, services
@@ -29,7 +31,7 @@ def managed_contracts(vehicle_id):
     records = odoo.execute(CONTRACT_MODEL, "search_read", [[
         ["vehicle_id", "=", vehicle_id], ["active", "=", True],
         ["notes", "ilike", "[Klynx metadata:fleet_contract:"],
-    ]], {"fields": ["id", "notes", "expiration_date", "state"], "order": "id desc"})
+    ]], {"fields": ["id", "notes", "expiration_date", "start_date", "state"], "order": "id desc"})
     return records
 
 
@@ -71,7 +73,8 @@ def sync_contract(vehicle_id, attachment_id, document):
         return None
     notes = write_metadata(record.get("notes") if record else "", CONTRACT_KEY,
                            {"version": 1, "kind": kind, "document_id": attachment_id, "expiry_date": document.get("expiry_date")})
-    values = {"expiration_date": document.get("expiry_date") or False, "ins_ref": document.get("number", "")[:64], "notes": notes}
+    values = {"start_date": document.get("valid_from") or min(date.today().isoformat(), document.get("expiry_date") or date.today().isoformat()),
+              "expiration_date": document.get("expiry_date") or False, "ins_ref": document.get("number", "")[:64], "notes": notes}
     if record:
         if record["state"] == "closed":
             raise HTTPException(409, "This linked contract was cancelled in Odoo. Review it before renewal.")
@@ -79,8 +82,7 @@ def sync_contract(vehicle_id, attachment_id, document):
             raise HTTPException(502, "Odoo Fleet contract could not be updated.")
         return record["id"]
     values.update(vehicle_id=vehicle_id, name=CONTRACT_KINDS[kind], cost_frequency="no",
-                  cost_subtype_id=service_type(f"{CONTRACT_KINDS[kind]} (Klynx)", "contract"),
-                  start_date=min(date.today().isoformat(), document["expiry_date"]))
+                  cost_subtype_id=service_type(f"{CONTRACT_KINDS[kind]} (Klynx)", "contract"))
     identifier = odoo.execute(CONTRACT_MODEL, "create", [values])
     if not identifier:
         raise HTTPException(502, "Odoo Fleet contract could not be created.")
@@ -98,12 +100,21 @@ def contract_after_save(vehicle_id, attachment_id, document):
 def apply_contract_dates(checklist, contracts, today=None):
     today = today or date.today()
     for document in checklist["documents"]:
-        record = next((row for row in contracts if contract_kind(row) == document["kind"] and row["state"] != "closed"), None)
+        record = next((row for row in contracts if contract_kind(row) == document["kind"]), None)
+        if record and document["id"] and record["state"] == "closed":
+            document["coverage_active"] = False
+            document["verified"] = False
+            document["status"] = "uploaded"
+            continue
         if record and document["id"] and contract_matches_document(record, document):
             # A renewed Odoo contract does not automatically verify the previous scan.
             if document["expiry_date"] != (record["expiration_date"] or None):
                 document["verified"] = False
             document["contract_id"] = record["id"]
+            if document.get("valid_from") and document["valid_from"] != (record.get("start_date") or None):
+                document["verified"] = False
+            if record.get("start_date"):
+                document["valid_from"] = record["start_date"]
             document["expiry_date"] = record["expiration_date"] or None
             document["reminder_date"] = expiry_reminder(date.fromisoformat(record["expiration_date"])) if record["expiration_date"] else None
             expired = bool(record["expiration_date"] and record["expiration_date"] < today.isoformat())

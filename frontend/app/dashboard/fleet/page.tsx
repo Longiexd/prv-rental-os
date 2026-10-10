@@ -34,7 +34,7 @@ import { API_URL, apiRequest } from "@/lib/api-config";
 import { getVehicleBookings } from "@/lib/fleet-bookings";
 import { getRentalState, rentalStateMeta } from "@/lib/status";
 import DocumentsPanel from "@/components/ui/DocumentsPanel";
-import { VehicleAttentionBadge, VehicleCareNotice, notifyFleetCareChanged } from "@/components/fleet/FleetCare";
+import { VehicleAttentionBadge, VehicleCareNotice, FleetCareSummary, notifyFleetCareChanged } from "@/components/fleet/FleetCare";
 import ReturnVehicleModal from "@/components/rentals/ReturnVehicleModal";
 import type { NextVehicleState } from "@/lib/fleet-bookings";
 
@@ -442,7 +442,7 @@ function VehicleCard({
         </div>
         {(needsReturn ||
           fleetStatus === "cleaning" ||
-          fleetStatus === "maintenance") && (
+          (fleetStatus === "maintenance" || fleetStatus === "unavailable")) && (
           <div
             className="mt-4"
             onClick={(event) => event.stopPropagation()}
@@ -513,7 +513,7 @@ function VehicleCard({
 
             {!needsReturn &&
               (fleetStatus === "cleaning" ||
-                fleetStatus === "maintenance") && (
+                (fleetStatus === "maintenance" || fleetStatus === "unavailable")) && (
                 <button
                   type="button"
                   onClick={() =>
@@ -932,7 +932,7 @@ function VehicleModal({
         {(fleetStatus === "rented" ||
           fleetStatus === "returnDue" ||
           fleetStatus === "cleaning" ||
-          fleetStatus === "maintenance") && (
+          (fleetStatus === "maintenance" || fleetStatus === "unavailable")) && (
           <div className="border-t border-border bg-background px-5 py-4 sm:px-6">
             {(fleetStatus === "rented" ||
               fleetStatus === "returnDue") && (
@@ -1003,13 +1003,13 @@ function VehicleModal({
               </>
             )}
 
-            {fleetStatus === "maintenance" && (
+            {(fleetStatus === "maintenance" || fleetStatus === "unavailable") && (
               <button
                 type="button"
                 onClick={() => onAction(car.id, "mark-available")}
                 className="w-full rounded-lg border border-[#C8F065]/30 bg-[var(--status-available-text)]/10 py-2 text-xs font-medium text-[var(--status-available-text)] transition hover:bg-[var(--status-available-text)]/20"
               >
-                Repairs finished — mark Available
+                Checks finished — mark Available
               </button>
             )}
           </div>
@@ -2042,6 +2042,7 @@ export default function FleetPage() {
             </div>
           )}
         </section>
+        <FleetCareSummary />
       </main>
 
       {/* MODAL */}

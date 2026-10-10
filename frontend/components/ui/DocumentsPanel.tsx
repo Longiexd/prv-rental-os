@@ -9,7 +9,7 @@ type TrackedDocument = {
   status: "missing" | "uploaded" | "verified" | "expired";
   number: string; expiry_date: string | null; verified: boolean; optional?: boolean;
   nationality?: string; birth_date?: string | null;
-  reminder_date?: string | null;
+  reminder_date?: string | null; valid_from?: string | null; payment_confirmed?: boolean;
 };
 type Checklist = { documents: TrackedDocument[]; ready: boolean };
 const input = "w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm text-text";
@@ -214,23 +214,25 @@ export default function DocumentsPanel({ owner, recordId, onChanged, rentalId, r
     const expiry_date = String(fields.get("expiry_date") || "") || null;
     const identityFields = identityOwner && (document.kind === "cin" || document.kind === "passport")
       ? {nationality: String(fields.get("nationality") || "").trim(), birth_date: String(fields.get("birth_date") || "") || null} : {};
-    type SaveResult = {fleet_sync?: {linked: boolean}};
+    const fleetFields = owner === "cars" ? {valid_from: String(fields.get("valid_from") || "") || null, payment_confirmed: fields.get("payment_confirmed") === "on"} : {};
+    type SaveResult = {fleet_sync?: {linked: boolean; state_synced?: boolean}};
     try {
       let result: SaveResult;
       if (file?.size) {
         if (file.size > 600 * 1024) throw new Error("Compress the document to 600 KiB or less before uploading.");
         const content = await encodedFile(file);
         result = await apiFetch<SaveResult>(path, { method: "POST", body: JSON.stringify({ kind: document.kind, filename: file.name,
-          content, number, expiry_date, ...identityFields }) });
+          content, number, expiry_date, ...identityFields, ...fleetFields }) });
         setNotice("Document uploaded. Review it, then mark it verified. Earlier versions remain in Odoo.");
       } else if (document.id) {
         result = await apiFetch<SaveResult>(`${path}/${document.id}`, { method: "PATCH", body: JSON.stringify({ number, expiry_date,
-          verified: fields.get("verified") === "on", ...identityFields }) });
+          verified: fields.get("verified") === "on", ...identityFields, ...fleetFields }) });
         setNotice("Document checklist updated.");
       } else throw new Error("Choose a document to upload first.");
       if (result.fleet_sync?.linked === false) setError(locale === "fr"
         ? "Document enregistré ; la liaison au contrat Odoo a échoué. Réessayez depuis le suivi du parc."
         : "Document saved; Odoo contract linking failed. Retry from Fleet care.");
+      if (result.fleet_sync?.state_synced === false) setError(locale === "fr" ? "Document enregistré ; l’état du véhicule n’a pas pu être actualisé. Actualisez le suivi du parc." : "Document saved; vehicle state could not sync. Refresh Fleet care.");
       // A successful save is kept even if the following refresh fails.
       form.reset(); setChecklist(null); setRevision(value => value + 1); onChanged?.();
     } catch (err) { setError(err instanceof Error ? err.message : "Document could not be saved."); }
@@ -274,7 +276,9 @@ export default function DocumentsPanel({ owner, recordId, onChanged, rentalId, r
             <label className="text-sm text-text">Nationality (optional)<input name="nationality" maxLength={100} defaultValue={document.nationality || ""} className={input} /></label>
             <label className="text-sm text-text">Date of birth (optional)<input name="birth_date" type="date" defaultValue={document.birth_date || ""} className={input} /></label>
           </>}
-          <label className="text-sm text-text">{owner === "cars" && document.kind !== "registration" ? "Expiry date" : "Expiry date (optional)"}<input required={owner === "cars" && document.kind !== "registration"} name="expiry_date" type="date" defaultValue={document.expiry_date || ""} className={input} /></label>
+          <label className="text-sm text-text">{owner === "cars" && ["insurance", "technical_inspection", "vignette"].includes(document.kind) ? "Expiry date" : "Expiry date (optional)"}<input required={owner === "cars" && ["insurance", "technical_inspection", "vignette"].includes(document.kind)} name="expiry_date" type="date" defaultValue={document.expiry_date || ""} className={input} /></label>
+          {owner === "cars" && <label data-i18n-ignore="true" className="text-sm text-text">{locale === "fr" ? "Début de validité (si applicable)" : "Valid from (if applicable)"}<input name="valid_from" type="date" defaultValue={document.valid_from || ""} className={input} /></label>}
+          {owner === "cars" && ["insurance", "vignette"].includes(document.kind) && <label data-i18n-ignore="true" className="flex items-center gap-2 text-sm text-text"><input name="payment_confirmed" type="checkbox" defaultChecked={document.payment_confirmed} />{locale === "fr" ? "Paiement / couverture en vigueur contrôlé" : "Payment / active coverage checked"}</label>}
           {owner === "cars" && document.reminder_date && <p data-i18n-ignore="true" className="self-end text-xs text-text-secondary">{locale === "fr" ? `Renouvellement à prévoir dès le ${document.reminder_date} · un mois avant la date de fin.` : `Renewal window starts ${document.reminder_date} · one month before expiry.`}</p>}
           <label className="text-sm text-text sm:col-span-2">{document.id ? "Replace scan (optional)" : "Upload scan"}<input name="file" type="file" accept="application/pdf,image/png,image/jpeg" className={input} /></label>
           {document.id && <label className="flex items-center gap-2 text-sm text-text"><input name="verified" type="checkbox" defaultChecked={document.verified} />Verified by agent</label>}

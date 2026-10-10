@@ -12,11 +12,17 @@ from app.routes.calendar import CONFIRMED_TAG, QUOTATION_TAG, booking_status, re
 from app.routes.cars import PICKED_UP_TAG, RETURNED_TAG, sync_vehicle_state
 from app.routes.rentals import RentalCreate, get_record
 from app.verticals.car_rental.states import is_operational_state, blocking_booking_domain
+from app.verticals.car_rental.eligibility import ensure_eligible
 
 router = APIRouter(prefix="/rentals", tags=["Rentals"])
 
 
 def ensure_available(vehicle_id, start, end, order_id):
+    ensure_eligible(vehicle_id, end)
+    vehicle = get_record("fleet.vehicle", vehicle_id, ["active", "state_id"])
+    label = vehicle["state_id"][1] if vehicle.get("state_id") else ""
+    if not vehicle.get("active") or is_operational_state(label) or any(word in label.lower() for word in ("indispon", "unavailable")):
+        raise HTTPException(409, "The vehicle is not operationally available. Review Fleet before confirmation.")
     orders = odoo.execute("sale.order", "search_read",
                          [blocking_booking_domain(start, end, order_id)],
                          {"fields": ["note", "state"]})
@@ -131,7 +137,7 @@ def confirm_booking(order_id: int):
 @router.post("/{order_id}/picked-up")
 def mark_picked_up(order_id: int):
     """Records that the customer actually collected the vehicle today."""
-    order = get_record("sale.order", order_id, ["state", "note", "date_order"])
+    order = get_record("sale.order", order_id, ["state", "note", "date_order", "commitment_date"])
     if RETURNED_TAG in (order.get("note") or ""):
         raise HTTPException(409, "A returned booking cannot be picked up again.")
     if booking_status(order) != "confirmed":
@@ -148,6 +154,9 @@ def mark_picked_up(order_id: int):
     state = vehicle.get("state_id")
     if not vehicle.get("active") or is_operational_state(state[1] if state else None):
         raise HTTPException(409, "Finish vehicle cleaning or maintenance and mark it available before pickup.")
+    ensure_eligible(vehicle_id, date.fromisoformat(order["commitment_date"][:10]) if order.get("commitment_date") else None)
+    if state and any(word in state[1].lower() for word in ("indispon", "unavailable")):
+        raise HTTPException(409, "Vehicle unavailable. Review Fleet before pickup.")
     order = ensure_pickup_paperwork(order_id)
     note = f"{(order.get('note') or '')}\n{PICKED_UP_TAG}".strip()
     reading = vehicle.get("odometer")

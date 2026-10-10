@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from app.odoo_client import odoo
 from app.core.documents import document_router
+from app.verticals.car_rental.eligibility import KINDS, fleet_eligibility, vehicle_eligibility, ensure_eligible, evaluate
 from app.verticals.car_rental.fleet_care import router as fleet_care_router
 from app.verticals.car_rental.fleet_records import contract_after_save, enrich_checklist
 from app.core.record_metadata import read_metadata, write_metadata
@@ -23,11 +24,24 @@ router = APIRouter(
     prefix="/cars",
     tags=["Cars"]
 )
-router.include_router(document_router("fleet.vehicle", {
-    "insurance": "Assurance / Insurance", "registration": "Carte grise",
-    "technical_inspection": "Visite technique",
-    "lease": "Lease contract", "service_contract": "Service contract",
-}, after_save=contract_after_save, enrich=enrich_checklist))
+def fleet_checklist(vehicle_id, checklist):
+    result = enrich_checklist(vehicle_id, checklist)
+    result.update(evaluate(result["documents"]))
+    result["ready"] = result["ready"] and result["eligible"]
+    return result
+
+
+def fleet_document_saved(vehicle_id, attachment_id, document):
+    result = contract_after_save(vehicle_id, attachment_id, document)
+    try:
+        sync_vehicle_state(vehicle_id)
+        result["state_synced"] = True
+    except HTTPException:
+        result["state_synced"] = False
+    return result
+
+
+router.include_router(document_router("fleet.vehicle", KINDS, after_save=fleet_document_saved, enrich=fleet_checklist))
 router.include_router(fleet_care_router)
 
 
@@ -120,7 +134,8 @@ def compute_target_state(vehicle_id: int, orders: list[dict] | None = None) -> s
 
 def sync_vehicle_state(vehicle_id: int, *, vehicle: dict | None = None,
                        orders: list[dict] | None = None,
-                       state_ids: dict[str, int] | None = None) -> str | None:
+                       state_ids: dict[str, int] | None = None,
+                       eligibility: dict | None = None) -> str | None:
     """Recompute booking states without overwriting manual operations."""
     if vehicle is None:
         records = odoo.execute("fleet.vehicle", "search_read",
@@ -134,15 +149,25 @@ def sync_vehicle_state(vehicle_id: int, *, vehicle: dict | None = None,
     if is_operational_state(current):
         return None
     active_orders = get_active_orders_for_vehicle(vehicle_id) if orders is None else orders
-    target = target_state(current, active_orders)
+    compliance = eligibility if eligibility is not None else vehicle_eligibility(vehicle_id)
+    derived = booking_state(active_orders)
+    unavailable = any(word in normalize_state(current) for word in ("indispon", "unavailable"))
+    if derived in {"Louée", "Retour dû"}:
+        target = derived  # Keep the real handover/return state; eligibility still blocks new rentals.
+    elif not compliance["eligible"]:
+        target = "Indisponible"
+    elif unavailable:
+        return None  # Renewal never releases a manually held or unchecked vehicle.
+    else:
+        target = target_state(current, active_orders)
     if not target:
         return None
     if normalize_state(current) != normalize_state(target):
         cache = state_ids if state_ids is not None else {}
         if target not in cache:
             cache[target] = find_state_id(target)
-        odoo.execute("fleet.vehicle", "write",
-                     [[vehicle_id], {"state_id": cache[target]}])
+        if not odoo.execute("fleet.vehicle", "write", [[vehicle_id], {"state_id": cache[target]}]):
+            raise HTTPException(502, "Vehicle state could not be saved in Odoo.")
     return target
 
 
@@ -161,12 +186,13 @@ def sync_all_vehicles():
         ["note", "not ilike", QUOTATION_TAG],
     ]], {"fields": ["id", "note", "state", "date_order", "commitment_date"]}) if vehicles else []
     grouped = group_bookings(orders)
+    eligibility = fleet_eligibility([vehicle["id"] for vehicle in vehicles])
     state_ids = {}
     updated = {}
 
     for vehicle in vehicles:
         result = sync_vehicle_state(vehicle["id"], vehicle=vehicle,
-                                    orders=grouped.get(vehicle["id"], []), state_ids=state_ids)
+                                    orders=grouped.get(vehicle["id"], []), state_ids=state_ids, eligibility=eligibility[vehicle["id"]])
 
         if result:
             updated[vehicle["id"]] = result
@@ -265,6 +291,8 @@ def confirm_return(vehicle_id: int, body: ReturnRequest = ReturnRequest()):
         raise HTTPException(409, "The vehicle's odometer unit is unavailable. Review it in Odoo.")
     if saved and saved.odometer_unit != unit:
         raise HTTPException(409, "The vehicle's odometer unit changed. Review the saved return in Odoo.")
+    if body.next_state == "Disponible":
+        ensure_eligible(vehicle_id)
     state_id = find_state_id(body.next_state)
     if not saved:
         saved = ReturnRecord(status="pending", order_id=order["id"], vehicle_id=vehicle_id,
@@ -302,7 +330,12 @@ def mark_available(vehicle_id: int):
     Explicit agent action once cleaning/checks are done.
     """
 
-    return set_vehicle_state(vehicle_id, "Disponible")
+    ensure_eligible(vehicle_id)
+    orders = get_active_orders_for_vehicle(vehicle_id)
+    state = booking_state(orders)
+    if state in {"Louée", "Retour dû"}:
+        raise HTTPException(409, "This vehicle is still on rental. Confirm its return first.")
+    return set_vehicle_state(vehicle_id, state or "Disponible")
 
 
 def set_vehicle_state(vehicle_id: int, state: str) -> dict:
@@ -367,7 +400,7 @@ def get_cars():
     )
 
     cars = []
-
+    eligibility = fleet_eligibility([vehicle["id"] for vehicle in vehicles])
     for vehicle in vehicles:
 
         cars.append({
@@ -408,8 +441,13 @@ def get_cars():
             "odometer_unit": vehicle["odometer_unit"],
 
             "active": vehicle["active"],
+            **eligibility[vehicle["id"]],
         })
 
+    for car in cars:
+        label = normalize_state(car["status"])
+        if not car["eligible"] and not is_operational_state(label) and not any(word in label for word in ("loue", "rented", "retour", "overdue")):
+            car["status"] = "Indisponible"
     return {
         "count": len(cars),
         "cars": cars,

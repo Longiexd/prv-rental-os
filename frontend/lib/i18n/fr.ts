@@ -4,6 +4,17 @@
  * French is presentation-only; business data and backend values are never modified.
  */
 export const fr: Record<string, string> = {
+  "Workspaces": "Espaces de travail",
+  "Fleet": "Parc automobile",
+  "Management": "Direction",
+  "Insurance": "Assurance",
+  "Registration": "Carte grise",
+  "Technical inspection": "Visite technique",
+  "Circulation tax": "Vignette",
+  "Operating card": "Carte d’exploitation",
+  "Required vehicle evidence incomplete": "Justificatifs obligatoires du véhicule incomplets",
+  "Checks finished — mark Available": "Contrôles terminés — marquer disponible",
+
   "Workspace": "Espace de travail",
   "Business": "Activité",
   "Overview": "Aperçu",
@@ -713,7 +724,7 @@ export const fr: Record<string, string> = {
   "View rental / return": "Voir la location / le retour",
   "Open booking / confirm pickup": "Ouvrir la réservation / valider le départ",
   "Open booking / return": "Ouvrir la réservation / le retour",
-  "Fleet": "Flotte",
+
   "No vehicles found.": "Aucun véhicule trouvé.",
   "Cars": "Véhicules",
   "Days": "Jours",

@@ -122,7 +122,7 @@ html[data-theme="light"] .klynx-pro-card {
    text and icon foregrounds use darker accessible ink tones. */
 html[data-theme="light"] .os-shell .text-lime { color: var(--lime-ink); }
 html[data-theme="light"] .os-shell .text-pink { color: var(--pink-ink); }
-html[data-theme="light"] .os-shell .bg-surface { box-shadow: 0 1px 1px rgba(17,17,19,.015); }
+html[data-theme="light"] .os-shell .bg-surface { box-shadow: 0 2px 8px rgba(17,17,19,.08); }
 html[data-theme="light"] .os-shell .border-border { border-color: var(--border); }
 html[data-theme="light"] .os-shell header { box-shadow: 0 1px 0 rgba(17,17,19,.02); }
 

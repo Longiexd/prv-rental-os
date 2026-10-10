@@ -7,6 +7,7 @@ from datetime import date, datetime, timedelta
 from fastapi import APIRouter, Query
 
 from app.odoo_client import odoo
+from app.verticals.car_rental.eligibility import fleet_eligibility
 
 
 router = APIRouter(
@@ -148,6 +149,9 @@ def classify_vehicle_state(state_label: str | None) -> str:
     if "loué" in raw or "loue" in raw or "rented" in raw:
         return "rented"
 
+    if "indispon" in raw or "unavailable" in raw:
+        return "other"
+
     if "disponible" in raw or "available" in raw or "ready" in raw:
         return "available"
 
@@ -175,6 +179,7 @@ def get_fleet_utilization() -> dict:
     rented = 0
     available = 0
 
+    eligibility = fleet_eligibility([vehicle["id"] for vehicle in vehicles])
     for vehicle in vehicles:
         state = classify_vehicle_state(
             many2one_name(vehicle.get("state_id"))
@@ -182,7 +187,7 @@ def get_fleet_utilization() -> dict:
 
         if state == "rented":
             rented += 1
-        elif state == "available":
+        elif state == "available" and eligibility[vehicle["id"]]["eligible"]:
             available += 1
 
     utilization = (

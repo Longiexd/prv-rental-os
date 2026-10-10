@@ -63,7 +63,7 @@ class FakeOdoo:
 class AnalyticsTests(unittest.TestCase):
     def get_report(self, vehicle_id=None):
         self.odoo = FakeOdoo()
-        with patch.object(analytics, "odoo", self.odoo):
+        with patch.object(analytics, "odoo", self.odoo), patch.object(analytics, "fleet_eligibility", side_effect=lambda ids: {i: {"eligible": True} for i in ids}):
             return analytics.get_analytics(year=2026, start_date=date(2026, 1, 1),
                                            end_date=date(2026, 12, 31), vehicle_id=vehicle_id)
 

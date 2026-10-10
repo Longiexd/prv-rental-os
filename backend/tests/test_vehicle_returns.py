@@ -14,6 +14,13 @@ from app.verticals.car_rental.returns import RETURN_RECORD_KEY, can_return, retu
 from app.verticals.car_rental.states import PICKED_UP_TAG, RETURNED_TAG, booking_state
 
 
+@pytest.fixture(autouse=True)
+def valid_fleet_evidence():
+    # Return retry/state tests use eligible vehicles; blocked returns are tested separately.
+    with patch.object(cars, "ensure_eligible", return_value={"eligible": True}):
+        yield
+
+
 def booking(order_id=42, **changes):
     return {"id": order_id, "name": f"S{order_id}", "state": "sale", "partner_id": [3, "Test client"],
             "date_order": str(date.today() - timedelta(days=2)),
@@ -258,3 +265,17 @@ def test_invalid_next_state_does_not_write(database, next_state):
         cars.confirm_return(4, request(next_state=next_state))
     assert error.value.status_code == 400
     assert database.writes == []
+
+
+@pytest.mark.parametrize("next_state", ["Nettoyage", "Maintenance"])
+def test_expired_evidence_does_not_prevent_recording_a_real_return(database, next_state):
+    with patch.object(cars, "ensure_eligible", side_effect=HTTPException(409, "Expired")) as check:
+        cars.confirm_return(4, request(next_state=next_state))
+    check.assert_not_called()
+    assert database.vehicle["odometer"] == 12500
+
+
+def test_return_cannot_release_an_ineligible_car_as_available(database):
+    with patch.object(cars, "ensure_eligible", side_effect=HTTPException(409, "Expired")):
+        with pytest.raises(HTTPException): cars.confirm_return(4, request(next_state="Disponible"))
+    assert database.writes == [] and database.odometer_history == []

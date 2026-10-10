@@ -37,7 +37,12 @@ class IdentityFields(BaseModel):
         return value
 
 
-class DocumentUpload(IdentityFields):
+class FleetEvidenceFields(IdentityFields):
+    valid_from: date | None = None
+    payment_confirmed: bool = False
+
+
+class DocumentUpload(FleetEvidenceFields):
     kind: str = Field(min_length=1, max_length=40)
     content: str = Field(min_length=1, max_length=819200)
     filename: str = Field(min_length=1, max_length=200)
@@ -46,7 +51,7 @@ class DocumentUpload(IdentityFields):
     nationality: str = Field(default="", max_length=100)
 
 
-class DocumentUpdate(IdentityFields):
+class DocumentUpdate(FleetEvidenceFields):
     number: str = Field(default="", max_length=100)
     expiry_date: date | None = None
     verified: bool = False
@@ -81,6 +86,10 @@ def metadata(attachment):
     try:
         if value.get("expiry_date"):
             date.fromisoformat(value["expiry_date"])
+        if value.get("valid_from"):
+            date.fromisoformat(value["valid_from"])
+        if not isinstance(value.get("payment_confirmed", False), bool):
+            return None
         if value.get("birth_date") and date.fromisoformat(value["birth_date"]) > date.today():
             return None
     except (ValueError, TypeError):
@@ -112,13 +121,14 @@ def checklist_from_records(records, kinds, scope=None):
         item = {"kind": kind, "label": label, "status": "missing", "id": None,
                 "filename": None, "number": "", "expiry_date": None, "verified": False, "checksum": None,
                 "nationality": "", "birth_date": None, "reminder_date": None,
-                "optional": kind in {"lease", "service_contract"}}
+                "optional": kind in {"lease", "service_contract"}, "valid_from": None, "payment_confirmed": False}
         if kind in latest:
             attachment, value = latest[kind]
             expired = bool(value.get("expiry_date") and value["expiry_date"] < date.today().isoformat())
             item.update(id=attachment["id"], filename=attachment["name"], number=value["number"], checksum=attachment.get("checksum"),
                         expiry_date=value.get("expiry_date"), verified=value["verified"],
                         nationality=value.get("nationality", ""), birth_date=value.get("birth_date"),
+                        valid_from=value.get("valid_from"), payment_confirmed=value.get("payment_confirmed", False),
                         reminder_date=expiry_reminder(date.fromisoformat(value["expiry_date"])) if value.get("expiry_date") else None,
                         status="expired" if expired else "verified" if value["verified"] else "uploaded")
         documents.append(item)
@@ -202,7 +212,10 @@ def document_router(model: Literal["res.partner", "fleet.vehicle", "sale.order"]
         if (model == "res.partner" or scope == "additional_driver") and data.kind in ("cin", "passport"):
             value.update(nationality=data.nationality.strip(), birth_date=data.birth_date.isoformat() if data.birth_date else None)
         if model == "fleet.vehicle":
-            value["reminder_date"] = expiry_reminder(data.expiry_date)
+            if data.valid_from and data.expiry_date and data.valid_from > data.expiry_date:
+                raise HTTPException(422, "Coverage start must be before its expiry date.")
+            value.update(valid_from=data.valid_from.isoformat() if data.valid_from else None,
+                         payment_confirmed=data.payment_confirmed, reminder_date=expiry_reminder(data.expiry_date))
         attachment_id = save_attachment({
             "name": f"{data.kind}.{extension}", "type": "binary", "datas": data.content,
             "mimetype": mime, "res_model": model, "res_id": record_id, "public": False,
@@ -222,6 +235,14 @@ def document_router(model: Literal["res.partner", "fleet.vehicle", "sale.order"]
         value.update(number=data.number.strip(), verified=data.verified,
                      expiry_date=data.expiry_date.isoformat() if data.expiry_date else None)
         if model == "fleet.vehicle":
+            if data.valid_from and data.expiry_date and data.valid_from > data.expiry_date:
+                raise HTTPException(422, "Coverage start must be before its expiry date.")
+            if "valid_from" in data.model_fields_set:
+                value["valid_from"] = data.valid_from.isoformat() if data.valid_from else None
+            if "payment_confirmed" in data.model_fields_set:
+                value["payment_confirmed"] = data.payment_confirmed
+            if value.get("valid_from") and data.expiry_date and value["valid_from"] > data.expiry_date.isoformat():
+                raise HTTPException(422, "Coverage start must be before its expiry date.")
             value["reminder_date"] = expiry_reminder(data.expiry_date)
         # Older callers omit these optional fields; preserve their saved contact data.
         if (model == "res.partner" or scope == "additional_driver") and value["kind"] in ("cin", "passport"):

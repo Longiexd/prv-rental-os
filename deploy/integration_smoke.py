@@ -85,6 +85,31 @@ assert current["odometer"] == 25 and any(row["id"] == service_id and row["state"
 assert not any(alert["kind"] == "oil_change" for alert in current["alerts"])
 
 
+phase("checking compliance gates and native unavailable state as the company operator")
+expect(request("POST", f"/cars/{vehicle_id}/mark-available", tokens[0]), 409, "Missing required evidence blocks availability")
+for kind in ("insurance", "registration", "technical_inspection", "vignette", "operating_permit"):
+    expiry = (date.today() + timedelta(days=90)).isoformat() if kind not in {"registration", "operating_permit"} else None
+    response = request("POST", f"/cars/{vehicle_id}/documents", tokens[0], json={"kind": kind, "filename": "ci.pdf",
+        "content": base64.b64encode(b"%PDF-1.7\nCI legal evidence").decode(), "number": "CI-VALID", "expiry_date": expiry, "payment_confirmed": True})
+    expect(response, 200, "Required Fleet evidence upload")
+    document_id = response.json()["attachment_id"]
+    expect(request("PATCH", f"/cars/{vehicle_id}/documents/{document_id}", tokens[0], json={
+        "number": "CI-VALID", "expiry_date": expiry, "verified": True, "payment_confirmed": True}), 200, "Required Fleet evidence verification")
+response = request("GET", "/cars/care", tokens[0])
+expect(response, 200, "Eligible Fleet readback")
+assert next(row for row in response.json()["vehicles"] if row["id"] == vehicle_id)["eligible"]
+expect(request("POST", f"/cars/{vehicle_id}/mark-available", tokens[0]), 200, "Reviewed vehicle becomes available")
+# A new expired policy must revoke availability, even though the older scan remains archived.
+response = request("POST", f"/cars/{vehicle_id}/documents", tokens[0], json={"kind": "insurance", "filename": "ci.pdf",
+    "content": base64.b64encode(b"%PDF-1.7\nCI expired policy").decode(), "number": "CI-EXPIRED", "expiry_date": (date.today() - timedelta(days=1)).isoformat()})
+expect(response, 200, "Expired policy saved truthfully")
+assert response.json()["fleet_sync"]["state_synced"]
+response = request("GET", "/cars", tokens[0])
+expect(response, 200, "Blocked Fleet readback")
+assert next(row for row in response.json() if row["id"] == vehicle_id)["status"] == "Indisponible"
+expect(request("POST", f"/cars/{vehicle_id}/mark-available", tokens[0]), 409, "Expired coverage cannot be released")
+
+
 def sample(index):
     started = time.monotonic()
     response = request("GET", "/cars", tokens[index % 2])
